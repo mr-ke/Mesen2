@@ -26,7 +26,7 @@
 		<AvaloniaNameGeneratorIsEnabled>false</AvaloniaNameGeneratorIsEnabled>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64' Or '$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64' Or '$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64' Or '$(RuntimeIdentifier)'=='win-x64' Or '$(RuntimeIdentifier)'=='win-arm64'">
 		<SolutionDir>..</SolutionDir>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)'=='Debug'">
@@ -649,16 +649,20 @@
     </AvaloniaXaml>
   </ItemGroup>
 
-  <Target Name="PreBuildWindows" BeforeTargets="PreBuildEvent" Condition="'$(RuntimeIdentifier)'=='win-x64'">
+  <Target Name="PreBuildWindows" BeforeTargets="PreBuildEvent" Condition="'$(RuntimeIdentifier)'=='win-x64' And '$(OS)'=='Windows_NT'">
     <Exec Command="cd $(OutDir)&#xD;&#xA;rd Dependencies /s /q&#xD;&#xA;md Dependencies&#xD;&#xA;xcopy /s $(ProjectDir)Dependencies\* Dependencies&#xD;&#xA;copy libHarfBuzzSharp.dll Dependencies&#xD;&#xA;copy libSkiaSharp.dll Dependencies&#xD;&#xA;copy MesenCore.dll Dependencies&#xD;&#xA;cd Dependencies&#xD;&#xA;del ..\Dependencies.zip&#xD;&#xA;powershell Compress-Archive -Path * -DestinationPath '..\Dependencies.zip' -Force&#xD;&#xA;copy ..\Dependencies.zip $(ProjectDir)" />
   </Target>
 
 	<Target Name="PreBuildLinux" BeforeTargets="PreBuildEvent" Condition="'$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
-    <Exec Command="cd $(OutDir)&#xD;&#xA;rm -rf Dependencies&#xD;&#xA;mkdir Dependencies&#xD;&#xA;cp -R $(ProjectDir)/Dependencies/* Dependencies&#xD;&#xA;cp libHarfBuzzSharp.so Dependencies&#xD;&#xA;cp libSkiaSharp.so Dependencies&#xD;&#xA;cp MesenCore.so Dependencies&#xD;&#xA;cd Dependencies&#xD;&#xA;rm ../Dependencies.zip&#xD;&#xA;zip -r ../Dependencies.zip *&#xD;&#xA;cp ../Dependencies.zip $(ProjectDir)" />
+    <Exec Command="cd $(OutDir)&#xD;&#xA;rm -rf Dependencies&#xD;&#xA;mkdir Dependencies&#xD;&#xA;cp -R $(ProjectDir)/Dependencies/* Dependencies&#xD;&#xA;test -f libHarfBuzzSharp.so &amp;&amp; cp libHarfBuzzSharp.so Dependencies || true&#xD;&#xA;test -f libSkiaSharp.so &amp;&amp; cp libSkiaSharp.so Dependencies || true&#xD;&#xA;test -f MesenCore.so &amp;&amp; cp MesenCore.so Dependencies || true&#xD;&#xA;cd Dependencies&#xD;&#xA;rm -f ../Dependencies.zip&#xD;&#xA;python3 /home/gfs/Mesen2/create_zip.py ../Dependencies.zip .&#xD;&#xA;test -f ../Dependencies.zip &amp;&amp; cp ../Dependencies.zip $(ProjectDir) || true" />
   </Target>
   
 	<Target Name="PreBuildOsx" BeforeTargets="PreBuildEvent" Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64'">
     <Exec Command="cp ./Assets/MesenIcon.icns $(OutDir)&#xD;&#xA;cd $(OutDir)&#xD;&#xA;rm -R Dependencies&#xD;&#xA;mkdir Dependencies&#xD;&#xA;cp -R $(ProjectDir)/Dependencies/* Dependencies&#xD;&#xA;cp libHarfBuzzSharp.dylib Dependencies&#xD;&#xA;cp libSkiaSharp.dylib Dependencies&#xD;&#xA;cp MesenCore.dylib Dependencies&#xD;&#xA;cd Dependencies&#xD;&#xA;rm ../Dependencies.zip&#xD;&#xA;zip -r ../Dependencies.zip *&#xD;&#xA;cp ../Dependencies.zip $(ProjectDir)" />
+  </Target>
+
+	<Target Name="PreBuildWindowsCross" BeforeTargets="PreBuildEvent" Condition="('$(RuntimeIdentifier)'=='win-x64' Or '$(RuntimeIdentifier)'=='win-arm64') And '$(OS)'=='Unix'">
+    <Exec Command="cd $(OutDir)&#xD;&#xA;rm -rf Dependencies&#xD;&#xA;mkdir Dependencies&#xD;&#xA;cp -R $(ProjectDir)/Dependencies/* Dependencies&#xD;&#xA;test -f libHarfBuzzSharp.dll &amp;&amp; cp libHarfBuzzSharp.dll Dependencies || true&#xD;&#xA;test -f libSkiaSharp.dll &amp;&amp; cp libSkiaSharp.dll Dependencies || true&#xD;&#xA;test -f MesenCore.dll &amp;&amp; cp MesenCore.dll Dependencies || true&#xD;&#xA;cd Dependencies&#xD;&#xA;rm -f ../Dependencies.zip&#xD;&#xA;python3 /home/gfs/Mesen2/create_zip.py ../Dependencies.zip .&#xD;&#xA;test -f ../Dependencies.zip &amp;&amp; cp ../Dependencies.zip $(ProjectDir) || true" />
   </Target>
 
 </Project>
