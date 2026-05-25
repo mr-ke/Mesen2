@@ -20,11 +20,21 @@
 #include "InteropNotificationListeners.h"
 
 #ifdef _WIN32
+	#include <windows.h>
+#endif
+
+#if defined(_WIN32) && !defined(__MINGW32__)
 	#include "Windows/Renderer.h"
 	#include "Windows/SoundManager.h"
 	#include "Windows/WindowsKeyManager.h"
 	#include "Windows/WindowsMouseManager.h"
+#elif defined(__MINGW32__)
+	#include "Sdl/SdlRenderer.h"
+	#include "Sdl/SdlSoundManager.h"
+	#include "Sdl/MinGWKeyManager.h"
+	#include "Sdl/MinGWMouseManager.h"
 #elif __APPLE__
+	#include "Sdl/SdlRenderer.h"
 	#include "Sdl/SdlSoundManager.h"
 	#include "MacOS/MacOSKeyManager.h"
 	#include "MacOS/MacOSMouseManager.h"
@@ -90,10 +100,8 @@ extern "C" {
 				if(softwareRenderer) {
 					_renderer.reset(new SoftwareRenderer(_emu.get()));
 				} else {
-					#ifdef _WIN32
+					#if defined(_WIN32) && !defined(__MINGW32__)
 						_renderer.reset(new Renderer(_emu.get(), (HWND)_viewerHandle));
-					#elif __APPLE__
-						_renderer.reset(new SoftwareRenderer(_emu.get()));
 					#else
 						_renderer.reset(new SdlRenderer(_emu.get(), _viewerHandle));
 					#endif
@@ -101,7 +109,7 @@ extern "C" {
 			} 
 
 			if(!noAudio) {
-				#ifdef _WIN32
+				#if defined(_WIN32) && !defined(__MINGW32__)
 					_soundManager.reset(new SoundManager(_emu.get(), (HWND)_windowHandle));
 				#else
 					_soundManager.reset(new SdlSoundManager(_emu.get()));
@@ -109,9 +117,13 @@ extern "C" {
 			}
 
 			if(!noInput) {
-				#ifdef _WIN32
+				#if defined(_WIN32) && !defined(__MINGW32__)
 					_keyManager.reset(new WindowsKeyManager(_emu.get(), (HWND)_windowHandle));
 					_mouseManager.reset(new WindowsMouseManager());
+				#elif defined(__MINGW32__)
+					OutputDebugStringA("[EmuApi] Creating MinGWKeyManager\n");
+					_keyManager.reset(new MinGWKeyManager(_emu.get(), _windowHandle));
+					_mouseManager.reset(new MinGWMouseManager(_windowHandle));
 				#elif __APPLE__
 					_keyManager.reset(new MacOSKeyManager(_emu.get()));
 					_mouseManager.reset(new MacOSMouseManager());
@@ -119,8 +131,9 @@ extern "C" {
 					_keyManager.reset(new LinuxKeyManager(_emu.get()));
 					_mouseManager.reset(new LinuxMouseManager(_windowHandle));
 				#endif
-					
+				
 				KeyManager::RegisterKeyManager(_keyManager.get());
+				OutputDebugStringA("[EmuApi] KeyManager registered\n");
 			}
 		}
 	}

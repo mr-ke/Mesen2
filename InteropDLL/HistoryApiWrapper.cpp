@@ -11,9 +11,12 @@
 #include "Shared/Video/SoftwareRenderer.h"
 #include "InteropNotificationListeners.h"
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 	#include "Windows/Renderer.h"
 	#include "Windows/SoundManager.h"
+#elif defined(__MINGW32__)
+	#include "Sdl/SdlRenderer.h"
+	#include "Sdl/SdlSoundManager.h"
 #elif __APPLE__
 	#include "Sdl/SdlSoundManager.h"
 #else
@@ -65,19 +68,15 @@ extern "C"
 		if(_softwareRenderer) {
 			_historyRenderer.reset(new SoftwareRenderer(_historyPlayer.get()));
 		} else {
-			#ifdef _WIN32
+			#if defined(_WIN32) && !defined(__MINGW32__)
 				_historyRenderer.reset(new Renderer(_historyPlayer.get(), (HWND)viewerHandle));
-			#elif __APPLE__
-				_historyRenderer.reset(new SoftwareRenderer(_historyPlayer.get()));
 			#else
 				_historyRenderer.reset(new SdlRenderer(_historyPlayer.get(), viewerHandle));
 			#endif
 		}
 
-		#ifdef _WIN32
+		#if defined(_WIN32) && !defined(__MINGW32__)
 			_historySoundManager.reset(new SoundManager(_historyPlayer.get(), (HWND)windowHandle));
-		#elif __APPLE__
-			_historySoundManager.reset(new SdlSoundManager(_historyPlayer.get()));
 		#else
 			_historySoundManager.reset(new SdlSoundManager(_historyPlayer.get()));
 		#endif

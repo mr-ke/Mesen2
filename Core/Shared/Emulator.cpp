@@ -49,6 +49,10 @@
 #include "Shared/MemoryOperationType.h"
 #include "Shared/EventType.h"
 
+#ifdef __MINGW32__
+	#include <windows.h>
+#endif
+
 Emulator::Emulator() :
 	_settings(new EmuSettings(this)),
 	_debugHud(new DebugHud()),

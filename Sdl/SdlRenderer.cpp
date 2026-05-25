@@ -41,7 +41,13 @@ void SdlRenderer::SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle
 bool SdlRenderer::Init()
 {
 	const char* originalHint = SDL_GetHint("SDL_VIDEODRIVER");
-	SDL_SetHint("SDL_VIDEODRIVER", "x11");
+	
+	#ifdef _WIN32
+		SDL_SetHint("SDL_VIDEODRIVER", "windows");
+	#else
+		SDL_SetHint("SDL_VIDEODRIVER", "x11");
+	#endif
+	
 	if(SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
 		LogSdlError("[SDL] Failed to initialize video subsystem.");
 		return false;
@@ -49,7 +55,11 @@ bool SdlRenderer::Init()
 
 	_sdlWindow = SDL_CreateWindowFrom(_windowHandle);
 	if(!_sdlWindow) {
-		MessageManager::Log("[SDL] Failed to create window from handle with SDL_VIDEODRIVER=x11, retry with default...");
+		#ifdef _WIN32
+			MessageManager::Log("[SDL] Failed to create window from handle with SDL_VIDEODRIVER=windows, retry with default...");
+		#else
+			MessageManager::Log("[SDL] Failed to create window from handle with SDL_VIDEODRIVER=x11, retry with default...");
+		#endif
 
 		SDL_QuitSubSystem(SDL_INIT_VIDEO);
 		SDL_SetHint("SDL_VIDEODRIVER", originalHint);
@@ -73,7 +83,26 @@ bool SdlRenderer::Init()
 
 	uint32_t baseFlags = _vsyncEnabled ? SDL_RENDERER_PRESENTVSYNC : 0;
 
+	#ifdef _WIN32
+	MessageManager::Log("[SDL] Attempting to create Direct3D renderer...");
+	SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d");
 	_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+	
+	if(!_sdlRenderer) {
+		MessageManager::Log("[SDL] Direct3D failed, trying OpenGL...");
+		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+		_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+	}
+	
+	if(!_sdlRenderer) {
+		MessageManager::Log("[SDL] OpenGL failed, trying default...");
+		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "");
+		_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+	}
+	#else
+	_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+	#endif
+	
 	if(!_sdlRenderer) {
 		LogSdlError("[SDL] Failed to create accelerated renderer.");
 
@@ -83,6 +112,12 @@ bool SdlRenderer::Init()
 			LogSdlError("[SDL] Failed to create software renderer.");
 			return false;
 		}
+	}
+	
+	SDL_RendererInfo info;
+	if(SDL_GetRendererInfo(_sdlRenderer, &info) == 0) {
+		string msg = "[SDL] Using renderer: " + string(info.name);
+		MessageManager::Log(msg.c_str());
 	}
 
 	return true;

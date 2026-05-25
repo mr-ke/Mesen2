@@ -1,0 +1,37 @@
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc-posix)
+set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++-posix)
+set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthreads")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mthreads")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mthreads")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -mthreads")
+
+set(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+set(WIN32 TRUE)
+set(MINGW TRUE)
+
+set(CMAKE_SHARED_LIBRARY_PREFIX "")
+set(CMAKE_SHARED_LIBRARY_SUFFIX ".dll")
+
+set(SDL2_INCLUDE_DIR "/usr/x86_64-w64-mingw32/include/SDL2")
+set(SDL2_LIBRARY "/usr/x86_64-w64-mingw32/lib/libSDL2.dll.a")
+set(SDL2_MAIN_LIBRARY "/usr/x86_64-w64-mingw32/lib/libSDL2main.a")
+
+set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+set(SDL2_LIBRARIES ${SDL2_LIBRARY} ${SDL2_MAIN_LIBRARY})
+
+set(ENV{PKG_CONFIG_PATH} "/usr/x86_64-w64-mingw32/lib/pkgconfig")
+
+message(STATUS "Cross-compiling for Windows using MinGW-w64 (POSIX threads)")
+message(STATUS "C Compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER}")

@@ -40,6 +40,10 @@
 #include "NES/Input/VirtualBoyController.h"
 #include "NES/Epsm.h"
 
+#ifdef __MINGW32__
+	#include <windows.h>
+#endif
+
 NesControlManager::NesControlManager(NesConsole* console) : BaseControlManager(console->GetEmulator(), CpuType::Nes)
 {
 	_console = console;
@@ -51,22 +55,22 @@ NesControlManager::~NesControlManager()
 
 shared_ptr<BaseControlDevice> NesControlManager::CreateControllerDevice(ControllerType type, uint8_t port)
 {
-	shared_ptr<BaseControlDevice> device;
-	
-	ControllerConfig controllers[4];
 	NesConfig& cfg = _emu->GetSettings()->GetNesConfig();
 	KeyMappingSet keys;
+	ControllerConfig controllers[4];
+
 	switch(port) {
 		default:
 		case 0: keys = cfg.Port1.Keys; break;
 		case 1: keys = cfg.Port2.Keys; break;
 		case BaseControlDevice::ExpDevicePort: keys = cfg.ExpPort.Keys; break;
 
-		//Used by VS system
 		case 2: keys = cfg.Port1SubPorts[2].Keys; break;
 		case 3: keys = cfg.Port1SubPorts[3].Keys; break;
 	}
 
+	shared_ptr<BaseControlDevice> device;
+	
 	switch(type) {
 		case ControllerType::None: break;
 		
@@ -152,7 +156,6 @@ void NesControlManager::UpdateControlDevices()
 {
 	NesConfig& cfg = _emu->GetSettings()->GetNesConfig();
 	if(_emu->GetSettings()->IsEqual(_prevConfig, cfg) && _controlDevices.size() > 0) {
-		//Do nothing if configuration is unchanged
 		return;
 	}
 

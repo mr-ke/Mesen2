@@ -2,7 +2,7 @@
 #include "PlatformUtilities.h"
 
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 void PlatformUtilities::DisableScreensaver()

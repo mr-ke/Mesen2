@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Mesen.Config.Shortcuts;
@@ -47,7 +47,7 @@ namespace Mesen.Config
 		[Reactive] public HistoryViewerConfig HistoryViewer { get; set; } = new();
 		[Reactive] public MainWindowConfig MainWindow { get; set; } = new();
 		
-		public DefaultKeyMappingType DefaultKeyMappings { get; set; } = DefaultKeyMappingType.Xbox | DefaultKeyMappingType.ArrowKeys;
+		[Reactive] public DefaultKeyMappingType DefaultKeyMappings { get; set; } = DefaultKeyMappingType.WasdKeys | DefaultKeyMappingType.ArrowKeys;
 
 		public Configuration()
 		{
@@ -134,15 +134,40 @@ namespace Mesen.Config
 
 		public void InitializeDefaults()
 		{
-			if(ConfigUpgrade == (int)ConfigUpgradeHint.FirstRun) {
-				Snes.InitializeDefaults(DefaultKeyMappings);
+			bool needInit = ConfigUpgrade == (int)ConfigUpgradeHint.FirstRun;
+			
+			// Ensure DefaultKeyMappings has at least one value
+			if(DefaultKeyMappings == DefaultKeyMappingType.None) {
+				DefaultKeyMappings = DefaultKeyMappingType.Xbox | DefaultKeyMappingType.ArrowKeys;
+			}
+			
+			// Always initialize key mappings if they are empty
+			if(Nes.Port1.Mapping1.A == 0) {
 				Nes.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Snes.Port1.Mapping1.A == 0) {
+				Snes.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Gameboy.Controller.Mapping1.A == 0) {
 				Gameboy.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Gba.Controller.Mapping1.A == 0) {
 				Gba.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(PcEngine.Port1.Mapping1.A == 0) {
 				PcEngine.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Sms.Port1.Mapping1.A == 0) {
 				Sms.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Cv.Port1.Mapping1.A == 0) {
 				Cv.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Ws.ControllerHorizontal.Mapping1.A == 0) {
 				Ws.InitializeDefaults(DefaultKeyMappings);
+			}
+			
+			if(needInit) {
 				ConfigUpgrade = (int)ConfigUpgradeHint.NextValue - 1;
 			}
 			Preferences.InitializeDefaultShortcuts();
