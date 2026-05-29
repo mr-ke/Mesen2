@@ -45,6 +45,8 @@ namespace Mesen.Debugger.ViewModels
 		[Reactive] public TASEditorDockFactory DockFactory { get; private set; }
 		[Reactive] public IRootDock DockLayout { get; private set; }
 
+		public Window? Window { get; set; }
+
 		[Reactive] public List<ContextMenuAction> ToolbarItems { get; private set; } = new();
 		
 		[Reactive] public List<ContextMenuAction> FileMenuItems { get; private set; } = new();
@@ -101,11 +103,11 @@ namespace Mesen.Debugger.ViewModels
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.Import,
-					OnClick = () => { }
+					OnClick = () => ImportMMO()
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.Export,
-					OnClick = () => { }
+					OnClick = () => ExportMMO()
 				},
 			};
 
@@ -126,6 +128,22 @@ namespace Mesen.Debugger.ViewModels
 					OnClick = () => ResetLayout()
 				},
 			};
+		}
+
+		private async void ImportMMO()
+		{
+			string? file = await FileDialogHelper.OpenFile(null, Window, "*.mmo", "*.MMO");
+			if(!string.IsNullOrEmpty(file)) {
+				FrameList.ImportMMO(file);
+			}
+		}
+
+		private async void ExportMMO()
+		{
+			string? file = await FileDialogHelper.SaveFile(null, null, Window, "*.mmo", "*.MMO");
+			if(!string.IsNullOrEmpty(file)) {
+				FrameList.ExportMMO(file);
+			}
 		}
 
 		public void ResetLayout()

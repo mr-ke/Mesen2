@@ -1,6 +1,7 @@
 using Avalonia.Collections;
 using Mesen.Config;
 using Mesen.Debugger.Utilities;
+using Mesen.Debugger.Windows;
 using Mesen.Interop;
 using Mesen.Utilities;
 using Mesen.ViewModels;
@@ -8,6 +9,7 @@ using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 
 namespace Mesen.Debugger.ViewModels
 {
@@ -16,6 +18,7 @@ namespace Mesen.Debugger.ViewModels
 		[Reactive] public bool IsPaused { get; private set; } = false;
 		[Reactive] public int CurrentFrame { get; private set; } = 0;
 		[Reactive] public int TotalFrames { get; private set; } = 100;
+		[Reactive] public bool IsPlaying { get; private set; } = false;
 
 		public CpuType CpuType { get; }
 		public TASEditorWindowViewModel TASEditor { get; }
@@ -63,6 +66,62 @@ namespace Mesen.Debugger.ViewModels
 
 		public void NextMarker()
 		{
+		}
+
+		public void PlayTAS()
+		{
+			if(!TASEditor.FrameList.HasImportedData) {
+				return;
+			}
+
+			try {
+				if(IsPaused) {
+					EmuApi.Resume();
+					IsPaused = false;
+				}
+
+				string tempFile = Path.Combine(Path.GetTempPath(), "TAS_Temp.mmo");
+				TASEditor.FrameList.ExportMMO(tempFile);
+				
+				RecordApi.MoviePlay(tempFile);
+				IsPlaying = true;
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Play TAS failed: {ex.Message}");
+			}
+		}
+
+		public void StopTAS()
+		{
+			if(IsPlaying) {
+				RecordApi.MovieStop();
+				EmuApi.Pause();
+				IsPlaying = false;
+				IsPaused = true;
+				
+				UpdateFrameCount();
+				TASEditor.FrameList.SelectFrame(CurrentFrame);
+			}
+		}
+
+		public void CheckPlaybackState()
+		{
+			if(IsPlaying && !RecordApi.MoviePlaying()) {
+				EmuApi.Pause();
+				IsPlaying = false;
+				IsPaused = true;
+				
+				if(TASEditor.FrameList.HasImportedData && TASEditor.FrameList.Frames.Count > 0) {
+					CurrentFrame = TASEditor.FrameList.Frames.Count - 1;
+				} else {
+					UpdateFrameCount();
+				}
+				
+				TASEditor.FrameList.SelectFrame(CurrentFrame);
+			}
+
+			if(IsPlaying && EmuApi.IsPaused()) {
+				EmuApi.Resume();
+			}
 		}
 
 		public void UpdateFrameCount()

@@ -37,6 +37,7 @@ namespace Mesen.Debugger.Windows
 #endif
 
 			_model = new TASEditorWindowViewModel(cpuType);
+			_model.Window = this;
 			DataContext = _model;
 
 			if(Design.IsDesignMode) {
@@ -47,6 +48,7 @@ namespace Mesen.Debugger.Windows
 
 			_updateTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(50), DispatcherPriority.Normal, (s, e) => {
 				_model.PlaybackControl.UpdateFrameCount();
+				_model.PlaybackControl.CheckPlaybackState();
 			});
 		}
 

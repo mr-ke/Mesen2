@@ -29,6 +29,8 @@ namespace Mesen.Debugger.ViewModels
 
 		public CpuType CpuType { get; }
 		public TASEditorWindowViewModel TASEditor { get; }
+		public string? ImportedMMOPath { get; private set; }
+		public bool HasImportedData { get; private set; } = false;
 
 		[Obsolete("For designer only")]
 		public TASFrameListViewModel() : this(CpuType.Snes, new()) { }
@@ -79,7 +81,7 @@ namespace Mesen.Debugger.ViewModels
 
 		public void SelectFrame(int frameNumber)
 		{
-			if(frameNumber >= Frames.Count) {
+			if(!HasImportedData && frameNumber >= Frames.Count) {
 				UpdateFrameList();
 			}
 			
@@ -120,6 +122,54 @@ namespace Mesen.Debugger.ViewModels
 				},
 			}));
 		}
+
+		public void ImportMMO(string mmoFilePath)
+		{
+			try {
+				List<TASInputFrame> inputFrames = MMOFileHandler.ImportMMO(mmoFilePath);
+				
+				List<TASFrameViewModel> frames = new List<TASFrameViewModel>();
+				for(int i = 0; i < inputFrames.Count; i++) {
+					TASFrameViewModel frame = new TASFrameViewModel(i);
+					TASInputFrame input = inputFrames[i];
+					frame.SetButtonState(
+						input.ButtonA, input.ButtonB, input.Select, input.Start,
+						input.Up, input.Down, input.Left, input.Right
+					);
+					frames.Add(frame);
+				}
+
+				Frames.Replace(frames);
+				ImportedMMOPath = mmoFilePath;
+				HasImportedData = true;
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Import MMO failed: {ex.Message}");
+			}
+		}
+
+		public void ExportMMO(string mmoFilePath)
+		{
+			try {
+				List<TASInputFrame> inputFrames = new List<TASInputFrame>();
+				foreach(TASFrameViewModel frame in Frames) {
+					TASInputFrame input = new TASInputFrame {
+						ButtonA = frame.ButtonA,
+						ButtonB = frame.ButtonB,
+						Select = frame.ButtonS,
+						Start = frame.ButtonT,
+						Up = frame.ButtonU,
+						Down = frame.ButtonD,
+						Left = frame.ButtonL,
+						Right = frame.ButtonR
+					};
+					inputFrames.Add(input);
+				}
+
+				MMOFileHandler.ExportMMO(mmoFilePath, inputFrames, ImportedMMOPath);
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Export MMO failed: {ex.Message}");
+			}
+		}
 	}
 
 	public class TASFrameViewModel : INotifyPropertyChanged
@@ -151,6 +201,20 @@ namespace Mesen.Debugger.ViewModels
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonD)));
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonL)));
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonR)));
+		}
+
+		public void SetButtonState(string buttonA, string buttonB, string buttonS, string buttonT, 
+			string buttonU, string buttonD, string buttonL, string buttonR)
+		{
+			ButtonA = buttonA;
+			ButtonB = buttonB;
+			ButtonS = buttonS;
+			ButtonT = buttonT;
+			ButtonU = buttonU;
+			ButtonD = buttonD;
+			ButtonL = buttonL;
+			ButtonR = buttonR;
+			Refresh();
 		}
 
 		public TASFrameViewModel(int frameNumber)

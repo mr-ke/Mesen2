@@ -26,6 +26,28 @@
 			
 			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
 				<c:IconButton
+					ToolTip.Tip="Play TAS"
+					Click="OnPlayTAS"
+					Icon="Assets/MediaPlay.png"
+					Width="50"
+					Height="30"
+					IsVisible="{Binding !IsPlaying}"
+				>
+					<TextBlock Text="▶" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
+					ToolTip.Tip="Stop TAS"
+					Click="OnStopTAS"
+					Icon="Assets/MediaStop.png"
+					Width="50"
+					Height="30"
+					IsVisible="{Binding IsPlaying}"
+				>
+					<TextBlock Text="■" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
 					ToolTip.Tip="Send playback to previous marker"
 					Click="OnPreviousMarker"
 					Icon="Assets/PreviousArrow.png"
@@ -48,6 +70,7 @@
 				<c:IconButton
 					ToolTip.Tip="Pause/Unpause Core"
 					Click="OnTogglePause"
+					Icon="Assets/MediaPause.png"
 					Width="50"
 					Height="30"
 				>
