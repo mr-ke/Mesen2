@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using Mesen.Config;
 using Mesen.Config.Shortcuts;
@@ -750,6 +750,14 @@ namespace Mesen.ViewModels
 					IsEnabled = () => IsGameRunning && HistoryApi.HistoryViewerEnabled(),
 					OnClick = () => {
 						ApplicationHelper.GetOrCreateUniqueWindow(null, () => new HistoryViewerWindow());
+					}
+				},
+
+				new MainMenuAction() {
+					ActionType = ActionType.TASEditor,
+					IsEnabled = () => IsGameRunning,
+					OnClick = () => {
+						ApplicationHelper.GetOrCreateUniqueWindow(null, () => new TASEditorWindow(null));
 					}
 				},
 

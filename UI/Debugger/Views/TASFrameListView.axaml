@@ -1,0 +1,58 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:Mesen.Debugger.ViewModels"
+	xmlns:c="using:Mesen.Debugger.Controls"
+	xmlns:du="using:Mesen.Debugger.Utilities"
+	xmlns:l="using:Mesen.Localization"
+	mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="110"
+	VerticalAlignment="Stretch"
+	HorizontalAlignment="Stretch"
+	Focusable="True"
+	x:DataType="vm:TASFrameListViewModel"
+	x:Class="Mesen.Debugger.Views.TASFrameListView"
+>
+	<Design.DataContext>
+		<vm:TASFrameListViewModel />
+	</Design.DataContext>
+
+	<UserControl.Styles>
+		<Style Selector="DataBoxRow ToolTip TextBlock">
+			<Setter Property="FontFamily" Value="{DynamicResource MesenMonospaceFont}" />
+		</Style>
+		<Style Selector="DataBoxRow:selected DataBoxCell TextBlock ToolTip TextBlock">
+			<Setter Property="Foreground" Value="{DynamicResource ToolTipForeground}" />
+		</Style>
+		<Style Selector="DataBoxRow">
+			<Setter Property="Foreground" Value="{Binding RowBrush, DataType={x:Type vm:TASFrameViewModel}}" />
+			<Setter Property="FontStyle" Value="{Binding RowStyle, DataType={x:Type vm:TASFrameViewModel}}" />
+		</Style>
+	</UserControl.Styles>
+
+	<Border BorderThickness="0 1 0 0" BorderBrush="#80808080">
+		<DataBox
+			Items="{Binding Frames}"
+			Selection="{Binding Selection}"
+			GridLinesVisibility="All"
+			SelectionMode="Multiple"
+			SortMode="Multiple"
+			SortCommand="{Binding Sort}"
+			SortState="{Binding SortState}"
+			ColumnWidths="{Binding ColumnWidths}"
+		>
+			<DataBox.Columns>
+				<DataBoxTextColumn ColumnName="Frame" Header="Frame#" Binding="{Binding FrameDisplay, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="60" />
+				<DataBoxTextColumn ColumnName="A" Header="A" Binding="{Binding ButtonA, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="B" Header="B" Binding="{Binding ButtonB, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="S" Header="S" Binding="{Binding ButtonS, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="T" Header="T" Binding="{Binding ButtonT, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="U" Header="U" Binding="{Binding ButtonU, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="D" Header="D" Binding="{Binding ButtonD, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="L" Header="L" Binding="{Binding ButtonL, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTextColumn ColumnName="R" Header="R" Binding="{Binding ButtonR, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+			</DataBox.Columns>
+		</DataBox>
+	</Border>
+</UserControl>

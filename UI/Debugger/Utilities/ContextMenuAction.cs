@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -582,6 +582,8 @@ namespace Mesen.Debugger.Utilities
 		Cheats,
 		[IconFile("HistoryViewer")]
 		HistoryViewer,
+		[IconFile("Movie")]
+		TASEditor,
 		[IconFile("Movie")]
 		Movies,
 		[IconFile("MediaPlay")]

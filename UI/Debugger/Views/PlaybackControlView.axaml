@@ -1,0 +1,79 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:Mesen.Debugger.ViewModels"
+	xmlns:c="using:Mesen.Controls"
+	mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="100"
+	VerticalAlignment="Stretch"
+	HorizontalAlignment="Stretch"
+	x:DataType="vm:PlaybackControlViewModel"
+	x:Class="Mesen.Debugger.Views.PlaybackControlView"
+>
+	<Design.DataContext>
+		<vm:PlaybackControlViewModel />
+	</Design.DataContext>
+
+	<Border BorderThickness="1" BorderBrush="#80808080" Padding="10">
+		<StackPanel Orientation="Vertical" Spacing="10">
+			<TextBlock 
+				Text="{Binding CurrentFrame, StringFormat='Frame: {0}'}"
+				FontSize="14"
+				FontWeight="Bold"
+				HorizontalAlignment="Center"
+			/>
+			
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
+				<c:IconButton
+					ToolTip.Tip="Send playback to previous marker"
+					Click="OnPreviousMarker"
+					Icon="Assets/PreviousArrow.png"
+					Width="50"
+					Height="30"
+				>
+					<TextBlock Text="&lt;&lt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
+					ToolTip.Tip="Rewind 1 frame"
+					Click="OnRewindFrame"
+					Icon="Assets/StepBack.png"
+					Width="50"
+					Height="30"
+				>
+					<TextBlock Text="&lt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
+					ToolTip.Tip="Pause/Unpause Core"
+					Click="OnTogglePause"
+					Width="50"
+					Height="30"
+				>
+					<TextBlock Text="||" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
+					ToolTip.Tip="Advance 1 frame"
+					Click="OnAdvanceFrame"
+					Icon="Assets/StepInto.png"
+					Width="50"
+					Height="30"
+				>
+					<TextBlock Text="&gt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+
+				<c:IconButton
+					ToolTip.Tip="Send playback to next marker"
+					Click="OnNextMarker"
+					Icon="Assets/NextArrow.png"
+					Width="50"
+					Height="30"
+				>
+					<TextBlock Text="&gt;&gt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</c:IconButton>
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</UserControl>

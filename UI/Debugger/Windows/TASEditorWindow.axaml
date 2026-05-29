@@ -1,0 +1,75 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:m="clr-namespace:Mesen"
+	xmlns:vm="using:Mesen.Debugger.ViewModels"
+	xmlns:vmd="using:Mesen.Debugger.ViewModels.DebuggerDock"
+	xmlns:dbg="using:Mesen.Debugger"
+	xmlns:v="using:Mesen.Debugger.Views"
+	xmlns:vd="using:Mesen.Debugger.Views.DebuggerDock"
+	xmlns:c="using:Mesen.Controls"
+	xmlns:l="using:Mesen.Localization"
+	xmlns:dc="using:Mesen.Debugger.Controls"
+	xmlns:du="using:Mesen.Debugger.Utilities"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:id="clr-namespace:Dock.Avalonia;assembly=Dock.Avalonia"
+	xmlns:idc="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
+	xmlns:dm="clr-namespace:Dock.Model;assembly=Dock.Model.Avalonia"
+	xmlns:dmc="clr-namespace:Dock.Model.Controls;assembly=Dock.Model.Avalonia"
+	mc:Ignorable="d"
+	DragDrop.AllowDrop="True"  
+	x:Class="Mesen.Debugger.Windows.TASEditorWindow"
+	x:DataType="vm:TASEditorWindowViewModel"
+	Title="{Binding Title}"
+	Icon="{Binding Icon}"
+	Width="1000" Height="600"
+	x:Name="TASEditor"
+>
+	<Design.DataContext>
+		<vm:TASEditorWindowViewModel />
+	</Design.DataContext>
+
+	<Window.Styles>
+		<Style Selector="TabStrip:singleitem">
+			<Setter Property="IsVisible" Value="False" />
+		</Style>
+		<Style Selector="idc|ToolChromeControl">
+			<Setter Property="Margin" Value="0 0 1 0" />
+		</Style>
+		<Style Selector="idc|ToolControl,idc|DockControl,idc|ToolChromeControl">
+			<Setter Property="(ProportionalStackPanelSplitter.MinimumProportionSize)" Value="60" />
+		</Style>
+	</Window.Styles>
+
+	<Window.DataTemplates>
+		<DataTemplate DataType="{x:Type vmd:BaseToolContainerViewModel}">
+			<vd:ToolContainerView />
+		</DataTemplate>
+		
+		<DataTemplate DataType="{x:Type vm:TASFrameListViewModel}">
+			<v:TASFrameListView />
+		</DataTemplate>
+		<DataTemplate DataType="{x:Type vm:TASInputViewModel}">
+			<v:TASInputView />
+		</DataTemplate>
+		<DataTemplate DataType="{x:Type vm:PlaybackControlViewModel}">
+			<v:PlaybackControlView />
+		</DataTemplate>
+	</Window.DataTemplates>
+	
+	<DockPanel>
+		<c:MesenMenu DockPanel.Dock="Top" Name="ActionMenu">
+			<MenuItem Header="{l:Translate mnuFile}" ItemsSource="{Binding FileMenuItems}" />
+			<MenuItem Header="{l:Translate mnuEdit}" ItemsSource="{Binding EditMenuItems}" />
+			<MenuItem Header="{l:Translate mnuView}" ItemsSource="{Binding ViewMenuItems}" />
+		</c:MesenMenu>
+		<DockPanel DockPanel.Dock="Top">
+			<StackPanel Orientation="Horizontal">
+				<dc:ActionToolbar Items="{Binding ToolbarItems}" />
+			</StackPanel>
+		</DockPanel>
+		
+		<idc:DockControl Layout="{Binding DockLayout}" />
+	</DockPanel>
+</Window>

@@ -1,0 +1,26 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:Mesen.Debugger.ViewModels"
+	mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+	VerticalAlignment="Stretch"
+	HorizontalAlignment="Stretch"
+	Focusable="True"
+	x:DataType="vm:TASInputViewModel"
+	x:Class="Mesen.Debugger.Views.TASInputView"
+>
+	<Design.DataContext>
+		<vm:TASInputViewModel />
+	</Design.DataContext>
+
+	<Border BorderThickness="1" BorderBrush="#80808080" Padding="10">
+		<TextBlock 
+			Text="{Binding InputDisplay}" 
+			FontSize="14"
+			VerticalAlignment="Center"
+			HorizontalAlignment="Center"
+		/>
+	</Border>
+</UserControl>
