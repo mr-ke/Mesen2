@@ -35,8 +35,10 @@ namespace Mesen.Debugger.ViewModels
 
 		public void RewindFrame()
 		{
-			if(CurrentFrame > 0) {
-				CurrentFrame--;
+			if(DebugApi.GetDebuggerFeatures(CpuType).StepBack) {
+				DebugSharedActions.Step(CpuType, StepType.StepBack, 2);
+				UpdateFrameCount();
+				TASEditor.FrameList.SelectFrame(CurrentFrame);
 			}
 		}
 
@@ -45,6 +47,8 @@ namespace Mesen.Debugger.ViewModels
 			IsPaused = !IsPaused;
 			if(IsPaused) {
 				EmuApi.Pause();
+				UpdateFrameCount();
+				TASEditor.FrameList.SelectFrame(CurrentFrame);
 			} else {
 				EmuApi.Resume();
 			}
@@ -52,13 +56,19 @@ namespace Mesen.Debugger.ViewModels
 
 		public void AdvanceFrame()
 		{
-			if(CurrentFrame < TotalFrames) {
-				CurrentFrame++;
-			}
+			DebugSharedActions.Step(CpuType, StepType.PpuFrame, 1);
+			UpdateFrameCount();
+			TASEditor.FrameList.SelectFrame(CurrentFrame);
 		}
 
 		public void NextMarker()
 		{
+		}
+
+		public void UpdateFrameCount()
+		{
+			TimingInfo timing = EmuApi.GetTimingInfo(CpuType);
+			CurrentFrame = (int)timing.FrameCount;
 		}
 	}
 }

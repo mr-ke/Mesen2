@@ -21,9 +21,10 @@ using System.IO;
 
 namespace Mesen.Debugger.Windows
 {
-	public class TASEditorWindow : MesenWindow
+	public class TASEditorWindow : MesenWindow, INotificationHandler
 	{
 		private TASEditorWindowViewModel _model;
+		private DispatcherTimer _updateTimer;
 
 		[Obsolete("For designer only")]
 		public TASEditorWindow() : this(null) { }
@@ -43,11 +44,22 @@ namespace Mesen.Debugger.Windows
 			}
 			
 			_model.Config.LoadWindowSettings(this);
+
+			_updateTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(50), DispatcherPriority.Normal, (s, e) => {
+				_model.PlaybackControl.UpdateFrameCount();
+			});
 		}
 
 		private void InitializeComponent()
 		{
 			AvaloniaXamlLoader.Load(this);
+		}
+
+		public void ProcessNotification(NotificationEventArgs e)
+		{
+			if(_model.Disposed) {
+				return;
+			}
 		}
 
 		protected override void OnOpened(EventArgs e)
@@ -56,7 +68,10 @@ namespace Mesen.Debugger.Windows
 
 			Dispatcher.UIThread.Post(() => {
 				_model.FrameList.UpdateFrameList();
+				_model.PlaybackControl.UpdateFrameCount();
 			});
+
+			_updateTimer.Start();
 		}
 
 		protected override void OnClosing(WindowClosingEventArgs e)
@@ -67,6 +82,7 @@ namespace Mesen.Debugger.Windows
 				return;
 			}
 
+			_updateTimer.Stop();
 			_model.SaveConfig();
 			_model.Config.SaveWindowSettings(this);
 		}

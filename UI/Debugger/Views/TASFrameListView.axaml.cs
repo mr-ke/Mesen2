@@ -1,7 +1,9 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Controls.Selection;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using DataBoxControl;
 using Mesen.Debugger.ViewModels;
 
 namespace Mesen.Debugger.Views

@@ -60,10 +60,13 @@ namespace Mesen.Debugger.ViewModels
 
 		public void UpdateFrameList()
 		{
+			int currentFrame = TASEditor.PlaybackControl.CurrentFrame;
+			int maxFrame = Math.Max(currentFrame + 100, 1000);
+			
 			List<int> selectedIndexes = Selection.SelectedIndexes.ToList();
 
 			List<TASFrameViewModel> frames = new List<TASFrameViewModel>();
-			for(int i = 0; i < 100; i++) {
+			for(int i = 0; i < maxFrame; i++) {
 				frames.Add(new TASFrameViewModel(i));
 			}
 
@@ -72,6 +75,18 @@ namespace Mesen.Debugger.ViewModels
 			Frames.Replace(frames);
 
 			Selection.SelectIndexes(selectedIndexes, Frames.Count);
+		}
+
+		public void SelectFrame(int frameNumber)
+		{
+			if(frameNumber >= Frames.Count) {
+				UpdateFrameList();
+			}
+			
+			if(frameNumber >= 0 && frameNumber < Frames.Count) {
+				Selection.Clear();
+				Selection.Select(frameNumber);
+			}
 		}
 
 		public void RefreshFrameList()
