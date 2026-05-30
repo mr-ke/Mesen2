@@ -13,6 +13,7 @@ namespace Mesen.Debugger.Views
 		public TASFrameListView()
 		{
 			InitializeComponent();
+			AddHandler(DataBoxRow.DoubleTappedEvent, OnRowDoubleTapped, Avalonia.Interactivity.RoutingStrategies.Bubble);
 		}
 
 		private void InitializeComponent()
@@ -31,6 +32,18 @@ namespace Mesen.Debugger.Views
 		protected override void OnKeyDown(KeyEventArgs e)
 		{
 			base.OnKeyDown(e);
+		}
+
+		private void OnRowDoubleTapped(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+		{
+			if(DataContext is TASFrameListViewModel model && model.HasImportedData) {
+				if(model.Selection.SelectedIndexes.Count > 0) {
+					int selectedIndex = model.Selection.SelectedIndexes[0];
+					if(selectedIndex >= 0 && selectedIndex < model.Frames.Count) {
+						model.TASEditor.PlaybackControl.PlayFromFrame(selectedIndex);
+					}
+				}
+			}
 		}
 	}
 }

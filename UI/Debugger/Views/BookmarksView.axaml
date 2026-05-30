@@ -1,0 +1,64 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:Mesen.Debugger.ViewModels"
+	xmlns:c="using:Mesen.Debugger.Controls"
+	xmlns:du="using:Mesen.Debugger.Utilities"
+	xmlns:l="using:Mesen.Localization"
+	mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="300"
+	VerticalAlignment="Stretch"
+	HorizontalAlignment="Stretch"
+	Focusable="True"
+	x:DataType="vm:BookmarksViewModel"
+	x:Class="Mesen.Debugger.Views.BookmarksView"
+>
+	<Design.DataContext>
+		<vm:BookmarksViewModel />
+	</Design.DataContext>
+
+	<UserControl.Styles>
+		<Style Selector="DataBoxRow">
+			<Setter Property="Background" Value="Transparent" />
+		</Style>
+		<Style Selector="DataBoxRow:pointerover /template/ Border#BackgroundBrush">
+			<Setter Property="Background" Value="{DynamicResource SystemControlHighlightAltListLowBrush}" />
+		</Style>
+		<Style Selector="TextBlock.bookmarkText">
+			<Setter Property="FontSize" Value="14" />
+			<Setter Property="Transitions">
+				<Transitions>
+					<BrushTransition Property="Foreground" Duration="0:0:0.5" />
+				</Transitions>
+			</Setter>
+		</Style>
+	</UserControl.Styles>
+
+	<Border BorderThickness="0 1 0 0" BorderBrush="#80808080">
+		<DataBox
+			x:Name="BookmarksDataBox"
+			Items="{Binding Bookmarks}"
+			GridLinesVisibility="All"
+			SelectionMode="Single"
+		>
+			<DataBox.Columns>
+				<DataBoxTextColumn ColumnName="Slot" Header="Slot" Binding="{Binding SlotDisplay, DataType={x:Type vm:BookmarkViewModel}}" CanUserResize="True" InitialWidth="80" />
+				<DataBoxTemplateColumn ColumnName="Frame" Header="Frame" CanUserResize="True" InitialWidth="80">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:BookmarkViewModel">
+							<TextBlock Text="{Binding FrameDisplay}" Classes="bookmarkText" VerticalAlignment="Center" Padding="4,0" Foreground="{Binding State, Converter={x:Static vm:BookmarkStateToBrushConverter.Instance}}" FontWeight="{Binding State, Converter={x:Static vm:BookmarkStateToFontWeightConverter.Instance}}" />
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="Time" Header="Time" CanUserResize="True" InitialWidth="100">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:BookmarkViewModel">
+							<TextBlock Text="{Binding TimeStamp}" Classes="bookmarkText" VerticalAlignment="Center" Padding="4,0" Foreground="{Binding State, Converter={x:Static vm:BookmarkStateToBrushConverter.Instance}}" FontWeight="{Binding State, Converter={x:Static vm:BookmarkStateToFontWeightConverter.Instance}}" />
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+			</DataBox.Columns>
+		</DataBox>
+	</Border>
+</UserControl>

@@ -41,6 +41,7 @@ namespace Mesen.Debugger.ViewModels
 		[Reactive] public TASFrameListViewModel FrameList { get; private set; }
 		[Reactive] public TASInputViewModel InputDisplay { get; private set; }
 		[Reactive] public PlaybackControlViewModel PlaybackControl { get; private set; }
+		[Reactive] public BookmarksViewModel Bookmarks { get; private set; }
 
 		[Reactive] public TASEditorDockFactory DockFactory { get; private set; }
 		[Reactive] public IRootDock DockLayout { get; private set; }
@@ -81,12 +82,14 @@ namespace Mesen.Debugger.ViewModels
 			FrameList = AddDisposable(new TASFrameListViewModel(CpuType, this));
 			InputDisplay = AddDisposable(new TASInputViewModel(CpuType, this));
 			PlaybackControl = AddDisposable(new PlaybackControlViewModel(CpuType, this));
+			Bookmarks = AddDisposable(new BookmarksViewModel(CpuType, this));
 
 			DockFactory = new TASEditorDockFactory(Config.SavedDockLayout);
 
 			DockFactory.LabelListTool.Model = FrameList;
 			DockFactory.InputDisplayTool.Model = InputDisplay;
 			DockFactory.PlaybackControlTool.Model = PlaybackControl;
+			DockFactory.BookmarksTool.Model = Bookmarks;
 
 			DockLayout = DockFactory.CreateLayout();
 			DockFactory.InitLayout(DockLayout);
@@ -132,7 +135,7 @@ namespace Mesen.Debugger.ViewModels
 
 		private async void ImportMMO()
 		{
-			string? file = await FileDialogHelper.OpenFile(null, Window, "*.mmo", "*.MMO");
+			string? file = await FileDialogHelper.OpenFile(null, Window, FileDialogHelper.MesenMovieExt);
 			if(!string.IsNullOrEmpty(file)) {
 				FrameList.ImportMMO(file);
 			}
@@ -140,7 +143,7 @@ namespace Mesen.Debugger.ViewModels
 
 		private async void ExportMMO()
 		{
-			string? file = await FileDialogHelper.SaveFile(null, null, Window, "*.mmo", "*.MMO");
+			string? file = await FileDialogHelper.SaveFile(null, null, Window, FileDialogHelper.MesenMovieExt);
 			if(!string.IsNullOrEmpty(file)) {
 				FrameList.ExportMMO(file);
 			}

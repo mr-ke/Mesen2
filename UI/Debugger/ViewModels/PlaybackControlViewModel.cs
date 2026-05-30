@@ -10,6 +10,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.IO.Compression;
+using System.Text;
 
 namespace Mesen.Debugger.ViewModels
 {
@@ -47,13 +49,22 @@ namespace Mesen.Debugger.ViewModels
 
 		public void TogglePause()
 		{
-			IsPaused = !IsPaused;
-			if(IsPaused) {
+			if(IsPlaying) {
+				RecordApi.MovieStop();
 				EmuApi.Pause();
+				IsPlaying = false;
+				IsPaused = true;
 				UpdateFrameCount();
 				TASEditor.FrameList.SelectFrame(CurrentFrame);
 			} else {
-				EmuApi.Resume();
+				IsPaused = !IsPaused;
+				if(IsPaused) {
+					EmuApi.Pause();
+					UpdateFrameCount();
+					TASEditor.FrameList.SelectFrame(CurrentFrame);
+				} else {
+					EmuApi.Resume();
+				}
 			}
 		}
 
@@ -70,24 +81,39 @@ namespace Mesen.Debugger.ViewModels
 
 		public void PlayTAS()
 		{
-			if(!TASEditor.FrameList.HasImportedData) {
+			if(!TASEditor.FrameList.HasImportedData || string.IsNullOrEmpty(TASEditor.FrameList.ImportedMMOPath)) {
 				return;
 			}
 
 			try {
-				if(IsPaused) {
-					EmuApi.Resume();
-					IsPaused = false;
-				}
+				if(IsPlaying) {
+					RecordApi.MovieStop();
+					EmuApi.Pause();
+					IsPlaying = false;
+					IsPaused = true;
+					UpdateFrameCount();
+					TASEditor.FrameList.SelectFrame(CurrentFrame);
+				} else {
+					if(IsPaused) {
+						EmuApi.Resume();
+						IsPaused = false;
+					}
 
-				string tempFile = Path.Combine(Path.GetTempPath(), "TAS_Temp.mmo");
-				TASEditor.FrameList.ExportMMO(tempFile);
-				
-				RecordApi.MoviePlay(tempFile);
-				IsPlaying = true;
+					RecordApi.MoviePlay(TASEditor.FrameList.ImportedMMOPath);
+					IsPlaying = true;
+				}
 			} catch(Exception ex) {
 				System.Diagnostics.Debug.WriteLine($"Play TAS failed: {ex.Message}");
 			}
+		}
+
+		public void PlayFromFrame(int frameIndex)
+		{
+			if(!TASEditor.FrameList.HasImportedData || frameIndex < 0 || frameIndex >= TASEditor.FrameList.Frames.Count) {
+				return;
+			}
+
+			System.Diagnostics.Debug.WriteLine($"PlayFromFrame({frameIndex}) - Will be implemented with Bookmark functionality");
 		}
 
 		public void StopTAS()

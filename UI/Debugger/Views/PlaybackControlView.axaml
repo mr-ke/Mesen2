@@ -15,88 +15,187 @@
 		<vm:PlaybackControlViewModel />
 	</Design.DataContext>
 
-	<Border BorderThickness="1" BorderBrush="#80808080" Padding="10">
-		<StackPanel Orientation="Vertical" Spacing="10">
+	<Border BorderThickness="1" BorderBrush="#80808080" Padding="5">
+		<Grid RowDefinitions="Auto,*">
 			<TextBlock 
+				Grid.Row="0"
 				Text="{Binding CurrentFrame, StringFormat='Frame: {0}'}"
-				FontSize="14"
+				FontSize="12"
 				FontWeight="Bold"
 				HorizontalAlignment="Center"
+				Margin="0,0,0,5"
 			/>
 			
-			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
-				<c:IconButton
-					ToolTip.Tip="Play TAS"
-					Click="OnPlayTAS"
-					Icon="Assets/MediaPlay.png"
-					Width="50"
-					Height="30"
-					IsVisible="{Binding !IsPlaying}"
-				>
-					<TextBlock Text="▶" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
+			<UniformGrid 
+				Grid.Row="1"
+				Rows="1" 
+				Columns="6"
+				HorizontalAlignment="Center"
+				VerticalAlignment="Top"
+				ColumnSpacing="8"
+			>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Play TAS"
+						Click="OnPlayTAS"
+						Icon="Assets/MediaPlay.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="▶" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
 
-				<c:IconButton
-					ToolTip.Tip="Stop TAS"
-					Click="OnStopTAS"
-					Icon="Assets/MediaStop.png"
-					Width="50"
-					Height="30"
-					IsVisible="{Binding IsPlaying}"
-				>
-					<TextBlock Text="■" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Send playback to previous marker"
+						Click="OnPreviousMarker"
+						Icon="Assets/PreviousArrow.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="&lt;&lt;" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
 
-				<c:IconButton
-					ToolTip.Tip="Send playback to previous marker"
-					Click="OnPreviousMarker"
-					Icon="Assets/PreviousArrow.png"
-					Width="50"
-					Height="30"
-				>
-					<TextBlock Text="&lt;&lt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Rewind 1 frame"
+						Click="OnRewindFrame"
+						Icon="Assets/StepBack.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="&lt;" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
 
-				<c:IconButton
-					ToolTip.Tip="Rewind 1 frame"
-					Click="OnRewindFrame"
-					Icon="Assets/StepBack.png"
-					Width="50"
-					Height="30"
-				>
-					<TextBlock Text="&lt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Pause/Unpause Core"
+						Click="OnTogglePause"
+						Icon="Assets/MediaPause.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="||" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
 
-				<c:IconButton
-					ToolTip.Tip="Pause/Unpause Core"
-					Click="OnTogglePause"
-					Icon="Assets/MediaPause.png"
-					Width="50"
-					Height="30"
-				>
-					<TextBlock Text="||" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Advance 1 frame"
+						Click="OnAdvanceFrame"
+						Icon="Assets/StepInto.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="&gt;" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
 
-				<c:IconButton
-					ToolTip.Tip="Advance 1 frame"
-					Click="OnAdvanceFrame"
-					Icon="Assets/StepInto.png"
-					Width="50"
-					Height="30"
-				>
-					<TextBlock Text="&gt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
-
-				<c:IconButton
-					ToolTip.Tip="Send playback to next marker"
-					Click="OnNextMarker"
-					Icon="Assets/NextArrow.png"
-					Width="50"
-					Height="30"
-				>
-					<TextBlock Text="&gt;&gt;" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</c:IconButton>
-			</StackPanel>
-		</StackPanel>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="*" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+					<c:IconButton
+						Grid.Row="1"
+						Grid.Column="1"
+						ToolTip.Tip="Send playback to next marker"
+						Click="OnNextMarker"
+						Icon="Assets/NextArrow.png"
+						Width="40"
+						Height="40"
+						Margin="0"
+					>
+						<Viewbox Stretch="Uniform">
+							<TextBlock Text="&gt;&gt;" />
+						</Viewbox>
+					</c:IconButton>
+				</Grid>
+			</UniformGrid>
+		</Grid>
 	</Border>
 </UserControl>

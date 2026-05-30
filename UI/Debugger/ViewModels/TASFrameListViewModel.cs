@@ -88,6 +88,9 @@ namespace Mesen.Debugger.ViewModels
 			if(frameNumber >= 0 && frameNumber < Frames.Count) {
 				Selection.Clear();
 				Selection.Select(frameNumber);
+			} else if(Frames.Count > 0) {
+				Selection.Clear();
+				Selection.Select(Frames.Count - 1);
 			}
 		}
 

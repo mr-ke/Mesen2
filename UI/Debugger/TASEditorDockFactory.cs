@@ -17,6 +17,7 @@ namespace Mesen.Debugger
 		public ToolContainerViewModel<TASFrameListViewModel> LabelListTool { get; private set; }
 		public ToolContainerViewModel<TASInputViewModel> InputDisplayTool { get; private set; }
 		public ToolContainerViewModel<PlaybackControlViewModel> PlaybackControlTool { get; private set; }
+		public ToolContainerViewModel<BookmarksViewModel> BookmarksTool { get; private set; }
 
 		private DockEntryDefinition? _savedRootDef;
 
@@ -30,6 +31,9 @@ namespace Mesen.Debugger
 
 			PlaybackControlTool = new("Playback Controls");
 			PlaybackControlTool.CanClose = false;
+
+			BookmarksTool = new("Bookmarks");
+			BookmarksTool.CanClose = false;
 
 			_savedRootDef = savedRootDef;
 		}
@@ -54,21 +58,26 @@ namespace Mesen.Debugger
 				Orientation = Orientation.Horizontal,
 				VisibleDockables = CreateList<IDockable>(
 					new ToolDock {
-						Proportion = 0.30,
+						Proportion = 0.80,
 						VisibleDockables = CreateList<IDockable>(LabelListTool)
 					},
 					new MesenProportionalDockSplitter(),
 					new ProportionalDock {
-						Proportion = 0.70,
+						Proportion = 0.20,
 						Orientation = Orientation.Vertical,
 						VisibleDockables = CreateList<IDockable>(
 							new ToolDock {
-								Proportion = 0.15,
+								Proportion = 0.45,
 								VisibleDockables = CreateList<IDockable>(PlaybackControlTool)
 							},
 							new MesenProportionalDockSplitter(),
 							new ToolDock {
-								Proportion = 0.85,
+								Proportion = 0.45,
+								VisibleDockables = CreateList<IDockable>(BookmarksTool)
+							},
+							new MesenProportionalDockSplitter(),
+							new ToolDock {
+								Proportion = 0.10,
 								VisibleDockables = CreateList<IDockable>(InputDisplayTool)
 							}
 						)
@@ -185,6 +194,7 @@ namespace Mesen.Debugger
 				nameof(TASFrameListViewModel) => LabelListTool,
 				nameof(TASInputViewModel) => InputDisplayTool,
 				nameof(PlaybackControlViewModel) => PlaybackControlTool,
+				nameof(BookmarksViewModel) => BookmarksTool,
 				_ => null
 			};
 		}
