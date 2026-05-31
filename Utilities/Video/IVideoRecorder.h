@@ -1,6 +1,12 @@
 #pragma once
 #include "pch.h"
 
+enum class VideoCodec
+{
+	None = 0,
+	ZMBV = 1
+};
+
 class IVideoRecorder
 {
 public:

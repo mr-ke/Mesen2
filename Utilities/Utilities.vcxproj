@@ -251,13 +251,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="Timer.h" />
     <ClInclude Include="UTF8Util.h" />
-    <ClInclude Include="Video\AviRecorder.h" />
-    <ClInclude Include="Video\AviWriter.h" />
-    <ClInclude Include="Video\BaseCodec.h" />
-    <ClInclude Include="Video\gif.h" />
     <ClInclude Include="Video\IVideoRecorder.h" />
-    <ClInclude Include="Video\RawCodec.h" />
-    <ClInclude Include="Video\ZmbvCodec.h" />
     <ClInclude Include="VirtualFile.h" />
     <ClInclude Include="xBRZ\config.h" />
     <ClInclude Include="xBRZ\xbrz.h" />
@@ -400,9 +394,6 @@
     <ClCompile Include="Timer.cpp" />
     <ClCompile Include="UPnPPortMapper.cpp" />
     <ClCompile Include="UTF8Util.cpp" />
-    <ClCompile Include="Video\AviRecorder.cpp" />
-    <ClCompile Include="Video\AviWriter.cpp" />
-    <ClCompile Include="Video\ZmbvCodec.cpp" />
     <ClCompile Include="VirtualFile.cpp" />
     <ClCompile Include="xBRZ\xbrz.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
