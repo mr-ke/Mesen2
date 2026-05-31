@@ -2495,8 +2495,6 @@ E
 		<Enum ID="VideoCodec">
 			<Value ID="None">None (Uncompressed)</Value>
 			<Value ID="ZMBV">Zip Motion Block Video (ZMBV)</Value>
-			<Value ID="CSCD">Camstudio (CSCD)</Value>
-			<Value ID="GIF">GIF</Value>
 		</Enum>
 		<Enum ID="RecordMovieFrom">
 			<Value ID="StartWithoutSaveData">Power on</Value>

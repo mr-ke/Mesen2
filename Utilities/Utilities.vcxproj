@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -254,9 +254,7 @@
     <ClInclude Include="Video\AviRecorder.h" />
     <ClInclude Include="Video\AviWriter.h" />
     <ClInclude Include="Video\BaseCodec.h" />
-    <ClInclude Include="Video\CamstudioCodec.h" />
     <ClInclude Include="Video\gif.h" />
-    <ClInclude Include="Video\GifRecorder.h" />
     <ClInclude Include="Video\IVideoRecorder.h" />
     <ClInclude Include="Video\RawCodec.h" />
     <ClInclude Include="Video\ZmbvCodec.h" />
@@ -404,8 +402,6 @@
     <ClCompile Include="UTF8Util.cpp" />
     <ClCompile Include="Video\AviRecorder.cpp" />
     <ClCompile Include="Video\AviWriter.cpp" />
-    <ClCompile Include="Video\CamstudioCodec.cpp" />
-    <ClCompile Include="Video\GifRecorder.cpp" />
     <ClCompile Include="Video\ZmbvCodec.cpp" />
     <ClCompile Include="VirtualFile.cpp" />
     <ClCompile Include="xBRZ\xbrz.cpp">

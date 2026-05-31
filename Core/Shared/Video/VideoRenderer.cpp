@@ -10,7 +10,6 @@
 #include "Shared/MessageManager.h"
 #include "Utilities/Video/IVideoRecorder.h"
 #include "Utilities/Video/AviRecorder.h"
-#include "Utilities/Video/GifRecorder.h"
 
 VideoRenderer::VideoRenderer(Emulator* emu)
 {
@@ -252,11 +251,7 @@ void VideoRenderer::StartRecording(string filename, RecordAviOptions options)
 	_recorderOptions = options;
 
 	shared_ptr<IVideoRecorder> recorder;
-	if(options.Codec == VideoCodec::GIF) {
-		recorder.reset(new GifRecorder());
-	} else {
-		recorder.reset(new AviRecorder(options.Codec, options.CompressionLevel));
-	}
+	recorder.reset(new AviRecorder(options.Codec, options.CompressionLevel));
 
 	if(recorder->Init(filename)) {
 		_recorder.reset(recorder);

@@ -1,4 +1,4 @@
-﻿using Mesen.Config;
+using Mesen.Config;
 using Mesen.Interop;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -19,16 +19,9 @@ namespace Mesen.ViewModels
 		{
 			Config = ConfigManager.Config.VideoRecord.Clone();
 
-			SavePath = Path.Join(ConfigManager.AviFolder, EmuApi.GetRomInfo().GetRomName() + (Config.Codec == VideoCodec.GIF ? ".gif" : ".avi"));
+			SavePath = Path.Join(ConfigManager.AviFolder, EmuApi.GetRomInfo().GetRomName() + ".avi");
 
-			AddDisposable(this.WhenAnyValue(x => x.Config.Codec).Select(x => x == VideoCodec.ZMBV || x == VideoCodec.CSCD).ToPropertyEx(this, x => x.CompressionAvailable));
-			AddDisposable(this.WhenAnyValue(x => x.Config.Codec).Subscribe((codec) => {
-				if(codec == VideoCodec.GIF && Path.GetExtension(SavePath).ToLowerInvariant() != ".gif") {
-					SavePath = Path.ChangeExtension(SavePath, ".gif");
-				} else if(codec != VideoCodec.GIF && Path.GetExtension(SavePath).ToLowerInvariant() == ".gif") {
-					SavePath = Path.ChangeExtension(SavePath, ".avi");
-				}
-			}));
+			AddDisposable(this.WhenAnyValue(x => x.Config.Codec).Select(x => x == VideoCodec.ZMBV).ToPropertyEx(this, x => x.CompressionAvailable));
 		}
 
 		public void SaveConfig()
