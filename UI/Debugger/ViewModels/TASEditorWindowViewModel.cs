@@ -140,6 +140,11 @@ namespace Mesen.Debugger.ViewModels
 					OnClick = () => ImportMMO()
 				},
 				new ContextMenuAction() {
+					ActionType = ActionType.Save,
+					OnClick = () => SaveMMO(),
+					IsEnabled = () => FrameList.HasImportedData
+				},
+				new ContextMenuAction() {
 					ActionType = ActionType.SaveAs,
 					OnClick = () => ExportMMO(),
 					IsEnabled = () => FrameList.HasImportedData
@@ -272,9 +277,46 @@ Tips:
 
 		private async void ImportMMO()
 		{
-			string? file = await FileDialogHelper.OpenFile(null, Window, FileDialogHelper.MesenMovieExt);
+			string? file = await FileDialogHelper.OpenFile(null, Window, FileDialogHelper.MesenMovie2Ext);
 			if(!string.IsNullOrEmpty(file)) {
 				FrameList.ImportMMO(file);
+				AddToRecentFiles(file);
+			}
+		}
+
+		private async void SaveMMO()
+		{
+			string? currentPath = FrameList.ImportedMMOPath;
+			
+			if(string.IsNullOrEmpty(currentPath)) {
+				await SaveAsMMO();
+				return;
+			}
+
+			string extension = Path.GetExtension(currentPath).ToLower();
+			if(extension == ".mmo") {
+				string? newFile = await FileDialogHelper.SaveFile(
+					Path.GetDirectoryName(currentPath),
+					Path.GetFileNameWithoutExtension(currentPath),
+					Window,
+					FileDialogHelper.MesenMovie2Ext
+				);
+				if(!string.IsNullOrEmpty(newFile)) {
+					FrameList.ExportMMO(newFile);
+					FrameList.UpdateImportedPath(newFile);
+					AddToRecentFiles(newFile);
+				}
+			} else {
+				FrameList.ExportMMO(currentPath);
+			}
+		}
+
+		private async Task SaveAsMMO()
+		{
+			string? file = await FileDialogHelper.SaveFile(null, null, Window, FileDialogHelper.MesenMovie2Ext);
+			if(!string.IsNullOrEmpty(file)) {
+				FrameList.ExportMMO(file);
+				FrameList.UpdateImportedPath(file);
 				AddToRecentFiles(file);
 			}
 		}
@@ -292,10 +334,7 @@ Tips:
 
 		private async void ExportMMO()
 		{
-			string? file = await FileDialogHelper.SaveFile(null, null, Window, FileDialogHelper.MesenMovieExt);
-			if(!string.IsNullOrEmpty(file)) {
-				FrameList.ExportMMO(file);
-			}
+			await SaveAsMMO();
 		}
 
 		public void ResetLayout()

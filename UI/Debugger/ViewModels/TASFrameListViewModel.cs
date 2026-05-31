@@ -18,6 +18,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 
 namespace Mesen.Debugger.ViewModels
@@ -175,12 +176,42 @@ namespace Mesen.Debugger.ViewModels
 		public void ImportMMO(string mmoFilePath)
 		{
 			try {
-				List<TASInputFrame> inputFrames = MMOFileHandler.ImportMMO(mmoFilePath);
+				string extension = Path.GetExtension(mmoFilePath).ToLower();
+				
+				if(extension == ".mmo2") {
+					ImportMMO2(mmoFilePath);
+				} else {
+					List<TASInputFrame> inputFrames = MMOFileHandler.ImportMMO(mmoFilePath);
+					
+					List<TASFrameViewModel> frames = new List<TASFrameViewModel>();
+					for(int i = 0; i < inputFrames.Count; i++) {
+						TASFrameViewModel frame = new TASFrameViewModel(i);
+						TASInputFrame input = inputFrames[i];
+						frame.SetOriginalState(
+							input.ButtonA, input.ButtonB, input.Select, input.Start,
+							input.Up, input.Down, input.Left, input.Right
+						);
+						frames.Add(frame);
+					}
+
+					Frames.Replace(frames);
+					ImportedMMOPath = mmoFilePath;
+					HasImportedData = true;
+				}
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Import MMO failed: {ex.Message}");
+			}
+		}
+
+		private void ImportMMO2(string mmo2FilePath)
+		{
+			try {
+				TASProjectData projectData = MMO2FileHandler.ImportMMO2(mmo2FilePath);
 				
 				List<TASFrameViewModel> frames = new List<TASFrameViewModel>();
-				for(int i = 0; i < inputFrames.Count; i++) {
+				for(int i = 0; i < projectData.InputFrames.Count; i++) {
 					TASFrameViewModel frame = new TASFrameViewModel(i);
-					TASInputFrame input = inputFrames[i];
+					TASInputFrame input = projectData.InputFrames[i];
 					frame.SetOriginalState(
 						input.ButtonA, input.ButtonB, input.Select, input.Start,
 						input.Up, input.Down, input.Left, input.Right
@@ -189,10 +220,31 @@ namespace Mesen.Debugger.ViewModels
 				}
 
 				Frames.Replace(frames);
-				ImportedMMOPath = mmoFilePath;
+				ImportedMMOPath = mmo2FilePath;
 				HasImportedData = true;
+
+				if(projectData.Bookmarks.Count > 0) {
+					for(int i = 0; i < projectData.Bookmarks.Count && i < TASEditor.Bookmarks.Bookmarks.Count; i++) {
+						BookmarkData bookmarkData = projectData.Bookmarks[i];
+						BookmarkViewModel bookmark = TASEditor.Bookmarks.Bookmarks[i];
+						
+						bookmark.Alias = bookmarkData.Alias;
+						bookmark.FrameNumber = bookmarkData.FrameNumber;
+						bookmark.TimeStamp = bookmarkData.TimeStamp;
+						bookmark.HasData = bookmarkData.HasData;
+						
+						if(bookmarkData.SavestateData != null && bookmarkData.SavestateData.Length > 0) {
+							string tempFile = Path.Combine(Path.GetTempPath(), $"tas_bookmark_{i}.sav");
+							File.WriteAllBytes(tempFile, bookmarkData.SavestateData);
+							EmuApi.LoadStateFile(tempFile);
+							try {
+								File.Delete(tempFile);
+							} catch { }
+						}
+					}
+				}
 			} catch(Exception ex) {
-				System.Diagnostics.Debug.WriteLine($"Import MMO failed: {ex.Message}");
+				System.Diagnostics.Debug.WriteLine($"Import MMO2 failed: {ex.Message}");
 			}
 		}
 
@@ -215,6 +267,8 @@ namespace Mesen.Debugger.ViewModels
 		public void ExportMMO(string mmoFilePath)
 		{
 			try {
+				string extension = Path.GetExtension(mmoFilePath).ToLower();
+				
 				List<TASInputFrame> inputFrames = new List<TASInputFrame>();
 				foreach(TASFrameViewModel frame in Frames) {
 					TASInputFrame input = new TASInputFrame {
@@ -230,9 +284,54 @@ namespace Mesen.Debugger.ViewModels
 					inputFrames.Add(input);
 				}
 
-				MMOFileHandler.ExportMMO(mmoFilePath, inputFrames, ImportedMMOPath);
+				if(extension == ".mmo2") {
+					ExportMMO2(mmoFilePath, inputFrames);
+				} else {
+					MMOFileHandler.ExportMMO(mmoFilePath, inputFrames, ImportedMMOPath);
+				}
 			} catch(Exception ex) {
 				System.Diagnostics.Debug.WriteLine($"Export MMO failed: {ex.Message}");
+			}
+		}
+
+		public void UpdateImportedPath(string newPath)
+		{
+			ImportedMMOPath = newPath;
+		}
+
+		private void ExportMMO2(string mmo2FilePath, List<TASInputFrame> inputFrames)
+		{
+			try {
+				TASProjectData projectData = new TASProjectData {
+					InputFrames = inputFrames
+				};
+
+				foreach(BookmarkViewModel bookmark in TASEditor.Bookmarks.Bookmarks) {
+					BookmarkData bookmarkData = new BookmarkData {
+						SlotNumber = bookmark.SlotNumber,
+						Alias = bookmark.Alias,
+						FrameNumber = bookmark.FrameNumber,
+						TimeStamp = bookmark.TimeStamp,
+						HasData = bookmark.HasData
+					};
+
+					if(bookmark.HasData) {
+						string tempFile = Path.Combine(Path.GetTempPath(), $"tas_bookmark_{bookmark.SlotNumber - 1}.sav");
+						EmuApi.SaveStateFile(tempFile);
+						if(File.Exists(tempFile)) {
+							bookmarkData.SavestateData = File.ReadAllBytes(tempFile);
+							try {
+								File.Delete(tempFile);
+							} catch { }
+						}
+					}
+
+					projectData.Bookmarks.Add(bookmarkData);
+				}
+
+				MMO2FileHandler.ExportMMO2(mmo2FilePath, projectData, ImportedMMOPath);
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Export MMO2 failed: {ex.Message}");
 			}
 		}
 	}

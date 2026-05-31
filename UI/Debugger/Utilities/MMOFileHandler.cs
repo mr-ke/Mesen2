@@ -9,8 +9,8 @@ namespace Mesen.Debugger.Utilities
 {
 	public class MMOFileHandler
 	{
-		private const string InputFileName = "Input.txt";
-		private const string GameSettingsFileName = "GameSettings.txt";
+		protected const string InputFileName = "Input.txt";
+		protected const string GameSettingsFileName = "GameSettings.txt";
 
 		public static List<TASInputFrame> ImportMMO(string mmoFilePath)
 		{
@@ -38,7 +38,7 @@ namespace Mesen.Debugger.Utilities
 			return frames;
 		}
 
-		private static TASInputFrame ParseInputLine(string line)
+		public static TASInputFrame ParseInputLine(string line)
 		{
 			TASInputFrame frame = new TASInputFrame();
 			
@@ -87,14 +87,7 @@ namespace Mesen.Debugger.Utilities
 		{
 			using(FileStream zipStream = new FileStream(mmoFilePath, FileMode.Create, FileAccess.Write))
 			using(ZipArchive archive = new ZipArchive(zipStream, ZipArchiveMode.Create)) {
-				ZipArchiveEntry inputEntry = archive.CreateEntry(InputFileName);
-				using(Stream inputStream = inputEntry.Open())
-				using(StreamWriter writer = new StreamWriter(inputStream)) {
-					foreach(TASInputFrame frame in frames) {
-						string line = FormatInputLine(frame);
-						writer.WriteLine(line);
-					}
-				}
+				WriteInputData(archive, frames);
 
 				if(!string.IsNullOrEmpty(originalMMOPath) && File.Exists(originalMMOPath)) {
 					CopyGameSettings(originalMMOPath, archive);
@@ -102,7 +95,19 @@ namespace Mesen.Debugger.Utilities
 			}
 		}
 
-		private static string FormatInputLine(TASInputFrame frame)
+		protected static void WriteInputData(ZipArchive archive, List<TASInputFrame> frames)
+		{
+			ZipArchiveEntry inputEntry = archive.CreateEntry(InputFileName);
+			using(Stream inputStream = inputEntry.Open())
+			using(StreamWriter writer = new StreamWriter(inputStream)) {
+				foreach(TASInputFrame frame in frames) {
+					string line = FormatInputLine(frame);
+					writer.WriteLine(line);
+				}
+			}
+		}
+
+		protected static string FormatInputLine(TASInputFrame frame)
 		{
 			StringBuilder sb = new StringBuilder();
 			sb.Append("|..|");
@@ -119,7 +124,7 @@ namespace Mesen.Debugger.Utilities
 			return sb.ToString();
 		}
 
-		private static void CopyGameSettings(string originalMMOPath, ZipArchive newArchive)
+		protected static void CopyGameSettings(string originalMMOPath, ZipArchive newArchive)
 		{
 			try {
 				using(FileStream originalStream = new FileStream(originalMMOPath, FileMode.Open, FileAccess.Read))

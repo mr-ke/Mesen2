@@ -43,7 +43,34 @@
 			SelectionMode="Single"
 		>
 			<DataBox.Columns>
-				<DataBoxTextColumn ColumnName="Slot" Header="Slot" Binding="{Binding SlotDisplay, DataType={x:Type vm:BookmarkViewModel}}" CanUserResize="True" InitialWidth="80" />
+				<DataBoxTemplateColumn ColumnName="Slot" Header="Slot" CanUserResize="True" InitialWidth="120">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:BookmarkViewModel">
+							<Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+								<TextBlock 
+									Grid.Column="0"
+									Text="{Binding SlotDisplay}" 
+									VerticalAlignment="Center" 
+									Padding="4,0"
+									FontSize="14"
+								/>
+								<Button
+									Grid.Column="1"
+									Width="20"
+									Height="20"
+									Padding="0"
+									Margin="2,0,4,0"
+									VerticalAlignment="Center"
+									Command="{Binding $parent[DataBox].((vm:BookmarksViewModel)DataContext).RenameBookmark}"
+									CommandParameter="{Binding}"
+									ToolTip.Tip="Rename bookmark"
+								>
+									<TextBlock Text="✏️" FontSize="12" />
+								</Button>
+							</Grid>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
 				<DataBoxTemplateColumn ColumnName="Frame" Header="Frame" CanUserResize="True" InitialWidth="80">
 					<DataBoxTemplateColumn.CellTemplate>
 						<DataTemplate DataType="vm:BookmarkViewModel">

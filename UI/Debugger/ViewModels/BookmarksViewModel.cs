@@ -3,6 +3,7 @@ using Mesen.Debugger.Windows;
 using Mesen.Interop;
 using Mesen.Utilities;
 using Mesen.ViewModels;
+using Mesen.Windows;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -97,12 +98,38 @@ namespace Mesen.Debugger.ViewModels
 				System.Diagnostics.Debug.WriteLine($"Load bookmark failed: {ex.Message}");
 			}
 		}
+
+		public async void RenameBookmark(BookmarkViewModel bookmark)
+		{
+			string? result = await InputDialog.Show(
+				TASEditor.Window,
+				"Rename Bookmark",
+				$"Enter a new name for Slot {bookmark.SlotNumber}:",
+				bookmark.Alias
+			);
+
+			if(result != null) {
+				bookmark.Alias = result;
+			}
+		}
 	}
 
 	public class BookmarkViewModel : ReactiveObject
 	{
 		public int SlotNumber { get; set; }
-		public string SlotDisplay => $"Slot {SlotNumber}";
+		
+		private string _alias = "";
+		public string Alias
+		{
+			get => _alias;
+			set
+			{
+				this.RaiseAndSetIfChanged(ref _alias, value);
+				this.RaisePropertyChanged(nameof(SlotDisplay));
+			}
+		}
+		
+		public string SlotDisplay => string.IsNullOrEmpty(Alias) ? $"Slot {SlotNumber}" : Alias;
 
 		private int _frameNumber = -1;
 		public int FrameNumber

@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Platform.Storage.FileIO;
 using Avalonia.Rendering;
@@ -17,6 +17,7 @@ namespace Mesen.Utilities
 		public const string FirmwareExt = "[[FIRMWAREFILES]]";
 		public const string LabelFileExt = "[[LABELFILES]]";
 		public const string MesenMovieExt = "mmo";
+		public const string MesenMovie2Ext = "mmo2";
 		public const string TblExt = "tbl";
 		public const string PaletteExt = "pal";
 		public const string TraceExt = "txt";
@@ -76,6 +77,10 @@ namespace Mesen.Utilities
 						filter.Add(new FilePickerFileType("All firmware files") { Patterns = new List<string>() { "*.sfc", "*.pce", "*.nes", "*.bin", "*.rom", "*.col", "*.sms", "*.gg", "*.gba" } });
 					} else if(ext == FileDialogHelper.LabelFileExt) {
 						filter.Add(new FilePickerFileType("All label files") { Patterns = new List<string>() { "*.mlb", "*.sym", "*.dbg", "*.fns", "*.elf", "*.cdb" } });
+					} else if(ext == FileDialogHelper.MesenMovieExt || ext == FileDialogHelper.MesenMovie2Ext) {
+						filter.Add(new FilePickerFileType("Mesen Movie files") { Patterns = new List<string>() { "*.mmo", "*.mmo2" } });
+						filter.Add(new FilePickerFileType("MMO files (legacy)") { Patterns = new List<string>() { "*.mmo" } });
+						filter.Add(new FilePickerFileType("MMO2 files (with bookmarks)") { Patterns = new List<string>() { "*.mmo2" } });
 					} else {
 						filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
 					}
@@ -106,7 +111,13 @@ namespace Mesen.Utilities
 			try {
 				List<FilePickerFileType> filter = new List<FilePickerFileType>();
 				foreach(string ext in extensions) {
-					filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
+					if(ext == FileDialogHelper.MesenMovieExt || ext == FileDialogHelper.MesenMovie2Ext) {
+						filter.Add(new FilePickerFileType("Mesen Movie files") { Patterns = new List<string>() { "*.mmo", "*.mmo2" } });
+						filter.Add(new FilePickerFileType("MMO files (legacy)") { Patterns = new List<string>() { "*.mmo" } });
+						filter.Add(new FilePickerFileType("MMO2 files (with bookmarks)") { Patterns = new List<string>() { "*.mmo2" } });
+					} else {
+						filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
+					}
 				}
 				filter.Add(new FilePickerFileType("All files") { Patterns = new List<string>() { "*" } });
 
