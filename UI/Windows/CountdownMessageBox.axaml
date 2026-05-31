@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="150"
+        x:Class="Mesen.Windows.CountdownMessageBox"
+        Title="Open Last MMO"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        Padding="20">
+    
+    <StackPanel Spacing="15">
+        <StackPanel Orientation="Horizontal" Spacing="15">
+            <Image Name="imgQuestion" Width="32" Height="32" Source="/Assets/MsgBoxQuestion.png" />
+            <TextBlock Name="txtMessage" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="300" />
+        </StackPanel>
+        
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Name="btnYes" Width="80">Yes</Button>
+            <Button Name="btnNo" Width="80">No</Button>
+        </StackPanel>
+        
+        <TextBlock Name="txtCountdown" HorizontalAlignment="Center" FontStyle="Italic" Foreground="Gray" />
+    </StackPanel>
+</Window>

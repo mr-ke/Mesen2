@@ -71,6 +71,7 @@ namespace Mesen.Debugger.Windows
 			Dispatcher.UIThread.Post(() => {
 				_model.FrameList.UpdateFrameList();
 				_model.PlaybackControl.UpdateFrameCount();
+				_model.CheckAndLoadLastMMO();
 			});
 
 			_updateTimer.Start();

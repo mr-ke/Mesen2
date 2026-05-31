@@ -16,10 +16,48 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 
 namespace Mesen.Debugger.ViewModels
 {
+	public enum RowState
+	{
+		Empty,
+		Loaded
+	}
+
+	public enum CellState
+	{
+		Empty,
+		Loaded,
+		Modified
+	}
+
+	public class CellStateToBrushConverter : Avalonia.Data.Converters.IValueConverter
+	{
+		public static readonly CellStateToBrushConverter Instance = new();
+		private static readonly SolidColorBrush WhiteBrush = new(Colors.White);
+		private static readonly SolidColorBrush LightGreenBrush = new(Color.FromRgb(0x90, 0xEE, 0x90));
+		private static readonly SolidColorBrush LightPinkBrush = new(Color.FromRgb(0xFF, 0xB6, 0xC1));
+
+		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+		{
+			if(value is CellState state) {
+				return state switch {
+					CellState.Loaded => LightGreenBrush,
+					CellState.Modified => LightPinkBrush,
+					_ => WhiteBrush
+				};
+			}
+			return WhiteBrush;
+		}
+
+		public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+		{
+			throw new NotImplementedException();
+		}
+	}
 	public class TASFrameListViewModel : DisposableViewModel
 	{
 		[Reactive] public MesenList<TASFrameViewModel> Frames { get; private set; } = new();
@@ -135,7 +173,7 @@ namespace Mesen.Debugger.ViewModels
 				for(int i = 0; i < inputFrames.Count; i++) {
 					TASFrameViewModel frame = new TASFrameViewModel(i);
 					TASInputFrame input = inputFrames[i];
-					frame.SetButtonState(
+					frame.SetOriginalState(
 						input.ButtonA, input.ButtonB, input.Select, input.Start,
 						input.Up, input.Down, input.Left, input.Right
 					);
@@ -147,6 +185,22 @@ namespace Mesen.Debugger.ViewModels
 				HasImportedData = true;
 			} catch(Exception ex) {
 				System.Diagnostics.Debug.WriteLine($"Import MMO failed: {ex.Message}");
+			}
+		}
+
+		public void CreateNewProject(int frameCount)
+		{
+			try {
+				List<TASFrameViewModel> frames = new List<TASFrameViewModel>();
+				for(int i = 0; i < frameCount; i++) {
+					frames.Add(new TASFrameViewModel(i));
+				}
+
+				Frames.Replace(frames);
+				ImportedMMOPath = null;
+				HasImportedData = true;
+			} catch(Exception ex) {
+				System.Diagnostics.Debug.WriteLine($"Create new project failed: {ex.Message}");
 			}
 		}
 
@@ -180,14 +234,146 @@ namespace Mesen.Debugger.ViewModels
 		public int FrameNumber { get; set; }
 		public string FrameDisplay => FrameNumber.ToString("D6");
 		
-		public string ButtonA { get; private set; } = ".";
-		public string ButtonB { get; private set; } = ".";
-		public string ButtonS { get; private set; } = ".";
-		public string ButtonT { get; private set; } = ".";
-		public string ButtonU { get; private set; } = ".";
-		public string ButtonD { get; private set; } = ".";
-		public string ButtonL { get; private set; } = ".";
-		public string ButtonR { get; private set; } = ".";
+		private string _buttonA = ".";
+		private string _buttonB = ".";
+		private string _buttonS = ".";
+		private string _buttonT = ".";
+		private string _buttonU = ".";
+		private string _buttonD = ".";
+		private string _buttonL = ".";
+		private string _buttonR = ".";
+
+		private string _originalA = ".";
+		private string _originalB = ".";
+		private string _originalS = ".";
+		private string _originalT = ".";
+		private string _originalU = ".";
+		private string _originalD = ".";
+		private string _originalL = ".";
+		private string _originalR = ".";
+
+		private RowState _rowState = RowState.Empty;
+
+		public RowState RowState
+		{
+			get => _rowState;
+			private set
+			{
+				_rowState = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RowState)));
+				RefreshCellStates();
+			}
+		}
+
+		public string ButtonA 
+		{ 
+			get => _buttonA;
+			private set 
+			{
+				_buttonA = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonA)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateA)));
+			}
+		}
+		public string ButtonB 
+		{ 
+			get => _buttonB;
+			private set 
+			{
+				_buttonB = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonB)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateB)));
+			}
+		}
+		public string ButtonS 
+		{ 
+			get => _buttonS;
+			private set 
+			{
+				_buttonS = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonS)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateS)));
+			}
+		}
+		public string ButtonT 
+		{ 
+			get => _buttonT;
+			private set 
+			{
+				_buttonT = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonT)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateT)));
+			}
+		}
+		public string ButtonU 
+		{ 
+			get => _buttonU;
+			private set 
+			{
+				_buttonU = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonU)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateU)));
+			}
+		}
+		public string ButtonD 
+		{ 
+			get => _buttonD;
+			private set 
+			{
+				_buttonD = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonD)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateD)));
+			}
+		}
+		public string ButtonL 
+		{ 
+			get => _buttonL;
+			private set 
+			{
+				_buttonL = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonL)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateL)));
+			}
+		}
+		public string ButtonR 
+		{ 
+			get => _buttonR;
+			private set 
+			{
+				_buttonR = value;
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonR)));
+				PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateR)));
+			}
+		}
+
+		public CellState StateA => GetCellState(_buttonA, _originalA);
+		public CellState StateB => GetCellState(_buttonB, _originalB);
+		public CellState StateS => GetCellState(_buttonS, _originalS);
+		public CellState StateT => GetCellState(_buttonT, _originalT);
+		public CellState StateU => GetCellState(_buttonU, _originalU);
+		public CellState StateD => GetCellState(_buttonD, _originalD);
+		public CellState StateL => GetCellState(_buttonL, _originalL);
+		public CellState StateR => GetCellState(_buttonR, _originalR);
+
+		private CellState GetCellState(string current, string original)
+		{
+			if(current != original) {
+				return CellState.Modified;
+			}
+			return _rowState == RowState.Loaded ? CellState.Loaded : CellState.Empty;
+		}
+
+		private void RefreshCellStates()
+		{
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateA)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateB)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateS)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateT)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateU)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateD)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateL)));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StateR)));
+		}
 
 		public object RowBrush => AvaloniaProperty.UnsetValue;
 		public FontStyle RowStyle => FontStyle.Normal;
@@ -206,6 +392,30 @@ namespace Mesen.Debugger.ViewModels
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ButtonR)));
 		}
 
+		public void SetOriginalState(string buttonA, string buttonB, string buttonS, string buttonT, 
+			string buttonU, string buttonD, string buttonL, string buttonR)
+		{
+			_originalA = buttonA;
+			_originalB = buttonB;
+			_originalS = buttonS;
+			_originalT = buttonT;
+			_originalU = buttonU;
+			_originalD = buttonD;
+			_originalL = buttonL;
+			_originalR = buttonR;
+			
+			_buttonA = buttonA;
+			_buttonB = buttonB;
+			_buttonS = buttonS;
+			_buttonT = buttonT;
+			_buttonU = buttonU;
+			_buttonD = buttonD;
+			_buttonL = buttonL;
+			_buttonR = buttonR;
+			
+			RowState = RowState.Loaded;
+		}
+
 		public void SetButtonState(string buttonA, string buttonB, string buttonS, string buttonT, 
 			string buttonU, string buttonD, string buttonL, string buttonR)
 		{
@@ -217,7 +427,26 @@ namespace Mesen.Debugger.ViewModels
 			ButtonD = buttonD;
 			ButtonL = buttonL;
 			ButtonR = buttonR;
-			Refresh();
+		}
+
+		public bool ToggleButton(string columnName)
+		{
+			switch(columnName) {
+				case "A": ButtonA = ToggleValue(ButtonA, "A"); return true;
+				case "B": ButtonB = ToggleValue(ButtonB, "B"); return true;
+				case "S": ButtonS = ToggleValue(ButtonS, "S"); return true;
+				case "T": ButtonT = ToggleValue(ButtonT, "T"); return true;
+				case "U": ButtonU = ToggleValue(ButtonU, "U"); return true;
+				case "D": ButtonD = ToggleValue(ButtonD, "D"); return true;
+				case "L": ButtonL = ToggleValue(ButtonL, "L"); return true;
+				case "R": ButtonR = ToggleValue(ButtonR, "R"); return true;
+			}
+			return false;
+		}
+
+		private string ToggleValue(string currentValue, string buttonName)
+		{
+			return currentValue == "." ? buttonName : ".";
 		}
 
 		public TASFrameViewModel(int frameNumber)

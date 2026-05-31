@@ -66,6 +66,7 @@
 			<MenuItem Header="{l:Translate mnuFile}" ItemsSource="{Binding FileMenuItems}" />
 			<MenuItem Header="{l:Translate mnuEdit}" ItemsSource="{Binding EditMenuItems}" />
 			<MenuItem Header="{l:Translate mnuView}" ItemsSource="{Binding ViewMenuItems}" />
+			<MenuItem Header="{l:Translate mnuHelp}" ItemsSource="{Binding HelpMenuItems}" />
 		</c:MesenMenu>
 		<DockPanel DockPanel.Dock="Top">
 			<StackPanel Orientation="Horizontal">

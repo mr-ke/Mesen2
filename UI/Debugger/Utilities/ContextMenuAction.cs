@@ -311,6 +311,9 @@ namespace Mesen.Debugger.Utilities
 		[IconFile("Undo")]
 		Undo,
 
+		[IconFile("Undo")]
+		Redo,
+
 		[IconFile("EditLabel")]
 		EditLabel,
 		

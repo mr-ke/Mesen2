@@ -33,6 +33,7 @@
 
 	<Border BorderThickness="0 1 0 0" BorderBrush="#80808080">
 		<DataBox
+			Name="DataBox"
 			Items="{Binding Frames}"
 			Selection="{Binding Selection}"
 			GridLinesVisibility="All"
@@ -44,14 +45,86 @@
 		>
 			<DataBox.Columns>
 				<DataBoxTextColumn ColumnName="Frame" Header="Frame#" Binding="{Binding FrameDisplay, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="60" />
-				<DataBoxTextColumn ColumnName="A" Header="A" Binding="{Binding ButtonA, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="B" Header="B" Binding="{Binding ButtonB, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="S" Header="S" Binding="{Binding ButtonS, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="T" Header="T" Binding="{Binding ButtonT, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="U" Header="U" Binding="{Binding ButtonU, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="D" Header="D" Binding="{Binding ButtonD, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="L" Header="L" Binding="{Binding ButtonL, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
-				<DataBoxTextColumn ColumnName="R" Header="R" Binding="{Binding ButtonR, DataType={x:Type vm:TASFrameViewModel}}" CanUserResize="True" InitialWidth="30" />
+				<DataBoxTemplateColumn ColumnName="A" Header="A" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateA, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonA}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="B" Header="B" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateB, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonB}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="S" Header="S" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateS, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonS}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="T" Header="T" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateT, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonT}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="U" Header="U" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateU, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonU}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="D" Header="D" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateD, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonD}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="L" Header="L" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateL, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonL}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
+				<DataBoxTemplateColumn ColumnName="R" Header="R" CanUserResize="True" InitialWidth="30">
+					<DataBoxTemplateColumn.CellTemplate>
+						<DataTemplate DataType="vm:TASFrameViewModel">
+							<Border Background="{Binding StateR, Converter={x:Static vm:CellStateToBrushConverter.Instance}}"
+									DoubleTapped="OnCellDoubleTapped">
+								<TextBlock Text="{Binding ButtonR}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+							</Border>
+						</DataTemplate>
+					</DataBoxTemplateColumn.CellTemplate>
+				</DataBoxTemplateColumn>
 			</DataBox.Columns>
 		</DataBox>
 	</Border>

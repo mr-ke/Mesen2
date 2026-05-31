@@ -1581,6 +1581,15 @@
 			<Control ID="wndTitle">Watch Window</Control>
 		</Form>
 		
+		<Form ID="TASEditorWindow">
+			<Control ID="wndTitle">TAS Editor</Control>
+
+			<Control ID="mnuFile">_File</Control>
+			<Control ID="mnuEdit">_Edit</Control>
+			<Control ID="mnuView">_View</Control>
+			<Control ID="mnuHelp">_Help</Control>
+		</Form>
+		
 		<Form ID="ProfilerWindow">
 			<Control ID="wndTitle">Profiler</Control>
 
@@ -3192,6 +3201,7 @@ E
 			<Value ID="FindNext">Find Next</Value>
 			<Value ID="FindPrev">Find Previous</Value>
 			<Value ID="Undo">Undo</Value>
+			<Value ID="Redo">Redo</Value>
 			<Value ID="Copy">Copy</Value>
 			<Value ID="Cut">Cut</Value>
 			<Value ID="Paste">Paste</Value>
@@ -3380,6 +3390,7 @@ E
 			<Value ID="Paste">Paste</Value>
 			<Value ID="SelectAll">Select All</Value>
 			<Value ID="Undo">Undo</Value>
+			<Value ID="Redo">Redo</Value>
 
 			<Value ID="Add">Add...</Value>
 			<Value ID="Edit">Edit</Value>
@@ -3474,6 +3485,7 @@ E
 
 			<Value ID="HelpApiReference">API Reference</Value>
 			<Value ID="RecentScripts">Recent Scripts</Value>
+			<Value ID="RecentFiles">Recent Files</Value>
 
 			<Value ID="GoToLocation">Go to Location</Value>
 			

@@ -81,7 +81,7 @@ namespace Mesen.Debugger.ViewModels
 
 		public void PlayTAS()
 		{
-			if(!TASEditor.FrameList.HasImportedData || string.IsNullOrEmpty(TASEditor.FrameList.ImportedMMOPath)) {
+			if(!TASEditor.FrameList.HasImportedData) {
 				return;
 			}
 
@@ -99,7 +99,10 @@ namespace Mesen.Debugger.ViewModels
 						IsPaused = false;
 					}
 
-					RecordApi.MoviePlay(TASEditor.FrameList.ImportedMMOPath);
+					string tempMMOPath = Path.Combine(Path.GetTempPath(), "MesenTAS_" + Guid.NewGuid().ToString() + ".mmo");
+					TASEditor.FrameList.ExportMMO(tempMMOPath);
+					
+					RecordApi.MoviePlay(tempMMOPath);
 					IsPlaying = true;
 				}
 			} catch(Exception ex) {

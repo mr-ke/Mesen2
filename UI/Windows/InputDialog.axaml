@@ -1,0 +1,21 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="150"
+	Width="400"
+	SizeToContent="Height"
+	WindowStartupLocation="CenterOwner"
+	CanResize="False"
+	x:Class="Mesen.Windows.InputDialog"
+>
+	<StackPanel Margin="20" Spacing="15">
+		<TextBlock x:Name="PromptText" Text="Enter value:" FontSize="14" />
+		<TextBox x:Name="InputTextBox" FontSize="14" Padding="8" />
+		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+			<Button x:Name="OkButton" Content="OK" Width="80" Padding="8,5" />
+			<Button x:Name="CancelButton" Content="Cancel" Width="80" Padding="8,5" />
+		</StackPanel>
+	</StackPanel>
+</Window>

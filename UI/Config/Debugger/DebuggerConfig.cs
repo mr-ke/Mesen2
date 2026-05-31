@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Media;
 using Mesen.Debugger;
 using Mesen.Interop;
@@ -94,6 +94,8 @@ namespace Mesen.Config
 		[Reactive] public List<int> WatchListColumnWidths { get; set; } = new();
 		[Reactive] public List<int> CallStackColumnWidths { get; set; } = new();
 		[Reactive] public List<int> FindResultColumnWidths { get; set; } = new();
+
+		[Reactive] public List<string> RecentMMOs { get; set; } = new();
 
 		public DebuggerConfig()
 		{
