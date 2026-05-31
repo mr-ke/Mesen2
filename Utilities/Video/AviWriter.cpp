@@ -26,7 +26,6 @@
 #include "BaseCodec.h"
 #include "RawCodec.h"
 #include "ZmbvCodec.h"
-#include "CamstudioCodec.h"
 
 void AviWriter::WriteAviChunk(const char *tag, uint32_t size, void *data, uint32_t flags)
 {
@@ -76,7 +75,6 @@ bool AviWriter::StartWrite(string filename, VideoCodec codec, uint32_t width, ui
 		default:
 		case VideoCodec::None: _codec.reset(new RawCodec()); break;
 		case VideoCodec::ZMBV: _codec.reset(new ZmbvCodec()); break;
-		case VideoCodec::CSCD: _codec.reset(new CamstudioCodec()); break;
 	}
 
 	if(!_codec->SetupCompress(width, height, compressionLevel)) {

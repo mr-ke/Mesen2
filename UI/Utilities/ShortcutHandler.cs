@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Mesen.Config;
 using Mesen.Config.Shortcuts;
@@ -172,7 +172,7 @@ namespace Mesen.Utilities
 			if(RecordApi.AviIsRecording()) {
 				RecordApi.AviStop();
 			} else {
-				string filename = GetOutputFilename(ConfigManager.AviFolder, ConfigManager.Config.VideoRecord.Codec == VideoCodec.GIF ? ".gif" : ".avi");
+				string filename = GetOutputFilename(ConfigManager.AviFolder, ".avi");
 				RecordApi.AviRecord(filename, new RecordAviOptions() {
 					Codec = ConfigManager.Config.VideoRecord.Codec,
 					CompressionLevel = ConfigManager.Config.VideoRecord.CompressionLevel,
