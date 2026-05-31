@@ -147,6 +147,16 @@
 					<SolidColorBrush x:Key="ThemeAccentBrush4" Color="{DynamicResource ThemeAccentColor4}"></SolidColorBrush>
 					<SolidColorBrush x:Key="ErrorBrush" Color="{DynamicResource ErrorColor}"></SolidColorBrush>
 					<SolidColorBrush x:Key="ErrorLowBrush" Color="{DynamicResource ErrorLowColor}"></SolidColorBrush>
+
+					<!-- TAS Editor PlaybackControl colors -->
+					<Color x:Key="TASPlaybackControlBackground">#383838</Color>
+					<Color x:Key="TASPlaybackControlBorder">#606060</Color>
+					<Color x:Key="TASPlaybackControlSeparator">#606060</Color>
+					<Color x:Key="TASSliderTrackBackground">#505050</Color>
+					<Color x:Key="TASSliderThumbBackground">#119EDA</Color>
+					<Color x:Key="TASSliderThumbBorder">#0D7AB8</Color>
+					<Color x:Key="TASSliderThumbPointerOver">#33B5E5</Color>
+					<Color x:Key="TASSliderThumbPressed">#0A5C8A</Color>
 				</ResourceDictionary>
 			</ResourceDictionary.ThemeDictionaries>
 		</ResourceDictionary>

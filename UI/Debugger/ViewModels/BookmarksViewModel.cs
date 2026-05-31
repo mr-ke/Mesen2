@@ -9,8 +9,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace Mesen.Debugger.ViewModels
 {
@@ -129,20 +131,26 @@ namespace Mesen.Debugger.ViewModels
 	{
 		public static readonly BookmarkStateToBrushConverter Instance = new();
 
-		private static readonly SolidColorBrush BlackBrush = new(Colors.Black);
-		private static readonly SolidColorBrush DarkRedBrush = new(Color.FromRgb(0xF0, 0x00, 0x00));
-		private static readonly SolidColorBrush DarkGreenBrush = new(Color.FromRgb(0x00, 0xE0, 0x00));
+		private static readonly SolidColorBrush LightBlackBrush = new(Colors.Black);
+		private static readonly SolidColorBrush LightRedBrush = new(Color.FromRgb(0xF0, 0x00, 0x00));
+		private static readonly SolidColorBrush LightGreenBrush = new(Color.FromRgb(0x00, 0xE0, 0x00));
+		
+		private static readonly SolidColorBrush DarkBlackBrush = new(Color.FromRgb(0xDE, 0xDE, 0xDE));
+		private static readonly SolidColorBrush DarkRedBrush = new(Color.FromRgb(0xFF, 0x60, 0x60));
+		private static readonly SolidColorBrush DarkGreenBrush = new(Color.FromRgb(0x60, 0xFF, 0x60));
 
 		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
 		{
+			bool isDarkTheme = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+			
 			if(value is BookmarkState state) {
 				return state switch {
-					BookmarkState.Saved => DarkRedBrush,
-					BookmarkState.Loaded => DarkGreenBrush,
-					_ => BlackBrush
+					BookmarkState.Saved => isDarkTheme ? DarkRedBrush : LightRedBrush,
+					BookmarkState.Loaded => isDarkTheme ? DarkGreenBrush : LightGreenBrush,
+					_ => isDarkTheme ? DarkBlackBrush : LightBlackBrush
 				};
 			}
-			return BlackBrush;
+			return isDarkTheme ? DarkBlackBrush : LightBlackBrush;
 		}
 
 		public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

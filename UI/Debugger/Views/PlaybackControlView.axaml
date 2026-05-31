@@ -200,8 +200,8 @@
 			<Border 
 				Grid.Row="2" 
 				Margin="0,10,0,0"
-				Background="#F5F5F5"
-				BorderBrush="#C0C0C0"
+				Background="{DynamicResource TASPlaybackControlBackground}"
+				BorderBrush="{DynamicResource TASPlaybackControlBorder}"
 				BorderThickness="1"
 				CornerRadius="4"
 				Padding="12,8"
@@ -221,7 +221,7 @@
 					<Border 
 						Grid.Column="1"
 						Width="1"
-						Background="#C0C0C0"
+						Background="{DynamicResource TASPlaybackControlSeparator}"
 						Margin="15,0"
 					/>
 					
@@ -238,22 +238,22 @@
 							<Slider.Styles>
 								<Style Selector="Slider /template/ Border#PART_TrackBackground">
 									<Setter Property="Height" Value="4"/>
-									<Setter Property="Background" Value="#D0D0D0"/>
+									<Setter Property="Background" Value="{DynamicResource TASSliderTrackBackground}"/>
 									<Setter Property="CornerRadius" Value="2"/>
 								</Style>
 								<Style Selector="Slider /template/ Thumb#PART_Thumb">
 									<Setter Property="Width" Value="8"/>
 									<Setter Property="Height" Value="18"/>
 									<Setter Property="CornerRadius" Value="2"/>
-									<Setter Property="Background" Value="#0078D4"/>
-									<Setter Property="BorderBrush" Value="#005A9E"/>
+									<Setter Property="Background" Value="{DynamicResource TASSliderThumbBackground}"/>
+									<Setter Property="BorderBrush" Value="{DynamicResource TASSliderThumbBorder}"/>
 									<Setter Property="BorderThickness" Value="1"/>
 								</Style>
 								<Style Selector="Slider /template/ Thumb#PART_Thumb:pointerover">
-									<Setter Property="Background" Value="#1E90FF"/>
+									<Setter Property="Background" Value="{DynamicResource TASSliderThumbPointerOver}"/>
 								</Style>
 								<Style Selector="Slider /template/ Thumb#PART_Thumb:pressed">
-									<Setter Property="Background" Value="#005A9E"/>
+									<Setter Property="Background" Value="{DynamicResource TASSliderThumbPressed}"/>
 								</Style>
 							</Slider.Styles>
 						</Slider>

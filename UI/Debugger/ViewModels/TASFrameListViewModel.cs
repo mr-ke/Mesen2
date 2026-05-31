@@ -3,6 +3,7 @@ using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Selection;
 using Avalonia.Media;
+using Avalonia.Styling;
 using DataBoxControl;
 using Mesen.Config;
 using Mesen.Debugger.Labels;
@@ -37,20 +38,27 @@ namespace Mesen.Debugger.ViewModels
 	public class CellStateToBrushConverter : Avalonia.Data.Converters.IValueConverter
 	{
 		public static readonly CellStateToBrushConverter Instance = new();
-		private static readonly SolidColorBrush WhiteBrush = new(Colors.White);
+		
+		private static readonly SolidColorBrush LightWhiteBrush = new(Colors.White);
 		private static readonly SolidColorBrush LightGreenBrush = new(Color.FromRgb(0x90, 0xEE, 0x90));
 		private static readonly SolidColorBrush LightPinkBrush = new(Color.FromRgb(0xFF, 0xB6, 0xC1));
+		
+		private static readonly SolidColorBrush DarkWhiteBrush = new(Color.FromRgb(0x40, 0x40, 0x40));
+		private static readonly SolidColorBrush DarkGreenBrush = new(Color.FromRgb(0x2E, 0x7D, 0x32));
+		private static readonly SolidColorBrush DarkPinkBrush = new(Color.FromRgb(0x8B, 0x3A, 0x3A));
 
 		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
 		{
+			bool isDarkTheme = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+			
 			if(value is CellState state) {
 				return state switch {
-					CellState.Loaded => LightGreenBrush,
-					CellState.Modified => LightPinkBrush,
-					_ => WhiteBrush
+					CellState.Loaded => isDarkTheme ? DarkGreenBrush : LightGreenBrush,
+					CellState.Modified => isDarkTheme ? DarkPinkBrush : LightPinkBrush,
+					_ => isDarkTheme ? DarkWhiteBrush : LightWhiteBrush
 				};
 			}
-			return WhiteBrush;
+			return isDarkTheme ? DarkWhiteBrush : LightWhiteBrush;
 		}
 
 		public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
