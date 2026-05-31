@@ -9,7 +9,7 @@
 #include "Shared/InputHud.h"
 #include "Shared/MessageManager.h"
 #include "Utilities/Video/IVideoRecorder.h"
-#include "Utilities/Video/AviRecorder.h"
+#include "Utilities/Video/FFmpegRecorder.h"
 
 VideoRenderer::VideoRenderer(Emulator* emu)
 {
@@ -273,7 +273,7 @@ void VideoRenderer::StartRecording(string filename, RecordAviOptions options)
 	_recorderOptions = options;
 
 	shared_ptr<IVideoRecorder> recorder;
-	recorder.reset(new AviRecorder(options.Codec, options.CompressionLevel));
+	recorder.reset(new FFmpegRecorder(options.Codec, options.CompressionLevel));
 
 	if(recorder->Init(filename)) {
 		_recorder.reset(recorder);

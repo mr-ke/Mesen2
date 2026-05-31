@@ -91,6 +91,7 @@ target_include_directories(MesenCore PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Sdl
     ${CMAKE_CURRENT_SOURCE_DIR}/InteropDLL
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/ffmpeg-dist/include
 )
 
 if(WIN32)
@@ -146,6 +147,10 @@ if(WIN32)
     target_link_libraries(MesenCore PRIVATE
         ${SDL2_LIBRARIES}
         ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/lib/librashader.dll.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/ffmpeg-dist/lib/libavcodec.dll.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/ffmpeg-dist/lib/libavformat.dll.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/ffmpeg-dist/lib/libavutil.dll.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/ffmpeg-dist/lib/libswscale.dll.a
         ws2_32
         kernel32
         user32
