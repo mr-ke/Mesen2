@@ -309,6 +309,7 @@ Tips:
 			if(DockLayout != null) {
 				Config.TASSavedDockLayout = DockFactory.ToDockDefinition(DockLayout);
 			}
+			ConfigManager.Config.Save();
 		}
 	}
 }

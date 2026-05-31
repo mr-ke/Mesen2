@@ -98,6 +98,9 @@ namespace Mesen.Config
 
 		[Reactive] public List<string> RecentMMOs { get; set; } = new();
 
+		[Reactive] public bool TASFollowCursor { get; set; } = true;
+		[Reactive] public double TASSeekSpeed { get; set; } = 1.0;
+
 		public DebuggerConfig()
 		{
 		}

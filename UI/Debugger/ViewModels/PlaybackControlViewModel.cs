@@ -5,12 +5,14 @@ using Mesen.Debugger.Windows;
 using Mesen.Interop;
 using Mesen.Utilities;
 using Mesen.ViewModels;
+using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
+using System.Reactive.Linq;
 using System.Text;
 
 namespace Mesen.Debugger.ViewModels
@@ -21,6 +23,8 @@ namespace Mesen.Debugger.ViewModels
 		[Reactive] public int CurrentFrame { get; private set; } = 0;
 		[Reactive] public int TotalFrames { get; private set; } = 100;
 		[Reactive] public bool IsPlaying { get; private set; } = false;
+		[Reactive] public bool FollowCursor { get; set; } = true;
+		[Reactive] public double SeekSpeed { get; set; } = 1.0;
 
 		public CpuType CpuType { get; }
 		public TASEditorWindowViewModel TASEditor { get; }
@@ -32,6 +36,19 @@ namespace Mesen.Debugger.ViewModels
 		{
 			CpuType = cpuType;
 			TASEditor = tasEditor;
+
+			FollowCursor = ConfigManager.Config.Debug.Debugger.TASFollowCursor;
+			SeekSpeed = ConfigManager.Config.Debug.Debugger.TASSeekSpeed;
+
+			this.WhenAnyValue(x => x.FollowCursor)
+				.BindTo(ConfigManager.Config.Debug.Debugger, x => x.TASFollowCursor);
+
+			this.WhenAnyValue(x => x.SeekSpeed)
+				.Do(speed => {
+					ConfigManager.Config.Emulation.EmulationSpeed = (uint)(speed * 100);
+					ConfigManager.Config.Emulation.ApplyConfig();
+				})
+				.BindTo(ConfigManager.Config.Debug.Debugger, x => x.TASSeekSpeed);
 		}
 
 		public void PreviousMarker()
@@ -157,6 +174,10 @@ namespace Mesen.Debugger.ViewModels
 		{
 			TimingInfo timing = EmuApi.GetTimingInfo(CpuType);
 			CurrentFrame = (int)timing.FrameCount;
+			
+			if(IsPlaying && FollowCursor) {
+				TASEditor.FrameList.SelectFrame(CurrentFrame);
+			}
 		}
 	}
 }

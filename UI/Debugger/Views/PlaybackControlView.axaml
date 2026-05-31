@@ -16,7 +16,7 @@
 	</Design.DataContext>
 
 	<Border BorderThickness="1" BorderBrush="#80808080" Padding="5">
-		<Grid RowDefinitions="Auto,*">
+		<Grid RowDefinitions="Auto,Auto,Auto">
 			<TextBlock 
 				Grid.Row="0"
 				Text="{Binding CurrentFrame, StringFormat='Frame: {0}'}"
@@ -196,6 +196,77 @@
 					</c:IconButton>
 				</Grid>
 			</UniformGrid>
+
+			<Border 
+				Grid.Row="2" 
+				Margin="0,10,0,0"
+				Background="#F5F5F5"
+				BorderBrush="#C0C0C0"
+				BorderThickness="1"
+				CornerRadius="4"
+				Padding="12,8"
+				HorizontalAlignment="Center"
+				MaxWidth="320"
+			>
+				<Grid ColumnDefinitions="*,Auto,*">
+					<CheckBox 
+						Grid.Column="0"
+						Content="Follow Cursor" 
+						IsChecked="{Binding FollowCursor}"
+						HorizontalAlignment="Center"
+						FontSize="12"
+						FontWeight="Medium"
+					/>
+					
+					<Border 
+						Grid.Column="1"
+						Width="1"
+						Background="#C0C0C0"
+						Margin="15,0"
+					/>
+					
+					<StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
+						<Slider 
+							Minimum="0.25" 
+							Maximum="1.5" 
+							Value="{Binding SeekSpeed}"
+							Width="80"
+							IsSnapToTickEnabled="True"
+							TickFrequency="0.25"
+							VerticalAlignment="Center"
+						>
+							<Slider.Styles>
+								<Style Selector="Slider /template/ Border#PART_TrackBackground">
+									<Setter Property="Height" Value="4"/>
+									<Setter Property="Background" Value="#D0D0D0"/>
+									<Setter Property="CornerRadius" Value="2"/>
+								</Style>
+								<Style Selector="Slider /template/ Thumb#PART_Thumb">
+									<Setter Property="Width" Value="8"/>
+									<Setter Property="Height" Value="18"/>
+									<Setter Property="CornerRadius" Value="2"/>
+									<Setter Property="Background" Value="#0078D4"/>
+									<Setter Property="BorderBrush" Value="#005A9E"/>
+									<Setter Property="BorderThickness" Value="1"/>
+								</Style>
+								<Style Selector="Slider /template/ Thumb#PART_Thumb:pointerover">
+									<Setter Property="Background" Value="#1E90FF"/>
+								</Style>
+								<Style Selector="Slider /template/ Thumb#PART_Thumb:pressed">
+									<Setter Property="Background" Value="#005A9E"/>
+								</Style>
+							</Slider.Styles>
+						</Slider>
+						<TextBlock 
+							Text="{Binding SeekSpeed, StringFormat={}{0:F2}x}" 
+							VerticalAlignment="Center" 
+							FontSize="12"
+							FontWeight="Medium"
+							Width="45"
+						/>
+					</StackPanel>
+				</Grid>
+			</Border>
 		</Grid>
 	</Border>
 </UserControl>
