@@ -14,6 +14,7 @@ namespace Mesen.Config
 	public class DebuggerConfig : BaseWindowConfig<DebuggerConfig>
 	{
 		public DockEntryDefinition? SavedDockLayout { get; set; } = null;
+		public DockEntryDefinition? TASSavedDockLayout { get; set; } = null;
 
 		[Reactive] public bool ShowSettingsPanel { get; set; } = true;
 

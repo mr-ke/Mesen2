@@ -85,7 +85,7 @@ namespace Mesen.Debugger.ViewModels
 			PlaybackControl = AddDisposable(new PlaybackControlViewModel(CpuType, this));
 			Bookmarks = AddDisposable(new BookmarksViewModel(CpuType, this));
 
-			DockFactory = new TASEditorDockFactory(Config.SavedDockLayout);
+			DockFactory = new TASEditorDockFactory(Config.TASSavedDockLayout);
 
 			DockFactory.LabelListTool.Model = FrameList;
 			DockFactory.InputDisplayTool.Model = InputDisplay;
@@ -307,7 +307,7 @@ Tips:
 		public void SaveConfig()
 		{
 			if(DockLayout != null) {
-				Config.SavedDockLayout = DockFactory.ToDockDefinition(DockLayout);
+				Config.TASSavedDockLayout = DockFactory.ToDockDefinition(DockLayout);
 			}
 		}
 	}
