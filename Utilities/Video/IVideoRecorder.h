@@ -4,7 +4,12 @@
 enum class VideoCodec
 {
 	None = 0,
-	ZMBV = 1
+	ZMBV = 1,
+	FFVHUFF = 2,
+	UTVideo = 3,
+	H264 = 4,
+	VP8 = 5,
+	VP9 = 6
 };
 
 class IVideoRecorder

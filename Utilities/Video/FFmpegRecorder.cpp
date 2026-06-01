@@ -39,8 +39,10 @@ bool FFmpegRecorder::InitializeFFmpeg()
 {
 	const char* format = nullptr;
 	
-	if(_codec == VideoCodec::ZMBV) {
+	if(_codec == VideoCodec::ZMBV || _codec == VideoCodec::UTVideo || _codec == VideoCodec::FFVHUFF) {
 		format = "avi";
+	} else if(_codec == VideoCodec::H264 || _codec == VideoCodec::VP8 || _codec == VideoCodec::VP9) {
+		format = "matroska";
 	}
 
 	int ret = avformat_alloc_output_context2(&_formatCtx, nullptr, format, _outputFile.c_str());
@@ -59,6 +61,21 @@ bool FFmpegRecorder::InitializeVideoStream()
 	switch(_codec) {
 		case VideoCodec::ZMBV:
 			codecId = AV_CODEC_ID_ZMBV;
+			break;
+		case VideoCodec::FFVHUFF:
+			codecId = AV_CODEC_ID_FFVHUFF;
+			break;
+		case VideoCodec::UTVideo:
+			codecId = AV_CODEC_ID_UTVIDEO;
+			break;
+		case VideoCodec::H264:
+			codecId = AV_CODEC_ID_H264;
+			break;
+		case VideoCodec::VP8:
+			codecId = AV_CODEC_ID_VP8;
+			break;
+		case VideoCodec::VP9:
+			codecId = AV_CODEC_ID_VP9;
 			break;
 		case VideoCodec::None:
 		default:
@@ -91,10 +108,46 @@ bool FFmpegRecorder::InitializeVideoStream()
 	if(_codec == VideoCodec::ZMBV) {
 		_videoCodecCtx->pix_fmt = AV_PIX_FMT_BGR0;
 		_videoCodecCtx->compression_level = _compressionLevel;
+		_videoCodecCtx->gop_size = 240;
+		_videoCodecCtx->max_b_frames = 0;
+		_videoCodecCtx->me_range = 1;  // Minimal motion estimation range
+	} else if(_codec == VideoCodec::FFVHUFF) {
+		_videoCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
 		_videoCodecCtx->gop_size = 120;
 		_videoCodecCtx->max_b_frames = 0;
+	} else if(_codec == VideoCodec::UTVideo) {
+		_videoCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+		_videoCodecCtx->gop_size = 120;
+		_videoCodecCtx->max_b_frames = 0;
+	} else if(_codec == VideoCodec::H264) {
+		_videoCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+		_videoCodecCtx->gop_size = 120;
+		_videoCodecCtx->max_b_frames = 2;
+		_videoCodecCtx->qmax = 35;
+		_videoCodecCtx->thread_count = 4;
+		av_opt_set_int(_videoCodecCtx->priv_data, "crf", 18, 0);
+	} else if(_codec == VideoCodec::VP8) {
+		_videoCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+		_videoCodecCtx->bit_rate = 0;
+		_videoCodecCtx->gop_size = 120;
+		_videoCodecCtx->max_b_frames = 0;
+		_videoCodecCtx->thread_count = 4;
+		av_opt_set_int(_videoCodecCtx->priv_data, "crf", 12, 0);
+		av_opt_set_int(_videoCodecCtx->priv_data, "cpu-used", 5, 0);
+		av_opt_set(_videoCodecCtx->priv_data, "deadline", "realtime", 0);
+	} else if(_codec == VideoCodec::VP9) {
+		_videoCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+		_videoCodecCtx->bit_rate = 0;
+		_videoCodecCtx->gop_size = 120;
+		_videoCodecCtx->max_b_frames = 0;
+		_videoCodecCtx->thread_count = 4;
+		av_opt_set_int(_videoCodecCtx->priv_data, "crf", 15, 0);
+		av_opt_set_int(_videoCodecCtx->priv_data, "cpu-used", 5, 0);
+		av_opt_set(_videoCodecCtx->priv_data, "deadline", "realtime", 0);
 	} else {
 		_videoCodecCtx->pix_fmt = AV_PIX_FMT_BGR24;
+		_videoCodecCtx->bits_per_coded_sample = 24;
+		_videoCodecCtx->codec_tag = avcodec_pix_fmt_to_codec_tag(_videoCodecCtx->pix_fmt);
 	}
 
 	if(_formatCtx->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -134,14 +187,16 @@ bool FFmpegRecorder::InitializeVideoStream()
 		srcPixFmt = AV_PIX_FMT_RGB565;
 	}
 
-	_swsCtx = sws_getContext(
-		_width, _height, srcPixFmt,
-		_width, _height, _videoCodecCtx->pix_fmt,
-		SWS_BILINEAR, nullptr, nullptr, nullptr
-	);
-
-	if(!_swsCtx) {
-		return false;
+	// Skip sws_scale if source and destination formats match
+	if(srcPixFmt != _videoCodecCtx->pix_fmt) {
+		_swsCtx = sws_getContext(
+			_width, _height, srcPixFmt,
+			_width, _height, _videoCodecCtx->pix_fmt,
+			SWS_POINT, nullptr, nullptr, nullptr  // Fastest scaling
+		);
+		if(!_swsCtx) {
+			return false;
+		}
 	}
 
 	_packet = av_packet_alloc();
