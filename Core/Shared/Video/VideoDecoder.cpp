@@ -113,6 +113,20 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 	
 	OverscanDimensions overscan = _videoFilter->GetOverscan();
 
+	// Generate raw frame for recording at native resolution
+	if(!_rawFrameFilter) {
+		_rawFrameFilter.reset(_emu->GetVideoFilter(true));
+	}
+	_rawFrameFilter->SetBaseFrameInfo(_baseFrameSize);
+	_rawFrameSize = _rawFrameFilter->SendFrame((uint16_t*)_frame.FrameBuffer, _frame.FrameNumber, _frame.VideoPhase, _frame.Data);
+	uint32_t* rawBuffer = _rawFrameFilter->GetOutputBuffer();
+	
+	size_t rawBufferSize = _rawFrameSize.Width * _rawFrameSize.Height;
+	if(_rawFrameBuffer.size() != rawBufferSize) {
+		_rawFrameBuffer.resize(rawBufferSize);
+	}
+	memcpy(_rawFrameBuffer.data(), rawBuffer, rawBufferSize * sizeof(uint32_t));
+
 	if(_rotateFilter && !isAudioPlayer) {
 		outputBuffer = _rotateFilter->ApplyFilter(outputBuffer, frameSize.Width, frameSize.Height);
 		if((_rotateFilter->GetAngle() % 180) != 0) {

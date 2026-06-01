@@ -46,7 +46,8 @@ namespace Mesen.Windows
 				Codec = model.Config.Codec,
 				CompressionLevel = model.Config.CompressionLevel,
 				RecordSystemHud = model.Config.RecordSystemHud,
-				RecordInputHud = model.Config.RecordInputHud
+				RecordInputHud = model.Config.RecordInputHud,
+				UseNativeResolution = model.Config.UseNativeResolution
 			});
 
 			Close(true);

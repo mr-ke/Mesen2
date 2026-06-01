@@ -1,4 +1,4 @@
-﻿using Mesen.Config;
+using Mesen.Config;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -75,6 +75,7 @@ namespace Mesen.Interop
 		public UInt32 CompressionLevel;
 		[MarshalAs(UnmanagedType.I1)] public bool RecordSystemHud;
 		[MarshalAs(UnmanagedType.I1)] public bool RecordInputHud;
+		[MarshalAs(UnmanagedType.I1)] public bool UseNativeResolution;
 	};
 
 }

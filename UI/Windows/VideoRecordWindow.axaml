@@ -10,7 +10,7 @@
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	mc:Ignorable="d"
 	x:Class="Mesen.Windows.VideoRecordWindow"
-	Width="500" Height="170"
+	Width="500" Height="200"
 	x:DataType="vm:VideoRecordConfigViewModel"
 	Title="{l:Translate wndTitle}"
 >
@@ -20,7 +20,7 @@
 			<Button MinWidth="70" HorizontalContentAlignment="Center" IsCancel="True" Click="Cancel_OnClick" Content="{l:Translate btnCancel}" />
 		</StackPanel>
 
-		<Grid ColumnDefinitions="Auto,1*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+		<Grid ColumnDefinitions="Auto,1*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
 			<TextBlock Text="{l:Translate lblAviFile}" />
 			<TextBox Grid.Column="1" IsReadOnly="True" Text="{Binding SavePath}" />
 			<Button Grid.Column="2" Content="{l:Translate btnBrowse}" Click="OnBrowseClick" />
@@ -47,8 +47,9 @@
 				<TextBlock Grid.Column="2" Text="{l:Translate lblHighCompression}" />
 			</Grid>
 			
-			<CheckBox Grid.Row="3" Grid.ColumnSpan="3" Content="{l:Translate lblRecordSystemHud}" IsChecked="{Binding Config.RecordSystemHud}" />
-			<CheckBox Grid.Row="4" Grid.ColumnSpan="3" Content="{l:Translate lblRecordInputHud}" IsChecked="{Binding Config.RecordInputHud}" />
+			<CheckBox Grid.Row="3" Grid.ColumnSpan="3" Content="{l:Translate lblUseNativeResolution}" IsChecked="{Binding Config.UseNativeResolution}" />
+			<CheckBox Grid.Row="4" Grid.ColumnSpan="3" Content="{l:Translate lblRecordSystemHud}" IsChecked="{Binding Config.RecordSystemHud}" />
+			<CheckBox Grid.Row="5" Grid.ColumnSpan="3" Content="{l:Translate lblRecordInputHud}" IsChecked="{Binding Config.RecordInputHud}" />
 		</Grid>
 	</DockPanel>
 </Window>

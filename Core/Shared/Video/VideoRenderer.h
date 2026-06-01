@@ -23,6 +23,7 @@ struct RecordAviOptions
 	uint32_t CompressionLevel;
 	bool RecordSystemHud;
 	bool RecordInputHud;
+	bool UseNativeResolution;
 };
 
 class VideoRenderer

@@ -869,6 +869,7 @@
 			<Control ID="lblLowCompression">low&#13;(fast)</Control>
 			<Control ID="lblHighCompression">high&#13;(slow)</Control>
 
+			<Control ID="lblUseNativeResolution">Use native resolution (ignore video filter scaling)</Control>
 			<Control ID="lblRecordSystemHud">Record system HUD (game timer, on-screen messages, etc.)</Control>
 			<Control ID="lblRecordInputHud">Record input HUD</Control>
 			

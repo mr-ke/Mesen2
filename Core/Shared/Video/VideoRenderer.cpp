@@ -204,21 +204,35 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 {
 	shared_ptr<IVideoRecorder> recorder = _recorder.lock();
 	if(recorder) {
+		uint32_t* frameBuffer = (uint32_t*)frame.FrameBuffer;
+		uint32_t width = frame.Width;
+		uint32_t height = frame.Height;
+
+		if(_recorderOptions.UseNativeResolution) {
+			FrameInfo rawFrameSize = _emu->GetVideoDecoder()->GetRawFrameSize();
+			uint32_t* rawFrameBuffer = _emu->GetVideoDecoder()->GetRawFrameBuffer();
+			if(rawFrameBuffer && rawFrameSize.Width > 0 && rawFrameSize.Height > 0) {
+				frameBuffer = rawFrameBuffer;
+				width = rawFrameSize.Width;
+				height = rawFrameSize.Height;
+			}
+		}
+
 		if(!recorder->IsRecording()) {
-			recorder->StartRecording(frame.Width, frame.Height, 4, _emu->GetSettings()->GetAudioConfig().SampleRate, _emu->GetFps());
+			recorder->StartRecording(width, height, 4, _emu->GetSettings()->GetAudioConfig().SampleRate, _emu->GetFps());
 		}
 
 		if(_recorderOptions.RecordInputHud || _recorderOptions.RecordSystemHud) {
 			//Calculate the scale needed for the HUD elements
 			FrameInfo originalSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
-			double scale = (double)frame.Height / originalSize.Height;
-			FrameInfo scaledFrameSize = { (uint32_t)(frame.Width / scale), (uint32_t)(frame.Height / scale) };
+			double scale = (double)height / originalSize.Height;
+			FrameInfo scaledFrameSize = { (uint32_t)(width / scale), (uint32_t)(height / scale) };
 
 			//Update the surface to match the frame's size
-			_aviRecorderSurface.UpdateSize(frame.Width, frame.Height);
+			_aviRecorderSurface.UpdateSize(width, height);
 			
 			//Copy the game screen
-			memcpy(_aviRecorderSurface.Buffer, frame.FrameBuffer, frame.Width * frame.Height * sizeof(uint32_t));
+			memcpy(_aviRecorderSurface.Buffer, frameBuffer, width * height * sizeof(uint32_t));
 
 			//Draw the system/input HUDs
 			DebugHud hud;
@@ -230,16 +244,16 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 				inputHud.DrawControllers(scaledFrameSize, frame.InputData);
 			}
 
-			FrameInfo frameSize = { frame.Width, frame.Height };
+			FrameInfo frameSize = { width, height };
 			hud.Draw((uint32_t*)_aviRecorderSurface.Buffer, frameSize, {}, frame.FrameNumber, { scale, scale });
 
 			//Record the final result
-			if(!recorder->AddFrame(_aviRecorderSurface.Buffer, frame.Width, frame.Height, _emu->GetFps())) {
+			if(!recorder->AddFrame(_aviRecorderSurface.Buffer, width, height, _emu->GetFps())) {
 				StopRecording();
 			}
 		} else {
 			//Only record the game screen
-			if(!recorder->AddFrame(frame.FrameBuffer, frame.Width, frame.Height, _emu->GetFps())) {
+			if(!recorder->AddFrame(frameBuffer, width, height, _emu->GetFps())) {
 				StopRecording();
 			}
 		}

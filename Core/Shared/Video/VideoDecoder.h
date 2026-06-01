@@ -39,6 +39,10 @@ private:
 	unique_ptr<ScaleFilter> _scaleFilter;
 	unique_ptr<RotateFilter> _rotateFilter;
 
+	unique_ptr<BaseVideoFilter> _rawFrameFilter;
+	vector<uint32_t> _rawFrameBuffer;
+	FrameInfo _rawFrameSize = {};
+
 	void UpdateVideoFilter();
 
 	void DecodeThread();
@@ -61,6 +65,9 @@ public:
 	double GetLastFrameScale() { return _frame.Scale; }
 
 	void UpdateFrame(RenderedFrame frame, bool sync, bool forRewind);
+
+	uint32_t* GetRawFrameBuffer() { return _rawFrameBuffer.empty() ? nullptr : _rawFrameBuffer.data(); }
+	FrameInfo GetRawFrameSize() { return _rawFrameSize; }
 
 	void WaitForAsyncFrameDecode();
 

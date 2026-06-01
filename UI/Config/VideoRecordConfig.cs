@@ -13,6 +13,7 @@ namespace Mesen.Config
 		[Reactive] public UInt32 CompressionLevel { get; set; } = 6;
 		[Reactive] public bool RecordSystemHud { get; set; } = false;
 		[Reactive] public bool RecordInputHud { get; set; } = false;
+		[Reactive] public bool UseNativeResolution { get; set; } = false;
 	}
 
 	public enum VideoCodec

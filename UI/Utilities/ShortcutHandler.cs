@@ -177,7 +177,8 @@ namespace Mesen.Utilities
 					Codec = ConfigManager.Config.VideoRecord.Codec,
 					CompressionLevel = ConfigManager.Config.VideoRecord.CompressionLevel,
 					RecordSystemHud = ConfigManager.Config.VideoRecord.RecordSystemHud,
-					RecordInputHud = ConfigManager.Config.VideoRecord.RecordInputHud
+					RecordInputHud = ConfigManager.Config.VideoRecord.RecordInputHud,
+					UseNativeResolution = ConfigManager.Config.VideoRecord.UseNativeResolution
 				});
 			}
 		}
