@@ -29,8 +29,8 @@ namespace Mesen.Windows
 		{
 			VideoRecordConfigViewModel model = (VideoRecordConfigViewModel)DataContext!;
 
-			string initFilename = EmuApi.GetRomInfo().GetRomName() + ".avi";
-			string? filename = await FileDialogHelper.SaveFile(ConfigManager.AviFolder, initFilename, VisualRoot, FileDialogHelper.AviExt);
+			string initFilename = EmuApi.GetRomInfo().GetRomName() + VideoRecordConfigViewModel.GetFileExtension(model.Config.Codec);
+			string? filename = await FileDialogHelper.SaveFile(ConfigManager.AviFolder, initFilename, VisualRoot, FileDialogHelper.VideoExt);
 			
 			if(filename != null) {
 				model.SavePath = filename;

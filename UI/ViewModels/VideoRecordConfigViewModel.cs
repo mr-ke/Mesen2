@@ -19,9 +19,28 @@ namespace Mesen.ViewModels
 		{
 			Config = ConfigManager.Config.VideoRecord.Clone();
 
-			SavePath = Path.Join(ConfigManager.AviFolder, EmuApi.GetRomInfo().GetRomName() + ".avi");
+			SavePath = Path.Join(ConfigManager.AviFolder, EmuApi.GetRomInfo().GetRomName() + GetFileExtension(Config.Codec));
 
 			AddDisposable(this.WhenAnyValue(x => x.Config.Codec).Select(x => x == VideoCodec.ZMBV).ToPropertyEx(this, x => x.CompressionAvailable));
+
+			AddDisposable(this.WhenAnyValue(x => x.Config.Codec).Subscribe(codec => {
+				string currentPath = SavePath;
+				string? dir = Path.GetDirectoryName(currentPath);
+				string filename = Path.GetFileNameWithoutExtension(currentPath);
+				if(!string.IsNullOrEmpty(filename)) {
+					SavePath = Path.Join(dir, filename + GetFileExtension(codec));
+				}
+			}));
+		}
+
+		public static string GetFileExtension(VideoCodec codec)
+		{
+			return codec switch
+			{
+				VideoCodec.H264 => ".mkv",
+				VideoCodec.VP8 => ".mkv",
+				_ => ".avi"
+			};
 		}
 
 		public void SaveConfig()

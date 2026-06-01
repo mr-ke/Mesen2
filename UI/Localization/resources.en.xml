@@ -2495,6 +2495,10 @@ E
 		<Enum ID="VideoCodec">
 			<Value ID="None">None (Uncompressed)</Value>
 			<Value ID="ZMBV">Zip Motion Block Video (ZMBV)</Value>
+			<Value ID="FFVHUFF">FFVHUFF (Lossless)</Value>
+			<Value ID="UTVideo">Ut Video Codec</Value>
+			<Value ID="H264">H.264/AVC</Value>
+			<Value ID="VP8">VP8</Value>
 		</Enum>
 		<Enum ID="RecordMovieFrom">
 			<Value ID="StartWithoutSaveData">Power on</Value>

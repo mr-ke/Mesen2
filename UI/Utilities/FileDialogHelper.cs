@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Platform.Storage.FileIO;
 using Avalonia.Rendering;
@@ -23,6 +23,8 @@ namespace Mesen.Utilities
 		public const string ZipExt = "zip";
 		public const string GifExt = "gif";
 		public const string AviExt = "avi";
+		public const string MkvExt = "mkv";
+		public const string VideoExt = "video";
 		public const string WaveExt = "wav";
 		public const string MesenSaveStateExt = "mss";
 		public const string WatchFileExt = "txt";
@@ -106,7 +108,13 @@ namespace Mesen.Utilities
 			try {
 				List<FilePickerFileType> filter = new List<FilePickerFileType>();
 				foreach(string ext in extensions) {
-					filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
+					if(ext == FileDialogHelper.VideoExt) {
+						filter.Add(new FilePickerFileType("Video files") { Patterns = new List<string>() { "*.avi", "*.mkv" } });
+						filter.Add(new FilePickerFileType("AVI files") { Patterns = new List<string>() { "*.avi" } });
+						filter.Add(new FilePickerFileType("MKV files") { Patterns = new List<string>() { "*.mkv" } });
+					} else {
+						filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
+					}
 				}
 				filter.Add(new FilePickerFileType("All files") { Patterns = new List<string>() { "*" } });
 
@@ -118,7 +126,7 @@ namespace Mesen.Utilities
 
 				IStorageFile? file = await wnd.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions() {
 					SuggestedStartLocation = startLocation,
-					DefaultExtension = extensions[0],
+					DefaultExtension = extensions[0] == VideoExt ? "avi" : extensions[0],
 					ShowOverwritePrompt = true,
 					SuggestedFileName = initialFile,
 					FileTypeChoices = filter
