@@ -91,6 +91,12 @@
 
 #include <windows.h>
 
+// MinGW compatibility fix for UNREFERENCED_PARAMETER
+#ifdef __MINGW32__
+#undef UNREFERENCED_PARAMETER
+#define UNREFERENCED_PARAMETER(P) (void)(P)
+#endif
+
 #ifndef _WIN32_WINNT_WIN10
 #define _WIN32_WINNT_WIN10 0x0A00
 #endif

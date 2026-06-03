@@ -6,6 +6,7 @@
 #include "Utilities/FolderUtilities.h"
 #include "Utilities/SimpleLock.h"
 #include "Utilities/Timer.h"
+#include "LibraShaderManager.h"
 
 using namespace DirectX;
 
@@ -72,6 +73,14 @@ private:
 
 	atomic<int> _resetCounter = 0;
 
+	// librashader support
+	std::unique_ptr<LibraShaderManager> _shaderManager;
+	ID3D11Texture2D* _pShaderOutputTexture = nullptr;
+	ID3D11ShaderResourceView* _pShaderOutputSrv = nullptr;
+	ID3D11RenderTargetView* _pShaderRenderTarget = nullptr;
+	bool _useLibraShader = false;
+	size_t _frameCount = 0;
+
 	HRESULT InitDevice();
 	void CleanupDevice();
 
@@ -90,6 +99,11 @@ private:
 	void ResetTextureBuffers();
 	
 	DXGI_FORMAT GetTextureFormat();
+
+	// librashader helper methods
+	bool InitShaderResources();
+	void CleanupShaderResources();
+	void DrawScreenWithShader();
 
 public:
 	Renderer(Emulator* emu, HWND hWnd);

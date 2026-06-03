@@ -32,9 +32,15 @@
 
 #include <stdio.h>
 
-#ifndef __MINGW32__
+// DirectX headers - available in MinGW-w64
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
+
+// DirectXMath - use 3rdParty version for MinGW, system version for MSVC
+#ifdef __MINGW32__
+#include "DirectXMath.h"
+#include "DirectXColors.h"
+#else
 #include <directxmath.h>
 #include <directxcolors.h>
 #include <dsound.h>
