@@ -19,7 +19,10 @@
 #include <d3d11_1.h>
 #endif
 
+// MinGW doesn't have wrl/client.h, but we don't need it for basic buffer operations
+#ifndef __MINGW32__
 #include <wrl\client.h>
+#endif
 
 
 namespace DirectX

@@ -29,7 +29,8 @@
 	#include "Windows/WindowsKeyManager.h"
 	#include "Windows/WindowsMouseManager.h"
 #elif defined(__MINGW32__)
-	#include "Sdl/SdlRenderer.h"
+	// MinGW uses DirectX renderer with SDL audio/input
+	#include "Windows/Renderer.h"
 	#include "Sdl/SdlSoundManager.h"
 	#include "Sdl/MinGWKeyManager.h"
 	#include "Sdl/MinGWMouseManager.h"
@@ -100,7 +101,9 @@ extern "C" {
 				if(softwareRenderer) {
 					_renderer.reset(new SoftwareRenderer(_emu.get()));
 				} else {
-					#if defined(_WIN32) && !defined(__MINGW32__)
+					// Use DirectX Renderer for all Windows builds (MSVC and MinGW)
+					// MinGW now has DirectXMath support from 3rdParty/DirectXMath
+					#if defined(_WIN32)
 						_renderer.reset(new Renderer(_emu.get(), (HWND)_viewerHandle));
 					#else
 						_renderer.reset(new SdlRenderer(_emu.get(), _viewerHandle));

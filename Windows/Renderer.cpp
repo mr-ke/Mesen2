@@ -164,6 +164,9 @@ void Renderer::Reset()
 
 void Renderer::CleanupDevice()
 {
+	// Cleanup librashader resources first
+	CleanupShaderResources();
+
 	ResetTextureBuffers();
 	ReleaseRenderTargetView();
 	if(_pSwapChain) {
@@ -272,6 +275,9 @@ HRESULT Renderer::CreateEmuTextureBuffers()
 
 	////////////////////////////////////////////////////////////////////////////
 	_spriteBatch.reset(new SpriteBatch(_pDeviceContext));
+
+	// Initialize librashader (optional - will fall back to normal rendering if it fails)
+	InitShaderResources();
 
 	return S_OK;
 }
@@ -601,10 +607,14 @@ void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
 	// Clear the back buffer 
 	_pDeviceContext->ClearRenderTargetView(_pRenderTargetView, Colors::Black);
 
-	//Draw screen
-	_spriteBatch->Begin(SpriteSortMode_Immediate, cfg.UseBilinearInterpolation);
-	DrawScreen();
-	_spriteBatch->End();
+	// Draw screen with or without librashader
+	if(_useLibraShader && _shaderManager && _shaderManager->IsInitialized()) {
+		DrawScreenWithShader();
+	} else {
+		_spriteBatch->Begin(SpriteSortMode_Immediate, cfg.UseBilinearInterpolation);
+		DrawScreen();
+		_spriteBatch->End();
+	}
 
 	//Draw HUD
 	_spriteBatch->Begin(SpriteSortMode_Immediate, false);
@@ -621,5 +631,179 @@ void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
 		}
 		MessageManager::Log("Trying to reset DX...");
 		Reset();
+	}
+}
+
+bool Renderer::InitShaderResources()
+{
+	// Get the directory where the executable (Mesen.exe) is located
+	char exePath[MAX_PATH];
+	GetModuleFileNameA(NULL, exePath, MAX_PATH);
+	std::string exeDir = exePath;
+	size_t lastSlash = exeDir.find_last_of("\\/");
+	if(lastSlash != std::string::npos) {
+		exeDir = exeDir.substr(0, lastSlash);
+	}
+
+	// Default shader preset path
+	std::string shaderPath = exeDir + "\\Shaders\\vhs\\vhs_and_crt_godot.slangp";
+	
+	FILE* testFile = fopen(shaderPath.c_str(), "r");
+	if(!testFile) {
+		// Fallback to bilinear.slangp
+		shaderPath = exeDir + "\\Shaders\\bilinear.slangp";
+		testFile = fopen(shaderPath.c_str(), "r");
+	}
+	if(!testFile) {
+		// Shader file not found, disable shader
+		_useLibraShader = false;
+		return false;
+	}
+	fclose(testFile);
+
+	_shaderManager = std::make_unique<LibraShaderManager>();
+	if(!_shaderManager->Initialize(_pd3dDevice, _pDeviceContext, shaderPath.c_str())) {
+		MessageManager::Log("[Renderer] Failed to initialize librashader: " + _shaderManager->GetLastError());
+		_shaderManager.reset();
+		return false;
+	}
+
+	// Create output texture for shader processing
+	D3D11_TEXTURE2D_DESC desc = {};
+	desc.Width = _realScreenWidth;
+	desc.Height = _realScreenHeight;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = GetTextureFormat();
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+	HRESULT hr = _pd3dDevice->CreateTexture2D(&desc, nullptr, &_pShaderOutputTexture);
+	if(FAILED(hr)) {
+		MessageManager::Log("[Renderer] Failed to create shader output texture: " + std::to_string(hr));
+		_shaderManager.reset();
+		return false;
+	}
+
+	hr = _pd3dDevice->CreateRenderTargetView(_pShaderOutputTexture, nullptr, &_pShaderRenderTarget);
+	if(FAILED(hr)) {
+		MessageManager::Log("[Renderer] Failed to create shader render target: " + std::to_string(hr));
+		if(_pShaderOutputTexture) {
+			_pShaderOutputTexture->Release();
+			_pShaderOutputTexture = nullptr;
+		}
+		_shaderManager.reset();
+		return false;
+	}
+
+	hr = _pd3dDevice->CreateShaderResourceView(_pShaderOutputTexture, nullptr, &_pShaderOutputSrv);
+	if(FAILED(hr)) {
+		MessageManager::Log("[Renderer] Failed to create shader SRV: " + std::to_string(hr));
+		CleanupShaderResources();
+		return false;
+	}
+
+	_useLibraShader = true;
+	_frameCount = 0;
+	MessageManager::Log("[Renderer] Librashader initialized successfully");
+	return true;
+}
+
+void Renderer::CleanupShaderResources()
+{
+	if(_pShaderOutputSrv) {
+		_pShaderOutputSrv->Release();
+		_pShaderOutputSrv = nullptr;
+	}
+	if(_pShaderRenderTarget) {
+		_pShaderRenderTarget->Release();
+		_pShaderRenderTarget = nullptr;
+	}
+	if(_pShaderOutputTexture) {
+		_pShaderOutputTexture->Release();
+		_pShaderOutputTexture = nullptr;
+	}
+	if(_shaderManager) {
+		_shaderManager->Shutdown();
+		_shaderManager.reset();
+	}
+	_useLibraShader = false;
+}
+
+void Renderer::DrawScreenWithShader()
+{
+	//Swap buffers - emulator always writes to _textureBuffer[0], screen always draws _textureBuffer[1]
+	if(_needFlip) {
+		auto lock = _textureLock.AcquireSafe();
+		uint8_t* textureBuffer = _textureBuffer[0];
+		_textureBuffer[0] = _textureBuffer[1];
+		_textureBuffer[1] = textureBuffer;
+		_needFlip = false;
+
+		if(_frameChanged) {
+			_frameChanged = false;
+		}
+	}
+
+	//Copy buffer to texture
+	uint32_t bpp = 4;
+	uint32_t rowPitch = _emuFrameWidth * bpp;
+	D3D11_MAPPED_SUBRESOURCE dd;
+	HRESULT hr = _pDeviceContext->Map(_pTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &dd);
+	if(FAILED(hr)) {
+		MessageManager::Log("DeviceContext::Map() failed - Error:" + std::to_string(hr));
+		return;
+	}
+	uint8_t* surfacePointer = (uint8_t*)dd.pData;
+	uint8_t* videoBuffer = _textureBuffer[1];
+	if(rowPitch != dd.RowPitch) {
+		for(uint32_t i = 0, iMax = _emuFrameHeight; i < iMax; i++) {
+			memcpy(surfacePointer, videoBuffer, rowPitch);
+			videoBuffer += rowPitch;
+			surfacePointer += dd.RowPitch;
+		}
+	} else {
+		memcpy(surfacePointer, videoBuffer, rowPitch * _emuFrameHeight);
+	}
+	_pDeviceContext->Unmap(_pTexture, 0);
+
+	// Apply librashader filter chain
+	if(_shaderManager && _shaderManager->IsInitialized()) {
+		// Clear the shader output render target
+		_pDeviceContext->ClearRenderTargetView(_pShaderRenderTarget, Colors::Black);
+
+		// Apply shader filter chain
+		bool success = _shaderManager->ApplyShader(
+			_pTextureSrv,
+			_pShaderRenderTarget,
+			_realScreenWidth,
+			_realScreenHeight,
+			_frameCount++
+		);
+
+		if(!success) {
+			return;
+		}
+
+		// IMPORTANT: Unbind the render target before using the texture as shader resource
+		// D3D11 does not allow a texture to be bound as both RTV and SRV simultaneously
+		ID3D11RenderTargetView* nullRTV = nullptr;
+		_pDeviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
+
+		// Restore the back buffer as render target for sprite batch
+		_pDeviceContext->OMSetRenderTargets(1, &_pRenderTargetView, nullptr);
+
+		// Draw the shader output to the back buffer
+		_spriteBatch->Begin(SpriteSortMode_Immediate, false);
+		
+		RECT destRect;
+		destRect.left = _leftMargin;
+		destRect.top = _topMargin;
+		destRect.right = _screenWidth + _leftMargin;
+		destRect.bottom = _screenHeight + _topMargin;
+
+		_spriteBatch->Draw(_pShaderOutputSrv, destRect);
+		_spriteBatch->End();
 	}
 }

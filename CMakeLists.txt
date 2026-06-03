@@ -51,10 +51,20 @@ if(USE_SDL)
 endif()
 
 if(WIN32)
-    if(NOT MINGW_BUILD)
-        file(GLOB_RECURSE WINDOWS_SOURCES "Windows/*.cpp")
-        list(APPEND PLATFORM_SOURCES ${WINDOWS_SOURCES})
+    # Include Windows DirectX renderer with librashader support
+    # Both MinGW and MSVC builds can use D3D11 + DirectXMath
+    file(GLOB_RECURSE WINDOWS_SOURCES "Windows/*.cpp")
+    
+    # MinGW builds use SDL for audio/input, exclude DirectSound/DirectInput based managers
+    if(MINGW_BUILD)
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/SoundManager\\.cpp$")
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/DirectInputManager\\.cpp$")
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsKeyManager\\.cpp$")
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsMouseManager\\.cpp$")
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/XInputManager\\.cpp$")
     endif()
+    
+    list(APPEND PLATFORM_SOURCES ${WINDOWS_SOURCES})
 elseif(UNIX AND NOT APPLE)
     file(GLOB_RECURSE LINUX_SOURCES "Linux/*.cpp")
     file(GLOB_RECURSE LIBEVDEV_SOURCES "Linux/libevdev/*.c")
@@ -80,12 +90,18 @@ target_include_directories(MesenCore PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Utilities
     ${CMAKE_CURRENT_SOURCE_DIR}/Sdl
     ${CMAKE_CURRENT_SOURCE_DIR}/InteropDLL
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/include
 )
 
 if(WIN32)
-    if(NOT MINGW_BUILD)
+    target_include_directories(MesenCore PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Windows
+    )
+
+    # MinGW needs DirectXMath from 3rdParty
+    if(MINGW_BUILD)
         target_include_directories(MesenCore PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/Windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/DirectXMath/Inc
         )
     endif()
 elseif(UNIX AND NOT APPLE)
@@ -129,6 +145,7 @@ endif()
 if(WIN32)
     target_link_libraries(MesenCore PRIVATE
         ${SDL2_LIBRARIES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/lib/librashader.dll.a
         ws2_32
         kernel32
         user32
@@ -143,6 +160,8 @@ if(WIN32)
         odbc32
         odbccp32
         winmm
+        d3d11
+        dxgi
     )
 elseif(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
@@ -178,6 +197,13 @@ if(WIN32)
     set_target_properties(MesenCore PROPERTIES
         PREFIX ""
         SUFFIX ".dll"
+    )
+
+    # Copy librashader.dll to output directory after build
+    add_custom_command(TARGET MesenCore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/lib/librashader.dll"
+        $<TARGET_FILE_DIR:MesenCore>
     )
 elseif(UNIX AND NOT APPLE)
     set_target_properties(MesenCore PROPERTIES

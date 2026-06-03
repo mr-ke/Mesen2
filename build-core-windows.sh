@@ -89,8 +89,20 @@ echo "Output files:"
 echo "  - $(pwd)/bin/MesenCore.dll"
 echo ""
 echo "Step 7: Copying required DLL files..."
+
+# MinGW runtime DLLs
 cp /usr/x86_64-w64-mingw32/bin/SDL2.dll bin/ 2>/dev/null || cp /usr/x86_64-w64-mingw32/lib/libSDL2.dll.a bin/SDL2.dll 2>/dev/null || echo "Warning: SDL2.dll not found"
 cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll bin/ 2>/dev/null || echo "Warning: libwinpthread-1.dll not found"
+
+# Copy librashader.dll and create alias for librashader_capi.dll
+if [ -f "../3rdParty/librashader-dist/lib/librashader.dll" ]; then
+    cp ../3rdParty/librashader-dist/lib/librashader.dll bin/
+    # Create copy with expected name
+    cp ../3rdParty/librashader-dist/lib/librashader.dll bin/librashader_capi.dll
+    echo "✓ librashader.dll copied"
+else
+    echo "Warning: librashader.dll not found at 3rdParty/librashader-dist/lib/"
+fi
 
 echo ""
 echo "Required DLL files copied to bin/:"
