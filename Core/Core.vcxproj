@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -89,7 +89,6 @@
     <ClInclude Include="NES\Mappers\Nintendo\FnsMmc1.h" />
     <ClInclude Include="Shared\SaveStateCompatInfo.h" />
     <ClInclude Include="Shared\Utilities\Emu2413Serializer.h" />
-    <ClInclude Include="Shared\Video\GenericNtscFilter.h" />
     <ClInclude Include="Shared\Video\SoftwareRenderer.h" />
     <ClInclude Include="SMS\Carts\SmsCodemasterCart.h" />
     <ClInclude Include="SMS\Carts\SmsNemesisCart.h" />
@@ -113,7 +112,6 @@
     <ClInclude Include="SMS\SmsDefaultVideoFilter.h" />
     <ClInclude Include="SMS\SmsFmAudio.h" />
     <ClInclude Include="SMS\SmsMemoryManager.h" />
-    <ClInclude Include="SMS\SmsNtscFilter.h" />
     <ClInclude Include="SMS\SmsPsg.h" />
     <ClInclude Include="SMS\SmsTypes.h" />
     <ClInclude Include="SMS\SmsVdp.h" />
@@ -420,7 +418,6 @@
     <ClInclude Include="PCE\CdRom\PceCdAudioPlayer.h" />
     <ClInclude Include="PCE\CdRom\PceCdRom.h" />
     <ClInclude Include="PCE\PceConstants.h" />
-    <ClInclude Include="PCE\PceNtscFilter.h" />
     <ClInclude Include="PCE\PceVdc.h" />
     <ClInclude Include="PCE\Debugger\PceDebugger.h" />
     <ClInclude Include="PCE\Debugger\PceDisUtils.h" />
@@ -523,7 +520,6 @@
     <ClInclude Include="NES\Mappers\VsSystem\VsSystem.h" />
     <ClInclude Include="NES\Mappers\VsSystem\VsInputButtons.h" />
     <ClInclude Include="NES\NesConstants.h" />
-    <ClInclude Include="NES\NesNtscFilter.h" />
     <ClInclude Include="NES\NsfPpu.h" />
     <ClInclude Include="Shared\Audio\AudioPlayerTypes.h" />
     <ClInclude Include="Shared\BaseControlManager.h" />
@@ -567,7 +563,6 @@
     <ClInclude Include="NES\APU\TriangleChannel.h" />
     <ClInclude Include="Shared\TimingInfo.h" />
     <ClInclude Include="Shared\Video\RotateFilter.h" />
-    <ClInclude Include="Shared\Video\ScanlineFilter.h" />
     <ClInclude Include="Shared\Video\SystemHud.h" />
     <ClInclude Include="SNES\Debugger\SnesCodeDataLogger.h" />
     <ClInclude Include="SNES\AluMulDiv.h" />
@@ -686,7 +681,6 @@
     <ClInclude Include="SNES\Debugger\NecDspDisUtils.h" />
     <ClInclude Include="SNES\Coprocessors\DSP\NecDspTypes.h" />
     <ClInclude Include="Netplay\NetMessage.h" />
-    <ClInclude Include="SNES\SnesNtscFilter.h" />
     <ClInclude Include="SNES\Coprocessors\OBC1\Obc1.h" />
     <ClInclude Include="Shared\Audio\PcmReader.h" />
     <ClInclude Include="Netplay\PlayerListMessage.h" />
@@ -884,7 +878,6 @@
     <ClCompile Include="NES\Mappers\FDS\FdsInputButtons.cpp" />
     <ClCompile Include="NES\Mappers\NSF\NsfMapper.cpp" />
     <ClCompile Include="NES\Mappers\VsSystem\VsControlManager.cpp" />
-    <ClCompile Include="NES\NesNtscFilter.cpp" />
     <ClCompile Include="PCE\Debugger\PceAssembler.cpp" />
     <ClCompile Include="PCE\Input\PceTurboTap.cpp" />
     <ClCompile Include="PCE\Debugger\DummyPceCpu.cpp" />
@@ -903,7 +896,6 @@
     <ClCompile Include="PCE\PceCpu.cpp" />
     <ClCompile Include="PCE\PceCpu.Instructions.cpp" />
     <ClCompile Include="PCE\PceMemoryManager.cpp" />
-    <ClCompile Include="PCE\PceNtscFilter.cpp" />
     <ClCompile Include="PCE\PceVdc.cpp" />
     <ClCompile Include="PCE\PcePsg.cpp" />
     <ClCompile Include="PCE\PcePsgChannel.cpp" />
@@ -949,7 +941,6 @@
     <ClCompile Include="SMS\SmsCpu.cpp" />
     <ClCompile Include="SMS\SmsFmAudio.cpp" />
     <ClCompile Include="SMS\SmsMemoryManager.cpp" />
-    <ClCompile Include="SMS\SmsNtscFilter.cpp" />
     <ClCompile Include="SMS\SmsPsg.cpp" />
     <ClCompile Include="SMS\SmsVdp.cpp" />
     <ClCompile Include="SNES\AluMulDiv.cpp" />
@@ -1049,7 +1040,6 @@
     <ClCompile Include="SNES\Coprocessors\DSP\NecDsp.cpp" />
     <ClCompile Include="SNES\Debugger\NecDspDisUtils.cpp" />
     <ClCompile Include="Shared\NotificationManager.cpp" />
-    <ClCompile Include="SNES\SnesNtscFilter.cpp" />
     <ClCompile Include="SNES\Coprocessors\OBC1\Obc1.cpp" />
     <ClCompile Include="Shared\Audio\PcmReader.cpp" />
     <ClCompile Include="SNES\SnesPpu.cpp" />

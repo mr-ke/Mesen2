@@ -13,6 +13,7 @@
 #include "WS/APU/WsApu.h"
 #include "Shared/CpuType.h"
 #include "Shared/Emulator.h"
+#include "Shared/EmuSettings.h"
 #include "Shared/SettingTypes.h"
 #include "Shared/FirmwareHelper.h"
 #include "Shared/BatteryManager.h"
@@ -365,15 +366,8 @@ BaseVideoFilter* WsConsole::GetVideoFilter(bool getDefaultFilter)
 		return new WsDefaultVideoFilter(_emu, this, false);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-
-	switch(filterType) {
-		case VideoFilterType::NtscBisqwit:
-		case VideoFilterType::NtscBlargg:
-			return new WsDefaultVideoFilter(_emu, this, true);
-
-		default: return new WsDefaultVideoFilter(_emu, this, false);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new WsDefaultVideoFilter(_emu, this, false);
 }
 
 PpuFrameInfo WsConsole::GetPpuFrame()

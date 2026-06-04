@@ -304,12 +304,6 @@
     <ClInclude Include="NES\NesMemoryManager.h">
       <Filter>NES</Filter>
     </ClInclude>
-    <ClCompile Include="NES\NesNtscFilter.cpp">
-      <Filter>NES</Filter>
-    </ClCompile>
-    <ClInclude Include="NES\NesNtscFilter.h">
-      <Filter>NES</Filter>
-    </ClInclude>
     <ClCompile Include="NES\NesPpu.cpp">
       <Filter>NES</Filter>
     </ClCompile>
@@ -620,12 +614,6 @@
       <Filter>SNES</Filter>
     </ClCompile>
     <ClInclude Include="SNES\SnesMemoryManager.h">
-      <Filter>SNES</Filter>
-    </ClInclude>
-    <ClCompile Include="SNES\SnesNtscFilter.cpp">
-      <Filter>SNES</Filter>
-    </ClCompile>
-    <ClInclude Include="SNES\SnesNtscFilter.h">
       <Filter>SNES</Filter>
     </ClInclude>
     <ClCompile Include="SNES\SnesPpu.cpp">
@@ -1650,12 +1638,6 @@
     <ClInclude Include="PCE\Input\PceAvenuePad6.h">
       <Filter>PCE\Input</Filter>
     </ClInclude>
-    <ClInclude Include="Shared\Video\ScanlineFilter.h">
-      <Filter>Shared\Video</Filter>
-    </ClInclude>
-    <ClInclude Include="PCE\PceNtscFilter.h">
-      <Filter>PCE</Filter>
-    </ClInclude>
     <ClInclude Include="PCE\PceVce.h">
       <Filter>PCE</Filter>
     </ClInclude>
@@ -2643,9 +2625,6 @@
     <ClInclude Include="SMS\Input\SmsController.h">
       <Filter>SMS\Input</Filter>
     </ClInclude>
-    <ClInclude Include="SMS\SmsNtscFilter.h">
-      <Filter>SMS</Filter>
-    </ClInclude>
     <ClInclude Include="SMS\Carts\SmsCodemasterCart.h">
       <Filter>SMS\Carts</Filter>
     </ClInclude>
@@ -2801,9 +2780,6 @@
     </ClInclude>
     <ClInclude Include="GBA\GbaRomPrefetch.h">
       <Filter>GBA</Filter>
-    </ClInclude>
-    <ClInclude Include="Shared\Video\GenericNtscFilter.h">
-      <Filter>Shared\Video</Filter>
     </ClInclude>
     <ClInclude Include="GBA\Debugger\GbaCodeDataLogger.h">
       <Filter>GBA\Debugger</Filter>
@@ -3047,9 +3023,6 @@
     <ClCompile Include="PCE\Input\PceTurboTap.cpp">
       <Filter>PCE\Input</Filter>
     </ClCompile>
-    <ClCompile Include="PCE\PceNtscFilter.cpp">
-      <Filter>PCE</Filter>
-    </ClCompile>
     <ClCompile Include="PCE\PceVce.cpp">
       <Filter>PCE</Filter>
     </ClCompile>
@@ -3138,9 +3111,6 @@
       <Filter>SMS\Carts</Filter>
     </ClCompile>
     <ClCompile Include="SMS\SmsVdp.cpp">
-      <Filter>SMS</Filter>
-    </ClCompile>
-    <ClCompile Include="SMS\SmsNtscFilter.cpp">
       <Filter>SMS</Filter>
     </ClCompile>
     <ClCompile Include="SMS\SmsPsg.cpp">

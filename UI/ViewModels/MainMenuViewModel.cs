@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using Mesen.Config;
 using Mesen.Config.Shortcuts;
@@ -352,35 +352,11 @@ namespace Mesen.ViewModels
 					SubActions = new List<object>() {
 						GetVideoFilterMenuItem(VideoFilterType.None),
 						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.NtscBlargg),
-						GetVideoFilterMenuItem(VideoFilterType.NtscBisqwit),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.LcdGrid),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.xBRZ2x),
-						GetVideoFilterMenuItem(VideoFilterType.xBRZ3x),
-						GetVideoFilterMenuItem(VideoFilterType.xBRZ4x),
-						GetVideoFilterMenuItem(VideoFilterType.xBRZ5x),
-						GetVideoFilterMenuItem(VideoFilterType.xBRZ6x),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.HQ2x),
-						GetVideoFilterMenuItem(VideoFilterType.HQ3x),
-						GetVideoFilterMenuItem(VideoFilterType.HQ4x),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.Scale2x),
-						GetVideoFilterMenuItem(VideoFilterType.Scale3x),
-						GetVideoFilterMenuItem(VideoFilterType.Scale4x),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType._2xSai),
-						GetVideoFilterMenuItem(VideoFilterType.Super2xSai),
-						GetVideoFilterMenuItem(VideoFilterType.SuperEagle),
-						new ContextMenuSeparator(),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale2x),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale3x),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale4x),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale6x),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale8x),
-						GetVideoFilterMenuItem(VideoFilterType.Prescale10x),
+						new MainMenuAction() {
+							ActionType = ActionType.Custom,
+							CustomText = "Shader Presets",
+							SubActions = GetShaderPresetMenuItems()
+						},
 						new ContextMenuSeparator(),
 						new MainMenuAction() {
 							ActionType = ActionType.ToggleBilinearInterpolation,
@@ -640,26 +616,17 @@ namespace Mesen.ViewModels
 			};
 		}
 
-		private bool AllowFilterType(VideoFilterType filter)
-		{
-			switch(filter) {
-				case VideoFilterType.NtscBisqwit: return MainWindow.RomInfo.ConsoleType == ConsoleType.Nes;
-				default: return true;
-			}
-		}
-
 		private MainMenuAction GetVideoFilterMenuItem(VideoFilterType filter)
 		{
 			return new MainMenuAction() {
 				ActionType = ActionType.Custom,
 				CustomText = ResourceHelper.GetEnumText(filter),
-				IsEnabled = () => AllowFilterType(filter),
 				IsSelected = () => {
 					ConsoleOverrideConfig? overrides = ConsoleOverrideConfig.GetActiveOverride();
 					if(overrides?.OverrideVideoFilter == true) {
-						return filter == overrides.VideoFilter;
+						return filter == overrides.VideoFilter && string.IsNullOrEmpty(ConfigManager.Config.Video.ShaderPreset);
 					}
-					return filter == ConfigManager.Config.Video.VideoFilter;
+					return filter == ConfigManager.Config.Video.VideoFilter && string.IsNullOrEmpty(ConfigManager.Config.Video.ShaderPreset);
 				},
 				OnClick = () => {
 					ConsoleOverrideConfig? overrides = ConsoleOverrideConfig.GetActiveOverride();
@@ -668,9 +635,73 @@ namespace Mesen.ViewModels
 					} else {
 						ConfigManager.Config.Video.VideoFilter = filter;
 					}
+					// Clear shader preset when selecting None
+					ConfigManager.Config.Video.ShaderPreset = null;
 					ConfigManager.Config.Video.ApplyConfig();
 				}
 			};
+		}
+
+		private List<object> GetShaderPresetMenuItems()
+		{
+			List<object> items = new List<object>();
+			
+			// Build hierarchical menu from Shaders directory
+			string shadersPath = ShaderHelper.GetShadersPath();
+			if(Directory.Exists(shadersPath)) {
+				BuildShaderMenu(items, shadersPath, "");
+			}
+
+			return items;
+		}
+
+		private void BuildShaderMenu(List<object> parentItems, string basePath, string relativePath)
+		{
+			// Get subdirectories and sort them
+			var subdirs = Directory.GetDirectories(basePath)
+				.OrderBy(d => Path.GetFileName(d))
+				.ToList();
+
+			// Get .slangp files in current directory
+			var files = Directory.GetFiles(basePath, "*.slangp")
+				.OrderBy(f => Path.GetFileNameWithoutExtension(f))
+				.ToList();
+
+			// Add subdirectory menus first
+			foreach(var dir in subdirs) {
+				string dirName = Path.GetFileName(dir);
+				string newRelativePath = string.IsNullOrEmpty(relativePath) ? dirName : Path.Combine(relativePath, dirName);
+				
+				var subItems = new List<object>();
+				BuildShaderMenu(subItems, dir, newRelativePath);
+				
+				// Only add if there are items in submenu
+				if(subItems.Count > 0) {
+					parentItems.Add(new MainMenuAction() {
+						ActionType = ActionType.Custom,
+						CustomText = dirName,
+						SubActions = subItems
+					});
+				}
+			}
+
+			// Add shader preset items
+			foreach(var file in files) {
+				string fileName = Path.GetFileNameWithoutExtension(file);
+				string relPath = string.IsNullOrEmpty(relativePath) 
+					? Path.GetFileName(file) 
+					: Path.Combine(relativePath, Path.GetFileName(file));
+
+				parentItems.Add(new MainMenuAction() {
+					ActionType = ActionType.Custom,
+					CustomText = fileName,
+					IsSelected = () => ConfigManager.Config.Video.ShaderPreset == relPath,
+					OnClick = () => {
+						ConfigManager.Config.Video.ShaderPreset = relPath;
+						ConfigManager.Config.Video.ApplyConfig();
+					}
+				});
+			}
 		}
 
 		private MainMenuAction GetScaleMenuItem(int scale, EmulatorShortcut shortcut)

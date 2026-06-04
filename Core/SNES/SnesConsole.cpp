@@ -12,7 +12,6 @@
 #include "SNES/CartTypes.h"
 #include "SNES/SpcFileData.h"
 #include "SNES/SnesDefaultVideoFilter.h"
-#include "SNES/SnesNtscFilter.h"
 #include "Gameboy/Gameboy.h"
 #include "Gameboy/GbPpu.h"
 #include "Debugger/Debugger.h"
@@ -272,16 +271,8 @@ BaseVideoFilter* SnesConsole::GetVideoFilter(bool getDefaultFilter)
 		return new SnesDefaultVideoFilter(_emu);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-	
-	switch(filterType) {
-		case VideoFilterType::NtscBlargg:
-		case VideoFilterType::NtscBisqwit:
-			return new SnesNtscFilter(_emu);
-
-		default:
-			return new SnesDefaultVideoFilter(_emu);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new SnesDefaultVideoFilter(_emu);
 }
 
 RomFormat SnesConsole::GetRomFormat()

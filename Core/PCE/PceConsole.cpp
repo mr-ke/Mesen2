@@ -4,7 +4,6 @@
 #include "PCE/PceControlManager.h"
 #include "PCE/PceMemoryManager.h"
 #include "PCE/PceDefaultVideoFilter.h"
-#include "PCE/PceNtscFilter.h"
 #include "PCE/PceCpu.h"
 #include "PCE/PceVdc.h"
 #include "PCE/PceVce.h"
@@ -262,16 +261,8 @@ BaseVideoFilter* PceConsole::GetVideoFilter(bool getDefaultFilter)
 		return new PceDefaultVideoFilter(_emu);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-
-	switch(filterType) {
-		case VideoFilterType::NtscBlargg:
-		case VideoFilterType::NtscBisqwit:
-			return new PceNtscFilter(_emu);
-
-		default:
-			return new PceDefaultVideoFilter(_emu);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new PceDefaultVideoFilter(_emu);
 }
 
 PpuFrameInfo PceConsole::GetPpuFrame()

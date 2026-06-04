@@ -80,6 +80,7 @@ private:
 	ID3D11RenderTargetView* _pShaderRenderTarget = nullptr;
 	bool _useLibraShader = false;
 	size_t _frameCount = 0;
+	std::string _currentShaderPreset;
 
 	HRESULT InitDevice();
 	void CleanupDevice();
@@ -104,6 +105,7 @@ private:
 	bool InitShaderResources();
 	void CleanupShaderResources();
 	void DrawScreenWithShader();
+	void ReloadShader();
 
 public:
 	Renderer(Emulator* emu, HWND hWnd);

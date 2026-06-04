@@ -1,7 +1,6 @@
 #pragma once
 #include "pch.h"
 #include "Shared/Video/BaseVideoFilter.h"
-#include "Shared/Video/GenericNtscFilter.h"
 #include "Shared/SettingTypes.h"
 
 class Emulator;
@@ -15,9 +14,6 @@ private:
 	uint16_t* _prevFrame = nullptr;
 	bool _blendFrames = false;
 	bool _gbcAdjustColors = false;
-
-	bool _applyNtscFilter = false;
-	GenericNtscFilter _ntscFilter;
 
 	void InitLookupTable();
 

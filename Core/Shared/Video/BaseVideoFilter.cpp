@@ -5,7 +5,6 @@
 #include "Shared/Video/BaseVideoFilter.h"
 #include "Shared/Video/RotateFilter.h"
 #include "Shared/Video/ScaleFilter.h"
-#include "Shared/Video/ScanlineFilter.h"
 #include "Utilities/PNGHelper.h"
 #include "Utilities/FolderUtilities.h"
 
@@ -199,7 +198,7 @@ void BaseVideoFilter::TakeScreenshot(VideoFilterType filterType, string filename
 		scale = scaleFilter->GetScale();
 	}
 
-	ScanlineFilter::ApplyFilter(pngBuffer, frameInfo.Width, frameInfo.Height, _emu->GetSettings()->GetVideoConfig().ScanlineIntensity, scale);
+	// Software filters removed - using librashader for all filtering
 	
 	if(!filename.empty()) {
 		PNGHelper::WritePNG(filename, pngBuffer, frameInfo.Width, frameInfo.Height);
