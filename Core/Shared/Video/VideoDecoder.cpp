@@ -8,9 +8,7 @@
 #include "Shared/RewindManager.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/SettingTypes.h"
-#include "Shared/Video/ScaleFilter.h"
 #include "Shared/Video/RotateFilter.h"
-#include "Shared/Video/ScanlineFilter.h"
 #include "Shared/Video/DebugHud.h"
 #include "Shared/InputHud.h"
 #include "Shared/RenderedFrame.h"
@@ -76,7 +74,7 @@ void VideoDecoder::UpdateVideoFilter()
 		_consoleType = consoleType;
 
 		_videoFilter.reset(_emu->GetVideoFilter());
-		_scaleFilter = ScaleFilter::GetScaleFilter(_emu, _videoFilterType);
+		// Software scale filters removed - using librashader for all filtering
 		_forceFilterUpdate = false;
 	}
 
@@ -124,15 +122,7 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 
 	_emu->GetDebugHud()->Draw(outputBuffer, frameSize, overscan, _frame.FrameNumber, _videoFilter->GetScaleFactor());
 
-	if(_scaleFilter && !isAudioPlayer) {
-		outputBuffer = _scaleFilter->ApplyFilter(outputBuffer, frameSize.Width, frameSize.Height);
-		frameSize = _scaleFilter->GetFrameInfo(frameSize);
-	}
-
-	if(!isAudioPlayer) {
-		uint8_t scale = std::max<uint8_t>(1, (uint8_t)((double)frameSize.Height / (_frame.Height - overscan.Top - overscan.Bottom)));
-		ScanlineFilter::ApplyFilter(outputBuffer, frameSize.Width, frameSize.Height, _emu->GetSettings()->GetVideoConfig().ScanlineIntensity, scale);
-	}
+	// Software filters removed - using librashader for all filtering
 
 	RenderedFrame convertedFrame((void*)outputBuffer, frameSize.Width, frameSize.Height, _frame.Scale, _frame.FrameNumber, _frame.InputData);
 

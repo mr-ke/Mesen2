@@ -28,30 +28,7 @@ enum class ScaleFilterType
 
 enum class VideoFilterType
 {
-	None = 0,
-	NtscBlargg,
-	NtscBisqwit,
-	LcdGrid,
-	xBRZ2x,
-	xBRZ3x,
-	xBRZ4x,
-	xBRZ5x,
-	xBRZ6x,
-	HQ2x,
-	HQ3x,
-	HQ4x,
-	Scale2x,
-	Scale3x,
-	Scale4x,
-	_2xSai,
-	Super2xSai,
-	SuperEagle,
-	Prescale2x,
-	Prescale3x,
-	Prescale4x,
-	Prescale6x,
-	Prescale8x,
-	Prescale10x
+	None = 0
 };
 
 enum class VideoResizeFilter
@@ -83,6 +60,10 @@ struct VideoConfig
 	double CustomAspectRatio = 1.0;
 	VideoFilterType VideoFilter = VideoFilterType::None;
 	VideoAspectRatio AspectRatio = VideoAspectRatio::NoStretching;
+	
+	bool UseShaderPreset = false;
+	char ShaderPreset[512] = {0};
+	
 	bool UseBilinearInterpolation = false;
 	bool UseSrgbTextureFormat = false;
 	bool VerticalSync = false;

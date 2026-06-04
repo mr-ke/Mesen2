@@ -15,6 +15,7 @@ namespace Mesen.Config
 	{
 		[Reactive] [MinMax(0.1, 5.0)] public double CustomAspectRatio { get; set; } = 1.0;
 		[Reactive] public VideoFilterType VideoFilter { get; set; } = VideoFilterType.None;
+		[Reactive] public string? ShaderPreset { get; set; } = null;
 		[Reactive] public VideoAspectRatio AspectRatio { get; set; } = VideoAspectRatio.NoStretching;
 
 		[Reactive] public bool UseBilinearInterpolation { get; set; } = false;
@@ -79,6 +80,8 @@ namespace Mesen.Config
 				CustomAspectRatio = customAspectRatio,
 				VideoFilter = videoFilter,
 				AspectRatio = aspectRatio,
+				UseShaderPreset = !string.IsNullOrEmpty(ShaderPreset),
+				ShaderPreset = ShaderPreset ?? "",
 
 				UseBilinearInterpolation = this.UseBilinearInterpolation,
 				UseSrgbTextureFormat = this.UseSrgbTextureFormat,
@@ -127,6 +130,9 @@ namespace Mesen.Config
 		public double CustomAspectRatio;
 		public VideoFilterType VideoFilter;
 		public VideoAspectRatio AspectRatio;
+		
+		[MarshalAs(UnmanagedType.I1)] public bool UseShaderPreset;
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 512)] public string ShaderPreset;
 
 		[MarshalAs(UnmanagedType.I1)] public bool UseBilinearInterpolation;
 		[MarshalAs(UnmanagedType.I1)] public bool UseSrgbTextureFormat;
@@ -169,30 +175,7 @@ namespace Mesen.Config
 
 	public enum VideoFilterType
 	{
-		None = 0,
-		NtscBlargg,
-		NtscBisqwit,
-		LcdGrid,
-		xBRZ2x,
-		xBRZ3x,
-		xBRZ4x,
-		xBRZ5x,
-		xBRZ6x,
-		HQ2x,
-		HQ3x,
-		HQ4x,
-		Scale2x,
-		Scale3x,
-		Scale4x,
-		_2xSai,
-		Super2xSai,
-		SuperEagle,
-		Prescale2x,
-		Prescale3x,
-		Prescale4x,
-		Prescale6x,
-		Prescale8x,
-		Prescale10x
+		None = 0
 	}
 
 	public enum VideoAspectRatio

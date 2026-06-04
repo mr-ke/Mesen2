@@ -45,7 +45,8 @@ namespace Mesen.Views
 
 		protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
 		{
-			AvailableValues = Enum.GetValues<VideoFilterType>().Where(x => x != VideoFilterType.NtscBisqwit || ShowBisqwitFilter).Cast<Enum>().ToArray();
+			// Software filters removed - using librashader for all filtering
+			AvailableValues = Enum.GetValues<VideoFilterType>().Cast<Enum>().ToArray();
 			base.OnAttachedToVisualTree(e);
 		}
 	}

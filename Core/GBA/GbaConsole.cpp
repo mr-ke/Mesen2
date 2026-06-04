@@ -421,16 +421,8 @@ BaseVideoFilter* GbaConsole::GetVideoFilter(bool getDefaultFilter)
 		return new GbaDefaultVideoFilter(_emu, false);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-
-	switch(filterType) {
-		case VideoFilterType::NtscBlargg:
-		case VideoFilterType::NtscBisqwit:
-			return new GbaDefaultVideoFilter(_emu, true);
-
-		default:
-			return new GbaDefaultVideoFilter(_emu, false);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new GbaDefaultVideoFilter(_emu, false);
 }
 
 RomFormat GbaConsole::GetRomFormat()

@@ -9,10 +9,9 @@
 #include "Shared/SettingTypes.h"
 #include "Shared/ColorUtilities.h"
 
-GbDefaultVideoFilter::GbDefaultVideoFilter(Emulator* emu, bool applyNtscFilter) : BaseVideoFilter(emu), _ntscFilter(emu)
+GbDefaultVideoFilter::GbDefaultVideoFilter(Emulator* emu, bool applyNtscFilter) : BaseVideoFilter(emu)
 {
 	InitLookupTable();
-	_applyNtscFilter = applyNtscFilter;
 	_prevFrame = new uint16_t[GbConstants::PixelCount];
 	memset(_prevFrame, 0, GbConstants::PixelCount * sizeof(uint16_t));
 }
@@ -31,12 +30,6 @@ FrameInfo GbDefaultVideoFilter::GetFrameInfo()
 		frame.Height = 240;
 		return frame;
 	} else {
-		if(_applyNtscFilter) {
-			FrameInfo frameInfo;
-			frameInfo.Width = SNES_NTSC_OUT_WIDTH(_baseFrameInfo.Width);
-			frameInfo.Height = _baseFrameInfo.Height;
-			return frameInfo;
-		}
 		return BaseVideoFilter::GetFrameInfo();
 	}
 }
@@ -109,10 +102,6 @@ void GbDefaultVideoFilter::ApplyFilter(uint16_t* ppuOutputBuffer)
 
 	if(_blendFrames) {
 		std::copy(ppuOutputBuffer, ppuOutputBuffer + GbConstants::PixelCount, _prevFrame);
-	}
-
-	if(_applyNtscFilter) {
-		_ntscFilter.ApplyFilter(out, GbConstants::ScreenWidth, GbConstants::ScreenHeight, 0);
 	}
 }
 

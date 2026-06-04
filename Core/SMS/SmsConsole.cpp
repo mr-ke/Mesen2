@@ -7,7 +7,6 @@
 #include "SMS/SmsFmAudio.h"
 #include "SMS/SmsMemoryManager.h"
 #include "SMS/SmsDefaultVideoFilter.h"
-#include "SMS/SmsNtscFilter.h"
 #include "SMS/SmsTypes.h"
 #include "SMS/Carts/SmsSegaCart.h"
 #include "SMS/Carts/SmsCodemasterCart.h"
@@ -267,15 +266,8 @@ BaseVideoFilter* SmsConsole::GetVideoFilter(bool getDefaultFilter)
 		return new SmsDefaultVideoFilter(_emu, this);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-
-	switch(filterType) {
-		case VideoFilterType::NtscBisqwit:
-		case VideoFilterType::NtscBlargg:
-			return new SmsNtscFilter(_emu, this);
-
-		default: return new SmsDefaultVideoFilter(_emu, this);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new SmsDefaultVideoFilter(_emu, this);
 }
 
 PpuFrameInfo SmsConsole::GetPpuFrame()

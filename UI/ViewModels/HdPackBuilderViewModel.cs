@@ -1,4 +1,4 @@
-﻿using Avalonia.Threading;
+using Avalonia.Threading;
 using Mesen.Config;
 using Mesen.Config.Shortcuts;
 using Mesen.Interop;
@@ -165,30 +165,12 @@ namespace Mesen.ViewModels
 
 		static private FilterInfo[] _allFilters = {
 			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.None) + " (1x)", FilterType = ScaleFilterType.Prescale, Scale = 1 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale2x), FilterType = ScaleFilterType.Prescale, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale3x), FilterType = ScaleFilterType.Prescale, Scale = 3 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale4x), FilterType = ScaleFilterType.Prescale, Scale = 4 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale6x), FilterType = ScaleFilterType.Prescale, Scale = 6 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale8x), FilterType = ScaleFilterType.Prescale, Scale = 8 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Prescale10x), FilterType = ScaleFilterType.Prescale, Scale = 10 },
-
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.HQ2x), FilterType = ScaleFilterType.HQX, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.HQ3x), FilterType = ScaleFilterType.HQX, Scale = 3 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.HQ4x), FilterType = ScaleFilterType.HQX, Scale = 4 },
-
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Scale2x), FilterType = ScaleFilterType.Scale2x, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Scale3x), FilterType = ScaleFilterType.Scale2x, Scale = 3 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Scale4x), FilterType = ScaleFilterType.Scale2x, Scale = 4 },
-
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.Super2xSai), FilterType = ScaleFilterType.Super2xSai, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.SuperEagle), FilterType = ScaleFilterType.SuperEagle, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType._2xSai), FilterType = ScaleFilterType._2xSai, Scale = 2 },
-
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.xBRZ2x), FilterType = ScaleFilterType.xBRZ, Scale = 2 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.xBRZ3x), FilterType = ScaleFilterType.xBRZ, Scale = 3 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.xBRZ4x), FilterType = ScaleFilterType.xBRZ, Scale = 4 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.xBRZ5x), FilterType = ScaleFilterType.xBRZ, Scale = 5 },
-			new FilterInfo() { Name = ResourceHelper.GetEnumText(VideoFilterType.xBRZ6x), FilterType = ScaleFilterType.xBRZ, Scale = 6 },
+			new FilterInfo() { Name = "2x", FilterType = ScaleFilterType.Prescale, Scale = 2 },
+			new FilterInfo() { Name = "3x", FilterType = ScaleFilterType.Prescale, Scale = 3 },
+			new FilterInfo() { Name = "4x", FilterType = ScaleFilterType.Prescale, Scale = 4 },
+			new FilterInfo() { Name = "6x", FilterType = ScaleFilterType.Prescale, Scale = 6 },
+			new FilterInfo() { Name = "8x", FilterType = ScaleFilterType.Prescale, Scale = 8 },
+			new FilterInfo() { Name = "10x", FilterType = ScaleFilterType.Prescale, Scale = 10 },
 		};
 	}
 }

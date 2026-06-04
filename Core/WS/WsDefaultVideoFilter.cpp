@@ -6,11 +6,10 @@
 #include "Shared/ColorUtilities.h"
 #include "Shared/RewindManager.h"
 
-WsDefaultVideoFilter::WsDefaultVideoFilter(Emulator* emu, WsConsole* console, bool applyNtscFilter) : BaseVideoFilter(emu), _ntscFilter(emu)
+WsDefaultVideoFilter::WsDefaultVideoFilter(Emulator* emu, WsConsole* console, bool applyNtscFilter) : BaseVideoFilter(emu)
 {
 	_emu = emu;
 	_console = console;
-	_applyNtscFilter = applyNtscFilter;
 	_prevFrame = new uint16_t[WsConstants::MaxPixelCount];
 	InitLookupTable();
 }
@@ -73,12 +72,6 @@ void WsDefaultVideoFilter::InitLookupTable()
 
 FrameInfo WsDefaultVideoFilter::GetFrameInfo()
 {
-	if(_applyNtscFilter) {
-		FrameInfo frameInfo;
-		frameInfo.Width = SNES_NTSC_OUT_WIDTH(_baseFrameInfo.Width);
-		frameInfo.Height = _baseFrameInfo.Height;
-		return frameInfo;
-	}
 	return BaseVideoFilter::GetFrameInfo();
 }
 
@@ -118,9 +111,5 @@ void WsDefaultVideoFilter::ApplyFilter(uint16_t* ppuOutputBuffer)
 	if(_blendFrames) {
 		std::copy(ppuOutputBuffer, ppuOutputBuffer + WsConstants::MaxPixelCount, _prevFrame);
 		_prevFrameSize = size;
-	}
-
-	if(_applyNtscFilter) {
-		_ntscFilter.ApplyFilter(out, size.Width, size.Height, 0);
 	}
 }

@@ -625,16 +625,8 @@ BaseVideoFilter* Gameboy::GetVideoFilter(bool getDefaultFilter)
 		return new GbDefaultVideoFilter(_emu, false);
 	}
 
-	VideoFilterType filterType = _emu->GetSettings()->GetVideoConfig().VideoFilter;
-
-	switch(filterType) {
-		case VideoFilterType::NtscBlargg:
-		case VideoFilterType::NtscBisqwit:
-			return new GbDefaultVideoFilter(_emu, true);
-
-		default:
-			return new GbDefaultVideoFilter(_emu, false);
-	}
+	// NTSC filters removed - using librashader for all filtering
+	return new GbDefaultVideoFilter(_emu, false);
 }
 
 RomFormat Gameboy::GetRomFormat()

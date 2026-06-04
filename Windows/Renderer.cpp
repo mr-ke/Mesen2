@@ -604,6 +604,14 @@ void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
 
 	VideoConfig cfg = _emu->GetSettings()->GetVideoConfig();
 
+	// Check if shader preset has changed
+	bool newUseShader = cfg.UseShaderPreset;
+	std::string newShaderPreset = cfg.ShaderPreset;
+	if(newUseShader != (_currentShaderPreset != "") || (newUseShader && newShaderPreset != _currentShaderPreset)) {
+		// Shader preset changed, reload shader
+		ReloadShader();
+	}
+
 	// Clear the back buffer 
 	_pDeviceContext->ClearRenderTargetView(_pRenderTargetView, Colors::Black);
 
@@ -645,18 +653,27 @@ bool Renderer::InitShaderResources()
 		exeDir = exeDir.substr(0, lastSlash);
 	}
 
-	// Default shader preset path
-	std::string shaderPath = exeDir + "\\Shaders\\vhs\\vhs_and_crt_godot.slangp";
+	// Get shader preset from config
+	VideoConfig videoConfig = _emu->GetSettings()->GetVideoConfig();
+	std::string shaderPath;
+	std::string shaderPreset;
+	
+	if(videoConfig.UseShaderPreset && videoConfig.ShaderPreset[0] != '\0') {
+		// Use shader preset from config
+		shaderPreset = videoConfig.ShaderPreset;
+		shaderPath = exeDir + "\\Shaders\\" + shaderPreset;
+	} else {
+		// No shader preset selected
+		_useLibraShader = false;
+		_currentShaderPreset = "";
+		return false;
+	}
 	
 	FILE* testFile = fopen(shaderPath.c_str(), "r");
 	if(!testFile) {
-		// Fallback to bilinear.slangp
-		shaderPath = exeDir + "\\Shaders\\bilinear.slangp";
-		testFile = fopen(shaderPath.c_str(), "r");
-	}
-	if(!testFile) {
 		// Shader file not found, disable shader
 		_useLibraShader = false;
+		_currentShaderPreset = "";
 		return false;
 	}
 	fclose(testFile);
@@ -665,8 +682,12 @@ bool Renderer::InitShaderResources()
 	if(!_shaderManager->Initialize(_pd3dDevice, _pDeviceContext, shaderPath.c_str())) {
 		MessageManager::Log("[Renderer] Failed to initialize librashader: " + _shaderManager->GetLastError());
 		_shaderManager.reset();
+		_currentShaderPreset = "";
 		return false;
 	}
+	
+	// Store current shader preset for change detection
+	_currentShaderPreset = shaderPreset;
 
 	// Create output texture for shader processing
 	D3D11_TEXTURE2D_DESC desc = {};
@@ -729,6 +750,15 @@ void Renderer::CleanupShaderResources()
 		_shaderManager.reset();
 	}
 	_useLibraShader = false;
+}
+
+void Renderer::ReloadShader()
+{
+	// Clean up existing shader resources
+	CleanupShaderResources();
+	
+	// Reinitialize shader resources with new config
+	InitShaderResources();
 }
 
 void Renderer::DrawScreenWithShader()

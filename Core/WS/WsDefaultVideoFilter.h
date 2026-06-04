@@ -1,7 +1,6 @@
 #pragma once
 #include "pch.h"
 #include "Shared/Video/BaseVideoFilter.h"
-#include "Shared/Video/GenericNtscFilter.h"
 
 class WsConsole;
 class Emulator;
@@ -18,9 +17,6 @@ private:
 	uint16_t* _prevFrame = nullptr;
 	bool _blendFrames = false;
 	bool _adjustColors = false;
-
-	bool _applyNtscFilter = false;
-	GenericNtscFilter _ntscFilter;
 
 	uint32_t BlendPixels(uint32_t a, uint32_t b);
 
