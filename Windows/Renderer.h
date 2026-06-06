@@ -87,7 +87,9 @@ private:
 	uint32_t _postShaderFrameWidth = 0;
 	uint32_t _postShaderFrameHeight = 0;
 	bool _postShaderFrameValid = false;
+	bool _postShaderFrameCaptureEnabled = false;
 	SimpleLock _postShaderFrameLock;
+	ID3D11Texture2D* _pStagingTexture = nullptr;
 
 	HRESULT InitDevice();
 	void CleanupDevice();
@@ -127,4 +129,6 @@ public:
 
 	void UpdateFrame(RenderedFrame& frame) override;
 	PostShaderFrame GetPostShaderFrame() override;
+	void SetPostShaderFrameCaptureEnabled(bool enabled) override;
+	bool IsPostShaderFrameCaptureEnabled() override;
 };

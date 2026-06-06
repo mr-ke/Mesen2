@@ -56,4 +56,6 @@ class IRenderingDevice
 		virtual void OnRendererThreadStarted() {}
 		virtual void SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle) = 0;
 		virtual PostShaderFrame GetPostShaderFrame() = 0;
+		virtual void SetPostShaderFrameCaptureEnabled(bool enabled) {}
+		virtual bool IsPostShaderFrameCaptureEnabled() { return false; }
 };

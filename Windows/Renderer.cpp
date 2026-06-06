@@ -167,6 +167,12 @@ void Renderer::CleanupDevice()
 	// Cleanup librashader resources first
 	CleanupShaderResources();
 
+	// Cleanup staging texture for post-shader frame capture
+	if(_pStagingTexture) {
+		_pStagingTexture->Release();
+		_pStagingTexture = nullptr;
+	}
+
 	ResetTextureBuffers();
 	ReleaseRenderTargetView();
 	if(_pSwapChain) {
@@ -846,39 +852,58 @@ void Renderer::DrawScreenWithShader()
 
 void Renderer::CapturePostShaderFrame()
 {
+	// Skip if capture is not enabled (e.g., not recording video)
+	if(!_postShaderFrameCaptureEnabled) {
+		return;
+	}
+
 	if(!_useLibraShader || !_pShaderOutputTexture) {
 		return;
 	}
 
-	// Create a staging texture to read back from GPU
-	ID3D11Texture2D* pStagingTexture = nullptr;
-	D3D11_TEXTURE2D_DESC stagingDesc = {};
-	stagingDesc.Width = _realScreenWidth;
-	stagingDesc.Height = _realScreenHeight;
-	stagingDesc.MipLevels = 1;
-	stagingDesc.ArraySize = 1;
-	stagingDesc.Format = GetTextureFormat();
-	stagingDesc.SampleDesc.Count = 1;
-	stagingDesc.Usage = D3D11_USAGE_STAGING;
-	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	stagingDesc.BindFlags = 0;
-	stagingDesc.MiscFlags = 0;
+	// Check if we need to create or recreate the staging texture
+	bool needNewTexture = false;
+	if(!_pStagingTexture) {
+		needNewTexture = true;
+	} else {
+		D3D11_TEXTURE2D_DESC existingDesc;
+		_pStagingTexture->GetDesc(&existingDesc);
+		if(existingDesc.Width != _realScreenWidth || existingDesc.Height != _realScreenHeight) {
+			// Resolution changed, need to recreate
+			_pStagingTexture->Release();
+			_pStagingTexture = nullptr;
+			needNewTexture = true;
+		}
+	}
 
-	HRESULT hr = _pd3dDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture);
-	if(FAILED(hr)) {
-		MessageManager::Log("[Renderer] Failed to create staging texture: " + std::to_string(hr));
-		return;
+	if(needNewTexture) {
+		D3D11_TEXTURE2D_DESC stagingDesc = {};
+		stagingDesc.Width = _realScreenWidth;
+		stagingDesc.Height = _realScreenHeight;
+		stagingDesc.MipLevels = 1;
+		stagingDesc.ArraySize = 1;
+		stagingDesc.Format = GetTextureFormat();
+		stagingDesc.SampleDesc.Count = 1;
+		stagingDesc.Usage = D3D11_USAGE_STAGING;
+		stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		stagingDesc.BindFlags = 0;
+		stagingDesc.MiscFlags = 0;
+
+		HRESULT hr = _pd3dDevice->CreateTexture2D(&stagingDesc, nullptr, &_pStagingTexture);
+		if(FAILED(hr)) {
+			MessageManager::Log("[Renderer] Failed to create staging texture: " + std::to_string(hr));
+			return;
+		}
 	}
 
 	// Copy the shader output texture to the staging texture
-	_pDeviceContext->CopyResource(pStagingTexture, _pShaderOutputTexture);
+	_pDeviceContext->CopyResource(_pStagingTexture, _pShaderOutputTexture);
 
 	// Map the staging texture to read the data
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
-	hr = _pDeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
+	HRESULT hr = _pDeviceContext->Map(_pStagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
 	if(FAILED(hr)) {
 		MessageManager::Log("[Renderer] Failed to map staging texture: " + std::to_string(hr));
-		pStagingTexture->Release();
 		return;
 	}
 
@@ -910,8 +935,7 @@ void Renderer::CapturePostShaderFrame()
 		_postShaderFrameValid = true;
 	}
 
-	_pDeviceContext->Unmap(pStagingTexture, 0);
-	pStagingTexture->Release();
+	_pDeviceContext->Unmap(_pStagingTexture, 0);
 }
 
 PostShaderFrame Renderer::GetPostShaderFrame()
@@ -925,4 +949,18 @@ PostShaderFrame Renderer::GetPostShaderFrame()
 		result.Valid = true;
 	}
 	return result;
+}
+
+void Renderer::SetPostShaderFrameCaptureEnabled(bool enabled)
+{
+	_postShaderFrameCaptureEnabled = enabled;
+	if(!enabled) {
+		auto lock = _postShaderFrameLock.AcquireSafe();
+		_postShaderFrameValid = false;
+	}
+}
+
+bool Renderer::IsPostShaderFrameCaptureEnabled()
+{
+	return _postShaderFrameCaptureEnabled;
 }

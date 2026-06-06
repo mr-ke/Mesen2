@@ -208,15 +208,14 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 	}
 
 	// Check if we have a post-shader frame available from the renderer
-	bool usePostShaderFrame = false;
 	uint32_t* frameBuffer = (uint32_t*)frame.FrameBuffer;
 	uint32_t width = frame.Width;
 	uint32_t height = frame.Height;
 
+	PostShaderFrame postShaderFrame;
 	if(_renderer) {
-		PostShaderFrame postShaderFrame = _renderer->GetPostShaderFrame();
+		postShaderFrame = _renderer->GetPostShaderFrame();
 		if(postShaderFrame.Valid && postShaderFrame.FrameBuffer) {
-			usePostShaderFrame = true;
 			frameBuffer = postShaderFrame.FrameBuffer;
 			width = postShaderFrame.Width;
 			height = postShaderFrame.Height;
@@ -224,9 +223,20 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 	}
 
 	if(!recorder->IsRecording()) {
+		// If post-shader frame capture is enabled but frame is not yet available,
+		// wait for the next frame (don't start recording with wrong resolution)
+		if(_renderer && _renderer->IsPostShaderFrameCaptureEnabled() && !postShaderFrame.Valid) {
+			return;
+		}
 		if(!recorder->StartRecording(width, height, 4, _emu->GetSettings()->GetAudioConfig().SampleRate, _emu->GetFps())) {
 			// Failed to start recording, stop
 			StopRecording();
+			return;
+		}
+	} else {
+		// If recording is in progress and post-shader frame capture is enabled,
+		// skip frames where post-shader data is not available (to avoid resolution mismatch)
+		if(_renderer && _renderer->IsPostShaderFrameCaptureEnabled() && !postShaderFrame.Valid) {
 			return;
 		}
 	}
@@ -277,7 +287,12 @@ void VideoRenderer::StartRecording(string filename, RecordAviOptions options)
 
 	if(recorder->Init(filename)) {
 		_recorder.reset(recorder);
-		
+
+		// Enable post-shader frame capture for video recording
+		if(_renderer) {
+			_renderer->SetPostShaderFrameCaptureEnabled(true);
+		}
+
 		if(!options.RecordSystemHud) {
 			//Only display message if not recording the system HUD (otherwise the message is always visible on the recording, which isn't ideal)
 			MessageManager::DisplayMessage("VideoRecorder", "VideoRecorderStarted", filename);
@@ -306,6 +321,11 @@ void VideoRenderer::StopRecording()
 	}
 	_aviRecorderSurface.UpdateSize(0, 0);
 	_recorder.reset();
+
+	// Disable post-shader frame capture when recording stops
+	if(_renderer) {
+		_renderer->SetPostShaderFrameCaptureEnabled(false);
+	}
 }
 
 bool VideoRenderer::IsRecording()
