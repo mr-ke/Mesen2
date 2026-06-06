@@ -204,45 +204,67 @@ void VideoRenderer::UnregisterRenderingDevice(IRenderingDevice *renderer)
 void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 {
 	shared_ptr<IVideoRecorder> recorder = _recorder.lock();
-	if(recorder) {
-		if(!recorder->IsRecording()) {
-			recorder->StartRecording(frame.Width, frame.Height, 4, _emu->GetSettings()->GetAudioConfig().SampleRate, _emu->GetFps());
+	if(!recorder) {
+		return;
+	}
+
+	// Check if we have a post-shader frame available from the renderer
+	bool usePostShaderFrame = false;
+	uint32_t* frameBuffer = (uint32_t*)frame.FrameBuffer;
+	uint32_t width = frame.Width;
+	uint32_t height = frame.Height;
+
+	if(_renderer) {
+		PostShaderFrame postShaderFrame = _renderer->GetPostShaderFrame();
+		if(postShaderFrame.Valid && postShaderFrame.FrameBuffer) {
+			usePostShaderFrame = true;
+			frameBuffer = postShaderFrame.FrameBuffer;
+			width = postShaderFrame.Width;
+			height = postShaderFrame.Height;
+		}
+	}
+
+	if(!recorder->IsRecording()) {
+		if(!recorder->StartRecording(width, height, 4, _emu->GetSettings()->GetAudioConfig().SampleRate, _emu->GetFps())) {
+			// Failed to start recording, stop
+			StopRecording();
+			return;
+		}
+	}
+
+	if(_recorderOptions.RecordInputHud || _recorderOptions.RecordSystemHud) {
+		//Calculate the scale needed for the HUD elements
+		FrameInfo originalSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
+		double scale = (double)height / originalSize.Height;
+		FrameInfo scaledFrameSize = { (uint32_t)(width / scale), (uint32_t)(height / scale) };
+
+		//Update the surface to match the frame's size
+		_aviRecorderSurface.UpdateSize(width, height);
+		
+		//Copy the game screen
+		memcpy(_aviRecorderSurface.Buffer, frameBuffer, width * height * sizeof(uint32_t));
+
+		//Draw the system/input HUDs
+		DebugHud hud;
+		InputHud inputHud(_emu, &hud);
+		if(_recorderOptions.RecordSystemHud) {
+			_systemHud->Draw(&hud, scaledFrameSize.Width, scaledFrameSize.Height);
+		}
+		if(_recorderOptions.RecordInputHud) {
+			inputHud.DrawControllers(scaledFrameSize, frame.InputData);
 		}
 
-		if(_recorderOptions.RecordInputHud || _recorderOptions.RecordSystemHud) {
-			//Calculate the scale needed for the HUD elements
-			FrameInfo originalSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
-			double scale = (double)frame.Height / originalSize.Height;
-			FrameInfo scaledFrameSize = { (uint32_t)(frame.Width / scale), (uint32_t)(frame.Height / scale) };
+		FrameInfo frameSize = { width, height };
+		hud.Draw((uint32_t*)_aviRecorderSurface.Buffer, frameSize, {}, frame.FrameNumber, { scale, scale });
 
-			//Update the surface to match the frame's size
-			_aviRecorderSurface.UpdateSize(frame.Width, frame.Height);
-			
-			//Copy the game screen
-			memcpy(_aviRecorderSurface.Buffer, frame.FrameBuffer, frame.Width * frame.Height * sizeof(uint32_t));
-
-			//Draw the system/input HUDs
-			DebugHud hud;
-			InputHud inputHud(_emu, &hud);
-			if(_recorderOptions.RecordSystemHud) {
-				_systemHud->Draw(&hud, scaledFrameSize.Width, scaledFrameSize.Height);
-			}
-			if(_recorderOptions.RecordInputHud) {
-				inputHud.DrawControllers(scaledFrameSize, frame.InputData);
-			}
-
-			FrameInfo frameSize = { frame.Width, frame.Height };
-			hud.Draw((uint32_t*)_aviRecorderSurface.Buffer, frameSize, {}, frame.FrameNumber, { scale, scale });
-
-			//Record the final result
-			if(!recorder->AddFrame(_aviRecorderSurface.Buffer, frame.Width, frame.Height, _emu->GetFps())) {
-				StopRecording();
-			}
-		} else {
-			//Only record the game screen
-			if(!recorder->AddFrame(frame.FrameBuffer, frame.Width, frame.Height, _emu->GetFps())) {
-				StopRecording();
-			}
+		//Record the final result
+		if(!recorder->AddFrame(_aviRecorderSurface.Buffer, width, height, _emu->GetFps())) {
+			StopRecording();
+		}
+	} else {
+		//Only record the game screen
+		if(!recorder->AddFrame(frameBuffer, width, height, _emu->GetFps())) {
+			StopRecording();
 		}
 	}
 }
@@ -284,6 +306,7 @@ void VideoRenderer::StopRecording()
 {
 	shared_ptr<IVideoRecorder> recorder = _recorder.lock();
 	if(recorder) {
+		recorder->StopRecording();
 		MessageManager::DisplayMessage("VideoRecorder", "VideoRecorderStopped", recorder->GetOutputFile());
 	}
 	_aviRecorderSurface.UpdateSize(0, 0);

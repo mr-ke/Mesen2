@@ -618,7 +618,13 @@ void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
 	// Draw screen with or without librashader
 	if(_useLibraShader && _shaderManager && _shaderManager->IsInitialized()) {
 		DrawScreenWithShader();
+		// Capture the shader-processed frame for recording
+		CapturePostShaderFrame();
 	} else {
+		// No shader used, invalidate post-shader frame buffer
+		auto lock = _postShaderFrameLock.AcquireSafe();
+		_postShaderFrameValid = false;
+		
 		_spriteBatch->Begin(SpriteSortMode_Immediate, cfg.UseBilinearInterpolation);
 		DrawScreen();
 		_spriteBatch->End();
@@ -836,4 +842,87 @@ void Renderer::DrawScreenWithShader()
 		_spriteBatch->Draw(_pShaderOutputSrv, destRect);
 		_spriteBatch->End();
 	}
+}
+
+void Renderer::CapturePostShaderFrame()
+{
+	if(!_useLibraShader || !_pShaderOutputTexture) {
+		return;
+	}
+
+	// Create a staging texture to read back from GPU
+	ID3D11Texture2D* pStagingTexture = nullptr;
+	D3D11_TEXTURE2D_DESC stagingDesc = {};
+	stagingDesc.Width = _realScreenWidth;
+	stagingDesc.Height = _realScreenHeight;
+	stagingDesc.MipLevels = 1;
+	stagingDesc.ArraySize = 1;
+	stagingDesc.Format = GetTextureFormat();
+	stagingDesc.SampleDesc.Count = 1;
+	stagingDesc.Usage = D3D11_USAGE_STAGING;
+	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	stagingDesc.BindFlags = 0;
+	stagingDesc.MiscFlags = 0;
+
+	HRESULT hr = _pd3dDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture);
+	if(FAILED(hr)) {
+		MessageManager::Log("[Renderer] Failed to create staging texture: " + std::to_string(hr));
+		return;
+	}
+
+	// Copy the shader output texture to the staging texture
+	_pDeviceContext->CopyResource(pStagingTexture, _pShaderOutputTexture);
+
+	// Map the staging texture to read the data
+	D3D11_MAPPED_SUBRESOURCE mappedResource;
+	hr = _pDeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
+	if(FAILED(hr)) {
+		MessageManager::Log("[Renderer] Failed to map staging texture: " + std::to_string(hr));
+		pStagingTexture->Release();
+		return;
+	}
+
+	// Resize buffer if needed
+	{
+		auto lock = _postShaderFrameLock.AcquireSafe();
+		size_t requiredSize = (size_t)_realScreenWidth * _realScreenHeight;
+		if(_postShaderFrameBuffer.size() != requiredSize) {
+			_postShaderFrameBuffer.resize(requiredSize);
+		}
+		
+		// Copy the data row by row (handle potential row pitch differences)
+		uint8_t* srcData = (uint8_t*)mappedResource.pData;
+		uint8_t* dstData = (uint8_t*)_postShaderFrameBuffer.data();
+		uint32_t rowPitch = _realScreenWidth * sizeof(uint32_t);
+		
+		if(mappedResource.RowPitch != rowPitch) {
+			for(uint32_t y = 0; y < _realScreenHeight; y++) {
+				memcpy(dstData, srcData, rowPitch);
+				srcData += mappedResource.RowPitch;
+				dstData += rowPitch;
+			}
+		} else {
+			memcpy(_postShaderFrameBuffer.data(), mappedResource.pData, rowPitch * _realScreenHeight);
+		}
+
+		_postShaderFrameWidth = _realScreenWidth;
+		_postShaderFrameHeight = _realScreenHeight;
+		_postShaderFrameValid = true;
+	}
+
+	_pDeviceContext->Unmap(pStagingTexture, 0);
+	pStagingTexture->Release();
+}
+
+PostShaderFrame Renderer::GetPostShaderFrame()
+{
+	PostShaderFrame result;
+	auto lock = _postShaderFrameLock.AcquireSafe();
+	if(_postShaderFrameValid && !_postShaderFrameBuffer.empty()) {
+		result.FrameBuffer = _postShaderFrameBuffer.data();
+		result.Width = _postShaderFrameWidth;
+		result.Height = _postShaderFrameHeight;
+		result.Valid = true;
+	}
+	return result;
 }

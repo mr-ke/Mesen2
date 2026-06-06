@@ -82,6 +82,13 @@ private:
 	size_t _frameCount = 0;
 	std::string _currentShaderPreset;
 
+	// Post-shader frame buffer for video recording
+	vector<uint32_t> _postShaderFrameBuffer;
+	uint32_t _postShaderFrameWidth = 0;
+	uint32_t _postShaderFrameHeight = 0;
+	bool _postShaderFrameValid = false;
+	SimpleLock _postShaderFrameLock;
+
 	HRESULT InitDevice();
 	void CleanupDevice();
 
@@ -106,6 +113,7 @@ private:
 	void CleanupShaderResources();
 	void DrawScreenWithShader();
 	void ReloadShader();
+	void CapturePostShaderFrame();
 
 public:
 	Renderer(Emulator* emu, HWND hWnd);
@@ -118,4 +126,5 @@ public:
 	void ClearFrame() override;
 
 	void UpdateFrame(RenderedFrame& frame) override;
+	PostShaderFrame GetPostShaderFrame() override;
 };

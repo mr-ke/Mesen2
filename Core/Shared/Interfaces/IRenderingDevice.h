@@ -5,6 +5,14 @@
 
 struct RenderedFrame;
 
+struct PostShaderFrame
+{
+	uint32_t* FrameBuffer = nullptr;
+	uint32_t Width = 0;
+	uint32_t Height = 0;
+	bool Valid = false;
+};
+
 struct RenderSurfaceInfo
 {
 	uint32_t* Buffer = nullptr;
@@ -47,4 +55,5 @@ class IRenderingDevice
 		virtual void Reset() = 0;
 		virtual void OnRendererThreadStarted() {}
 		virtual void SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle) = 0;
+		virtual PostShaderFrame GetPostShaderFrame() = 0;
 };

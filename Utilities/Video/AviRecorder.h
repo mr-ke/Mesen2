@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include <thread>
+#include <queue>
 #include "Utilities/AutoResetEvent.h"
 #include "Utilities/SimpleLock.h"
 #include "Utilities/Video/AviWriter.h"
@@ -9,6 +10,14 @@
 class AviRecorder final : public IVideoRecorder
 {
 private:
+	struct FrameData
+	{
+		vector<uint8_t> buffer;
+		uint32_t width;
+		uint32_t height;
+		double fps;
+	};
+
 	std::thread _aviWriterThread;
 	
 	unique_ptr<AviWriter> _aviWriter;
@@ -18,16 +27,18 @@ private:
 	AutoResetEvent _waitFrame;
 
 	atomic<bool> _stopFlag;
-	atomic<bool> _framePending;
+	
+	// Frame queue for async encoding
+	std::queue<FrameData> _frameQueue;
+	static constexpr size_t MaxQueueSize = 10; // Increased from 3 to allow more buffering
 
-	bool _recording;
-	uint8_t* _frameBuffer;
-	uint32_t _frameBufferLength;
+	atomic<bool> _recording;
 	uint32_t _sampleRate;
 
 	double _fps;
 	uint32_t _width;
 	uint32_t _height;
+	uint32_t _bpp;
 
 	VideoCodec _codec;
 	uint32_t _compressionLevel;

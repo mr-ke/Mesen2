@@ -58,6 +58,11 @@ private:
 	SimpleLock _frameLock;
 
 	safe_ptr<IVideoRecorder> _recorder;
+	
+	// Buffer for post-shader frame (used when recording with shader)
+	vector<uint32_t> _postShaderFrameBuffer;
+	uint32_t _postShaderFrameWidth = 0;
+	uint32_t _postShaderFrameHeight = 0;
 
 	void RenderThread();
 	bool DrawScriptHud(RenderedFrame& frame);

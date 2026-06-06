@@ -192,32 +192,14 @@ void ZmbvCodec::AddXorFrame(void) {
 	signed char * vectors=(signed char*)&work[workUsed];
 	/* Align the following xor data on 4 byte boundary*/
 	workUsed=(workUsed + blockcount*2 +3) & ~3;
+	
+	// Fast mode: skip vector search entirely, just use XOR for all blocks
+	// This is much faster but produces larger files
 	for (int b=0;b<blockcount;b++) {
 		FrameBlock * block=&blocks[b];
-		int bestvx = 0;
-		int bestvy = 0;
-		int bestchange=CompareBlock<P>(0,0, block);
-		int possibles=64;
-		for (int v=0;v<VectorCount && possibles;v++) {
-			if (bestchange<4) break;
-			int vx = VectorTable[v].x;
-			int vy = VectorTable[v].y;
-			if (PossibleBlock<P>(vx, vy, block) < 4) {
-				possibles--;
-				int testchange=CompareBlock<P>(vx,vy, block);
-				if (testchange<bestchange) {
-					bestchange=testchange;
-					bestvx = vx;
-					bestvy = vy;
-				}
-			}
-		}
-		vectors[b*2+0]=(bestvx << 1);
-		vectors[b*2+1]=(bestvy << 1);
-		if (bestchange) {
-			vectors[b*2+0]|=1;
-			AddXorBlock<P>(bestvx, bestvy, block);
-		}
+		vectors[b*2+0]=1; // Mark as having XOR data
+		vectors[b*2+1]=0;
+		AddXorBlock<P>(0, 0, block);
 	}
 }
 
