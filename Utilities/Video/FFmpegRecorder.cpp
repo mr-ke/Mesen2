@@ -6,6 +6,8 @@ FFmpegRecorder::FFmpegRecorder(VideoCodec codec, uint32_t compressionLevel)
 	_recording = false;
 	_stopFlag = false;
 	_framePending = false;
+	_copyInProgress = false;
+	_processInProgress = false;
 	_frameBuffer = nullptr;
 	_frameBufferLength = 0;
 	_sampleRate = 0;
@@ -318,8 +320,10 @@ bool FFmpegRecorder::StartRecording(uint32_t width, uint32_t height, uint32_t bp
 			}
 
 			auto lock = _lock.AcquireSafe();
+			_processInProgress = true;
 			ProcessFrame();
 			_framePending = false;
+			_processInProgress = false;
 		}
 	});
 
@@ -455,12 +459,26 @@ void FFmpegRecorder::StopRecording()
 		return;
 	}
 
+	// 先设置标志，防止新的操作开始
 	_recording = false;
 	_stopFlag = true;
+
+	// 等待 AddFrame 中的复制操作完成
+	while(_copyInProgress) {
+		std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(1));
+	}
+
+	// 唤醒 writerThread 让它退出
 	_waitFrame.Signal();
 
+	// 等待 writerThread 结束
 	if(_writerThread.joinable()) {
 		_writerThread.join();
+	}
+
+	// 获取锁确保没有其他操作在进行
+	{
+		auto lock = _lock.AcquireSafe();
 	}
 
 	if(_videoCodecCtx && _packet && _videoStream) {
@@ -570,17 +588,29 @@ bool FFmpegRecorder::AddFrame(void* frameBuffer, uint32_t width, uint32_t height
 		return false;
 	}
 
-	while(_framePending && _recording) {
-		std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(1));
-	}
-
-	if(!_recording) {
+	// 使用锁保护整个操作，防止 StopRecording 时清理资源
+	auto lock = _lock.AcquireSafe();
+	
+	// 再次检查状态（可能在等待锁时状态已改变）
+	if(!_recording || _stopFlag) {
 		return true;
 	}
 
-	auto lock = _lock.AcquireSafe();
+	// 等待上一帧处理完成
+	while(_framePending) {
+		lock.Release();
+		std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(1));
+		if(!_recording || _stopFlag) {
+			return true;
+		}
+		lock = _lock.AcquireSafe();
+	}
+
+	// 设置复制标志，防止 StopRecording 时清理 _frameBuffer
+	_copyInProgress = true;
 	_framePending = true;
 	memcpy(_frameBuffer, frameBuffer, _frameBufferLength);
+	_copyInProgress = false;
 	_waitFrame.Signal();
 	return true;
 }

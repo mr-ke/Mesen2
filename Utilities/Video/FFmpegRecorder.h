@@ -37,10 +37,11 @@ private:
 
 	atomic<bool> _stopFlag;
 	atomic<bool> _framePending;
+	atomic<bool> _recording;
+	atomic<bool> _copyInProgress;    // AddFrame 正在复制帧数据
+	atomic<bool> _processInProgress; // writerThread 正在处理帧数据
 
 	std::queue<std::vector<int16_t>> _audioQueue;
-
-	bool _recording = false;
 	uint8_t* _frameBuffer = nullptr;
 	uint32_t _frameBufferLength = 0;
 	uint32_t _sampleRate = 0;
