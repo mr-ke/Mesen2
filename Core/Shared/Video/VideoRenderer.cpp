@@ -233,12 +233,10 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 			StopRecording();
 			return;
 		}
-	} else {
+	} else if(_renderer && _renderer->IsPostShaderFrameCaptureEnabled() && !postShaderFrame.Valid) {
 		// If recording is in progress and post-shader frame capture is enabled,
 		// skip frames where post-shader data is not available (to avoid resolution mismatch)
-		if(_renderer && _renderer->IsPostShaderFrameCaptureEnabled() && !postShaderFrame.Valid) {
-			return;
-		}
+		return;
 	}
 
 	if(_recorderOptions.RecordInputHud || _recorderOptions.RecordSystemHud) {
@@ -288,8 +286,8 @@ void VideoRenderer::StartRecording(string filename, RecordAviOptions options)
 	if(recorder->Init(filename)) {
 		_recorder.reset(recorder);
 
-		// Enable post-shader frame capture for video recording
-		if(_renderer) {
+		// Enable post-shader frame capture for video recording only if using a shader
+		if(_renderer && _renderer->IsUsingShader()) {
 			_renderer->SetPostShaderFrameCaptureEnabled(true);
 		}
 

@@ -58,4 +58,5 @@ class IRenderingDevice
 		virtual PostShaderFrame GetPostShaderFrame() = 0;
 		virtual void SetPostShaderFrameCaptureEnabled(bool enabled) {}
 		virtual bool IsPostShaderFrameCaptureEnabled() { return false; }
+		virtual bool IsUsingShader() { return false; }
 };

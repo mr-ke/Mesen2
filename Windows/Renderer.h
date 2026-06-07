@@ -131,4 +131,5 @@ public:
 	PostShaderFrame GetPostShaderFrame() override;
 	void SetPostShaderFrameCaptureEnabled(bool enabled) override;
 	bool IsPostShaderFrameCaptureEnabled() override;
+	bool IsUsingShader() override;
 };

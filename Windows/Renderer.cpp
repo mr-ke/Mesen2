@@ -964,3 +964,8 @@ bool Renderer::IsPostShaderFrameCaptureEnabled()
 {
 	return _postShaderFrameCaptureEnabled;
 }
+
+bool Renderer::IsUsingShader()
+{
+	return _useLibraShader;
+}
