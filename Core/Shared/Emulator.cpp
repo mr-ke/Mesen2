@@ -37,6 +37,7 @@
 #include "SMS/SmsConsole.h"
 #include "GBA/GbaConsole.h"
 #include "WS/WsConsole.h"
+#include "NDS/NdsConsole.h"
 #include "Debugger/Debugger.h"
 #include "Debugger/BaseEventManager.h"
 #include "Debugger/DebugTypes.h"
@@ -494,7 +495,13 @@ bool Emulator::InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool 
 	//Restore pollcounter (used by movies when a power cycle is in the movie)
 	_console->GetControlManager()->SetPollCounter(pollCounter);
 
-	_rewindManager->InitHistory();
+	try {
+		_rewindManager->InitHistory();
+	} catch(std::exception& e) {
+		throw;
+	} catch(...) {
+		throw;
+	}
 
 	if(debuggerActive || _settings->CheckFlag(EmulationFlags::ConsoleMode)) {
 		InitDebugger();
@@ -572,6 +579,7 @@ void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_pt
 	TryLoadRom<SmsConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<GbaConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<WsConsole>(romFile, result, console, useFileSignature);
+	TryLoadRom<NdsConsole>(romFile, result, console, useFileSignature);
 }
 
 template<typename T>

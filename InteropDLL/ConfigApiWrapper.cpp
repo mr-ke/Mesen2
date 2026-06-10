@@ -41,6 +41,11 @@ extern "C" {
 		_emu->GetSettings()->SetGbaConfig(config);
 	}
 
+	DllExport void __stdcall SetNdsConfig(NdsConfig config)
+	{
+		_emu->GetSettings()->SetNdsConfig(config);
+	}
+
 	DllExport void __stdcall SetPcEngineConfig(PcEngineConfig config)
 	{
 		_emu->GetSettings()->SetPcEngineConfig(config);

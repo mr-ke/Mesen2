@@ -239,7 +239,10 @@ enum class ControllerType
 
 	//WS
 	WsController,
-	WsControllerVertical
+	WsControllerVertical,
+
+	//NDS
+	NdsController
 };
 
 struct KeyMapping
@@ -363,7 +366,8 @@ enum class ConsoleType
 	PcEngine = 3,
 	Sms = 4,
 	Gba = 5,
-	Ws = 6
+	Ws = 6,
+	Nds = 7
 };
 
 enum class GameboyModel
@@ -480,6 +484,14 @@ struct GbaConfig
 	uint32_t Square2Vol = 100;
 	uint32_t NoiseVol = 100;
 	uint32_t WaveVol = 100;
+};
+
+struct NdsConfig
+{
+	ControllerConfig Controller;
+
+	bool SkipBootScreen = false;
+	bool AllowInvalidInput = false;
 };
 
 enum class PceConsoleType

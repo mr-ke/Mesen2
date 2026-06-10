@@ -1,4 +1,4 @@
-﻿using Mesen.Interop;
+using Mesen.Interop;
 using Mesen.ViewModels;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -410,6 +410,9 @@ namespace Mesen.Config
 		//WonderSwan
 		WsController,
 		WsControllerVertical,
+
+		//NDS
+		NdsController,
 	}
 
 	public static class ControllerTypeExtensions
@@ -432,6 +435,7 @@ namespace Mesen.Config
 				case ControllerType.ColecoVisionController:
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
+				case ControllerType.NdsController:
 					return true;
 			}
 
@@ -454,6 +458,7 @@ namespace Mesen.Config
 				case ControllerType.HoriTrack:
 				case ControllerType.BandaiHyperShot:
 				case ControllerType.SmsController:
+				case ControllerType.NdsController:
 					return true;
 			}
 
@@ -500,6 +505,7 @@ namespace Mesen.Config
 				case ControllerType.ColecoVisionController:
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
+				case ControllerType.NdsController:
 					return true;
 			}
 

@@ -1,4 +1,4 @@
-﻿using Mesen.Config;
+using Mesen.Config;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,7 +17,8 @@ namespace Mesen.Utilities
 			".pce", ".sgx", ".cue",
 			".sms", ".gg", ".sg", ".col",
 			".gba",
-			".ws", ".wsc"
+			".ws", ".wsc",
+			".nds"
 		};
 
 		public static bool IsRomFile(string path)

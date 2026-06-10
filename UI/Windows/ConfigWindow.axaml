@@ -53,6 +53,9 @@
 		<DataTemplate DataType="{x:Type vm:WsConfigViewModel}">
 			<v:WsConfigView />
 		</DataTemplate>
+		<DataTemplate DataType="{x:Type vm:NdsConfigViewModel}">
+			<v:NdsConfigView />
+		</DataTemplate>
 		<DataTemplate DataType="{x:Type vm:OtherConsolesConfigViewModel}">
 			<v:OtherConsolesConfigView />
 		</DataTemplate>
@@ -174,7 +177,16 @@
 					</StackPanel>
 				</TabItem.Header>
 			</TabItem>
-			
+
+			<TabItem Content="{Binding Nds}">
+				<TabItem.Header>
+					<StackPanel Orientation="Horizontal">
+						<Image Source="/Assets/NdsIcon.png" Margin="0 0 10 0" />
+						<TextBlock VerticalAlignment="Center" Text="{l:Translate tabNds}" />
+					</StackPanel>
+				</TabItem.Header>
+			</TabItem>
+
 			<TabItem Content="{Binding OtherConsoles}">
 				<TabItem.Header>
 					<StackPanel Orientation="Horizontal">

@@ -69,6 +69,11 @@ namespace Mesen.Controls
 			NavigateTo(ConfigWindowTab.Ws);
 		}
 
+		private void OnClickNds(object sender, RoutedEventArgs e)
+		{
+			NavigateTo(ConfigWindowTab.Nds);
+		}
+
 		private void NavigateTo(ConfigWindowTab console)
 		{
 			if(VisualRoot is ConfigWindow wnd && wnd.DataContext is ConfigViewModel cfg) {
@@ -148,6 +153,16 @@ namespace Mesen.Controls
 								ConfigType.Emulation => WsConfigTab.Emulation,
 								ConfigType.Input => WsConfigTab.Input,
 								_ or ConfigType.Video => WsConfigTab.Video,
+							};
+						}
+						break;
+
+					case ConfigWindowTab.Nds:
+						if(cfg.Nds != null) {
+							cfg.Nds.SelectedTab = ConfigType switch {
+								ConfigType.Input => NdsConfigTab.Input,
+								ConfigType.Video => NdsConfigTab.Video,
+								_ => NdsConfigTab.General,
 							};
 						}
 						break;

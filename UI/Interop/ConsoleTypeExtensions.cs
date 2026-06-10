@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Mesen.Interop
 {
@@ -14,6 +14,7 @@ namespace Mesen.Interop
 				ConsoleType.Sms => CpuType.Sms,
 				ConsoleType.Gba => CpuType.Gba,
 				ConsoleType.Ws => CpuType.Ws,
+				ConsoleType.Nds => throw new NotSupportedException("NDS debugging is not supported"),
 				_ => throw new Exception("Invalid type")
 			};
 		}
@@ -23,6 +24,15 @@ namespace Mesen.Interop
 			return type switch {
 				ConsoleType.Gba => false,
 				ConsoleType.Ws => false,
+				ConsoleType.Nds => false,
+				_ => true
+			};
+		}
+
+		public static bool SupportsDebugger(this ConsoleType type)
+		{
+			return type switch {
+				ConsoleType.Nds => false,
 				_ => true
 			};
 		}

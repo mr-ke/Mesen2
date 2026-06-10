@@ -450,6 +450,21 @@
 			<Control ID="btnSetup">Setup</Control>
 		</Form>
 
+		<Form ID="NdsConfigView">
+			<Control ID="tpgGeneral">General</Control>
+			<Control ID="chkSkipBootScreen">Skip boot screen</Control>
+
+			<Control ID="grpGeneral">General</Control>
+			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
+
+			<Control ID="tpgInput">Input</Control>
+			<Control ID="grpControllers">Controllers</Control>
+			<Control ID="lblPlayer1">Player 1</Control>
+			<Control ID="btnSetup">Setup</Control>
+
+			<Control ID="tpgVideo">Video</Control>
+		</Form>
+
 		<Form ID="PceConfigView">
 			<Control ID="tpgGeneral">General</Control>
 			<Control ID="lblConsoleType">Console Type:</Control>
@@ -672,6 +687,7 @@
 			<Control ID="tabPcEngine">PC Engine</Control>
 			<Control ID="tabSms">SMS</Control>
 			<Control ID="tabWs">WonderSwan</Control>
+			<Control ID="tabNds">NDS</Control>
 			<Control ID="tabOtherConsoles">Other systems</Control>
 			<Control ID="tabPreferences">Preferences</Control>
 
@@ -1029,6 +1045,7 @@
 			<Control ID="lblPcEngine">PC Engine</Control>
 			<Control ID="lblSms">SMS</Control>
 			<Control ID="lblWs">WonderSwan</Control>
+			<Control ID="lblNds">NDS</Control>
 		</Form>
 		
 		<Form ID="AudioPlayerView">

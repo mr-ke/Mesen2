@@ -23,6 +23,7 @@ public:
 			case CpuType::Sms: return MemoryType::SmsMemory;
 			case CpuType::Gba: return MemoryType::GbaMemory;
 			case CpuType::Ws: return MemoryType::WsMemory;
+			case CpuType::Nds: return MemoryType::NdsMemory;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -44,6 +45,7 @@ public:
 			case CpuType::Sms: return 4;
 			case CpuType::Gba: return 8;
 			case CpuType::Ws: return 5;
+			case CpuType::Nds: return 8;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -168,6 +170,9 @@ public:
 			case MemoryType::WsPort:
 				return CpuType::Ws;
 
+			case MemoryType::NdsMemory:
+				return CpuType::Nds;
+
 			default:
 				throw std::runtime_error("Invalid CPU type");
 		}
@@ -180,7 +185,7 @@ public:
 
 	static constexpr MemoryType GetLastCpuMemoryType()
 	{
-		return MemoryType::WsMemory;
+		return MemoryType::NdsMemory;
 	}
 
 	static constexpr bool IsPpuMemory(MemoryType memType)
@@ -275,7 +280,7 @@ public:
 
 	static constexpr CpuType GetLastCpuType()
 	{
-		return CpuType::Ws;
+		return CpuType::Nds;
 	}
 
 	static string AddressToHex(CpuType cpuType, int32_t address)

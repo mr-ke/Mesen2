@@ -34,6 +34,7 @@ namespace Mesen.Config
 		[Reactive] public SmsConfig Sms { get; set; } = new();
 		[Reactive] public CvConfig Cv { get; set; } = new();
 		[Reactive] public GbaConfig Gba { get; set; } = new();
+		[Reactive] public NdsConfig Nds { get; set; } = new();
 		[Reactive] public WsConfig Ws { get; set; } = new();
 		[Reactive] public PreferencesConfig Preferences { get; set; } = new();
 		[Reactive] public AudioPlayerConfig AudioPlayer { get; set; } = new();
@@ -85,6 +86,7 @@ namespace Mesen.Config
 			Emulation.ApplyConfig();
 			Gameboy.ApplyConfig();
 			Gba.ApplyConfig();
+			Nds.ApplyConfig();
 			PcEngine.ApplyConfig();
 			Nes.ApplyConfig();
 			Snes.ApplyConfig();
@@ -166,7 +168,10 @@ namespace Mesen.Config
 			if(Ws.ControllerHorizontal.Mapping1.A == 0) {
 				Ws.InitializeDefaults(DefaultKeyMappings);
 			}
-			
+			if(Nds.Controller.Mapping1.A == 0) {
+				Nds.InitializeDefaults(DefaultKeyMappings);
+			}
+
 			if(needInit) {
 				ConfigUpgrade = (int)ConfigUpgradeHint.NextValue - 1;
 			}
