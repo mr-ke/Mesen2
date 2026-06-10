@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Mesen.Config;
 using Mesen.ViewModels;
@@ -26,6 +26,7 @@ namespace Mesen.Views
 					ControllerType.HoriTrack => new NesControllerView(),
 					ControllerType.GameboyController => new NesControllerView(),
 					ControllerType.GbaController => new GbaControllerView(),
+					ControllerType.NdsController => new NdsControllerView(),
 					ControllerType.PceController => new PceControllerView(),
 					ControllerType.PceAvenuePad6 => new PceAvenuePad6View(),
 					ControllerType.SmsController => new SmsControllerView(),

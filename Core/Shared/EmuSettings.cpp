@@ -35,6 +35,7 @@ void EmuSettings::CopySettings(EmuSettings& src)
 	SetPcEngineConfig(src._pce);
 	SetSmsConfig(src._sms);
 	SetGbaConfig(src._gba);
+	SetNdsConfig(src._nds);
 }
 
 void EmuSettings::Serialize(Serializer& s)
@@ -125,6 +126,10 @@ void EmuSettings::Serialize(Serializer& s)
 
 		case ConsoleType::Ws:
 			//TODOWS
+			break;
+
+		case ConsoleType::Nds:
+			// NDS settings are handled by the libretro core
 			break;
 
 		default:
@@ -237,6 +242,16 @@ void EmuSettings::SetGbaConfig(GbaConfig& config)
 GbaConfig& EmuSettings::GetGbaConfig()
 {
 	return _gba;
+}
+
+void EmuSettings::SetNdsConfig(NdsConfig& config)
+{
+	_nds = config;
+}
+
+NdsConfig& EmuSettings::GetNdsConfig()
+{
+	return _nds;
 }
 
 void EmuSettings::SetPcEngineConfig(PcEngineConfig& config)

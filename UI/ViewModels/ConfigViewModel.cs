@@ -1,4 +1,4 @@
-﻿using Mesen.Config;
+﻿﻿using Mesen.Config;
 using Mesen.Utilities;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -22,6 +22,7 @@ namespace Mesen.ViewModels
 		[Reactive] public PceConfigViewModel? PcEngine { get; set; }
 		[Reactive] public SmsConfigViewModel? Sms { get; set; }
 		[Reactive] public WsConfigViewModel? Ws { get; set; }
+		[Reactive] public NdsConfigViewModel? Nds { get; set; }
 		[Reactive] public OtherConsolesConfigViewModel? OtherConsoles { get; set; }
 
 		[Reactive] public ConfigWindowTab SelectedIndex { get; set; }
@@ -61,6 +62,7 @@ namespace Mesen.ViewModels
 				case ConfigWindowTab.PcEngine: PcEngine ??= AddDisposable(new PceConfigViewModel()); break;
 				case ConfigWindowTab.Sms: Sms ??= AddDisposable(new SmsConfigViewModel()); break;
 				case ConfigWindowTab.Ws: Ws ??= AddDisposable(new WsConfigViewModel()); break;
+				case ConfigWindowTab.Nds: Nds ??= AddDisposable(new NdsConfigViewModel()); break;
 				case ConfigWindowTab.OtherConsoles: OtherConsoles ??= AddDisposable(new OtherConsolesConfigViewModel()); break;
 
 				case ConfigWindowTab.Preferences: Preferences ??= AddDisposable(new PreferencesConfigViewModel()); break;
@@ -89,6 +91,8 @@ namespace Mesen.ViewModels
 			ConfigManager.Config.Gba = Gba?.OriginalConfig ?? ConfigManager.Config.Gba;
 			ConfigManager.Config.PcEngine = PcEngine?.OriginalConfig ?? ConfigManager.Config.PcEngine;
 			ConfigManager.Config.Sms = Sms?.OriginalConfig ?? ConfigManager.Config.Sms;
+			ConfigManager.Config.Ws = Ws?.OriginalConfig ?? ConfigManager.Config.Ws;
+			ConfigManager.Config.Nds = Nds?.OriginalConfig ?? ConfigManager.Config.Nds;
 			ConfigManager.Config.Cv = OtherConsoles?.CvOriginalConfig ?? ConfigManager.Config.Cv;
 			ConfigManager.Config.ApplyConfig();
 			ConfigManager.Config.Save();
@@ -109,6 +113,7 @@ namespace Mesen.ViewModels
 				PcEngine?.OriginalConfig.IsIdentical(ConfigManager.Config.PcEngine) == false ||
 				Sms?.OriginalConfig.IsIdentical(ConfigManager.Config.Sms) == false ||
 				Ws?.OriginalConfig.IsIdentical(ConfigManager.Config.Ws) == false ||
+				Nds?.OriginalConfig.IsIdentical(ConfigManager.Config.Nds) == false ||
 				OtherConsoles?.CvOriginalConfig.IsIdentical(ConfigManager.Config.Cv) == false
 			);
 		}
@@ -128,8 +133,9 @@ namespace Mesen.ViewModels
 		PcEngine = 9,
 		Sms = 10,
 		Ws = 11,
-		OtherConsoles = 12,
+		Nds = 12,
+		OtherConsoles = 13,
 		//separator
-		Preferences = 14
+		Preferences = 15
 	}
 }

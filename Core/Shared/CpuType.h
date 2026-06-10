@@ -15,7 +15,8 @@ enum class CpuType : uint8_t
 	Pce,
 	Sms,
 	Gba,
-	Ws
+	Ws,
+	Nds
 };
 
 class CpuTypeUtilities

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -187,6 +187,7 @@ namespace Mesen.Interop
 		Sms = 4,
 		Gba = 5,
 		Ws = 6,
+		Nds = 7,
 	}
 
 	public struct InteropDipSwitchInfo

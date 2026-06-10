@@ -60,6 +60,7 @@ namespace Mesen.Utilities
 							"*.sms", "*.gg", "*.sg", "*.col",
 							"*.gba",
 							"*.ws", "*.wsc",
+							"*.nds",
 							"*.zip", "*.7z",
 							"*.ips", "*.bps"
 						} });
@@ -67,6 +68,7 @@ namespace Mesen.Utilities
 						filter.Add(new FilePickerFileType("NES ROM files") { Patterns = new List<string>() { "*.nes", "*.fds", "*.qd", "*.unif", "*.unf", "*.studybox", "*.nsf", "*.nsfe" } });
 						filter.Add(new FilePickerFileType("GB ROM files") { Patterns = new List<string>() { "*.gb", "*.gbc", "*.gbx", "*.gbs" } });
 						filter.Add(new FilePickerFileType("GBA ROM files") { Patterns = new List<string>() { "*.gba" } });
+						filter.Add(new FilePickerFileType("NDS ROM files") { Patterns = new List<string>() { "*.nds" } });
 						filter.Add(new FilePickerFileType("PC Engine ROM files") { Patterns = new List<string>() { "*.pce", "*.sgx", "*.cue", "*.hes" } });
 						filter.Add(new FilePickerFileType("SMS / GG ROM files") { Patterns = new List<string>() { "*.sms", "*.gg" } });
 						filter.Add(new FilePickerFileType("SG-1000 ROM files") { Patterns = new List<string>() { "*.sg" } });

@@ -31,6 +31,7 @@ private:
 	CvConfig _cv;
 	GbaConfig _gba;
 	WsConfig _ws;
+	NdsConfig _nds;
 
 	atomic<uint32_t> _flags;
 	atomic<uint64_t> _debuggerFlags;
@@ -83,6 +84,9 @@ public:
 
 	void SetGbaConfig(GbaConfig& config);
 	GbaConfig& GetGbaConfig();
+
+	void SetNdsConfig(NdsConfig& config);
+	NdsConfig& GetNdsConfig();
 
 	void SetPcEngineConfig(PcEngineConfig& config);
 	PcEngineConfig& GetPcEngineConfig();
