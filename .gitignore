@@ -185,6 +185,7 @@ PGOHelper/PGOMesenHome
 *.profdata
 
 packages/*
+skills/*
 
 !Libretro/hakchi/bin
 

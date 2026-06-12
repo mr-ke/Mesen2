@@ -4,6 +4,30 @@
 2) Compile as `Release`/`x64`
 3) Set the startup project to the `UI` project and run
 
+## Cross Compile (Linux/WSL → Windows)
+
+You can cross-compile Mesen from Linux or WSL for Windows host.
+
+### Prerequisites
+
+- .NET 8 SDK
+- MinGW-w64 (for C++ cross-compilation)
+- SDL2 Windows development files
+
+### Build UI Project (C#)
+
+```bash
+dotnet publish UI/UI.csproj -c Release -r win-x64 --self-contained true -p:PublishDir=bin/SelfContained/
+```
+
+### Build MesenCore (C++)
+
+```bash
+./build-core-windows.sh
+```
+
+The compiled `MesenCore.dll` will be in `build-windows-x64/bin/`. Copy it to the UI output directory.
+
 ## Linux
 
 To build under Linux you need a version of Clang or GCC that supports C++17.  

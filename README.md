@@ -1,6 +1,38 @@
 # Mesen
 
-Mesen is a multi-system emulator (NES, SNES, Game Boy, Game Boy Advance, PC Engine, SMS/Game Gear, WonderSwan) for Windows, Linux and macOS.  
+Mesen is a multi-system emulator for Windows, Linux and macOS.
+
+## ✨ Highlights
+
+### 🎮 Multi-System Support
+| System | Core Type |
+|--------|-----------|
+| NES/Famicom | Native |
+| SNES/Super Famicom | Native |
+| Game Boy / Color | Native |
+| Game Boy Advance | Native |
+| PC Engine/TurboGrafx-16 | Native |
+| Sega Master System / Game Gear | Native |
+| WonderSwan | Native |
+| **Nintendo DS** | **Libretro Core** |
+
+### 🖥️ Cross-Platform Audio/Video with SDL
+Mesen uses **SDL2** for cross-platform audio and video output, ensuring consistent performance and compatibility across Windows, Linux, and macOS.
+
+### 🎬 Modern Video Recording
+Built-in video recorder with multiple codec support:
+
+| Codec | Type | Quality | Use Case |
+|-------|------|---------|----------|
+| **UTVideo** | Lossless | Perfect | High-quality archival |
+| **FFVHUFF** | Lossless | Perfect | Wide compatibility |
+| **H.264** | Lossy | Excellent | Small file size |
+| **VP8** | Lossy | Good | Web-friendly output |
+
+### 🎨 Modern Shader Support (Coming Soon)
+Integration with **librashader** for advanced CRT, LCD, and custom shader presets - bringing retro gaming visuals to life with authentic display effects.
+
+---
 
 ## Releases
 
