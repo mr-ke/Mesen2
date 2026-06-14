@@ -7,6 +7,7 @@
 #include "Core/Shared/Interfaces/IConsole.h"
 #include "Core/Shared/BaseControlDevice.h"
 #include "Core/Shared/BaseControlManager.h"
+#include "Core/Shared/KeyManager.h"
 #include "Utilities/FolderUtilities.h"
 #include <fstream>
 
@@ -325,54 +326,81 @@ void LibretroCore::Reset()
 
 int16_t LibretroCore::GetInputState(unsigned port, unsigned device, unsigned index, unsigned id)
 {
-	// Map Mesen's input system to libretro's input
-	if(!_emu) {
-		return 0;
-	}
-
-	// Get the console and control manager
-	auto console = _emu->GetConsole();
-	if(!console) {
-		return 0;
-	}
-
-	auto controlManager = console->GetControlManager();
-	if(!controlManager) {
-		return 0;
-	}
-
-	// Find the NDS controller device
-	shared_ptr<BaseControlDevice> controller;
-	auto devices = controlManager->GetControlDevices();
-	for(auto& dev : devices) {
-		if(dev && dev->GetControllerType() == ControllerType::NdsController) {
-			controller = dev;
-			break;
+	// Handle pointer device (touchscreen)
+	if(device == RETRO_DEVICE_POINTER) {
+		MousePosition mousePos = KeyManager::GetMousePosition();
+		
+		// Check if mouse is within the screen (valid coordinates)
+		if(mousePos.RelativeX < 0 || mousePos.RelativeY < 0) {
+			return 0;  // Mouse is off-screen
+		}
+		
+		switch(id) {
+			case RETRO_DEVICE_ID_POINTER_X:
+				// Convert from [0.0, 1.0] to [-32767, 32767]
+				return (int16_t)(mousePos.RelativeX * 65534.0 - 32767.0);
+			
+			case RETRO_DEVICE_ID_POINTER_Y:
+				// Convert from [0.0, 1.0] to [-32767, 32767]
+				return (int16_t)(mousePos.RelativeY * 65534.0 - 32767.0);
+			
+			case RETRO_DEVICE_ID_POINTER_PRESSED:
+				// Return 1 if left mouse button is pressed
+				return KeyManager::IsMouseButtonPressed(MouseButton::LeftButton) ? 1 : 0;
+			
+			default:
+				return 0;
 		}
 	}
+	
+	// Handle joypad device
+	if(device == RETRO_DEVICE_JOYPAD) {
+		// Get the console and control manager
+		auto console = _emu->GetConsole();
+		if(!console) {
+			return 0;
+		}
 
-	if(!controller) {
-		return 0;
-	}
+		auto controlManager = console->GetControlManager();
+		if(!controlManager) {
+			return 0;
+		}
 
-	// Map libretro joypad IDs to NDS controller buttons
-	// NdsController::Buttons enum: Up = 0, Down, Left, Right, Start, Select, B, A, Y, X, L, R
-	// So: Up=0, Down=1, Left=2, Right=3, Start=4, Select=5, B=6, A=7, Y=8, X=9, L=10, R=11
-	switch(id) {
-		case RETRO_DEVICE_ID_JOYPAD_B:      return controller->IsPressed(6) ? 1 : 0;  // B button (index 6 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_Y:      return controller->IsPressed(8) ? 1 : 0;  // Y button (index 8 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_SELECT: return controller->IsPressed(5) ? 1 : 0;  // Select (index 5 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_START:  return controller->IsPressed(4) ? 1 : 0;  // Start (index 4 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_UP:     return controller->IsPressed(0) ? 1 : 0;  // Up (index 0 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_DOWN:   return controller->IsPressed(1) ? 1 : 0;  // Down (index 1 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_LEFT:   return controller->IsPressed(2) ? 1 : 0;  // Left (index 2 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return controller->IsPressed(3) ? 1 : 0;  // Right (index 3 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_A:      return controller->IsPressed(7) ? 1 : 0;  // A button (index 7 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_X:      return controller->IsPressed(9) ? 1 : 0;  // X button (index 9 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_L:      return controller->IsPressed(10) ? 1 : 0; // L button (index 10 in NdsController)
-		case RETRO_DEVICE_ID_JOYPAD_R:      return controller->IsPressed(11) ? 1 : 0; // R button (index 11 in NdsController)
-		default: return 0;
+		// Find the NDS controller device
+		shared_ptr<BaseControlDevice> controller;
+		auto devices = controlManager->GetControlDevices();
+		for(auto& dev : devices) {
+			if(dev && dev->GetControllerType() == ControllerType::NdsController) {
+				controller = dev;
+				break;
+			}
+		}
+
+		if(!controller) {
+			return 0;
+		}
+
+		// Map libretro joypad IDs to NDS controller buttons
+		// NdsController::Buttons enum: Up = 0, Down, Left, Right, Start, Select, B, A, Y, X, L, R
+		// So: Up=0, Down=1, Left=2, Right=3, Start=4, Select=5, B=6, A=7, Y=8, X=9, L=10, R=11
+		switch(id) {
+			case RETRO_DEVICE_ID_JOYPAD_B:      return controller->IsPressed(6) ? 1 : 0;  // B button (index 6 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_Y:      return controller->IsPressed(8) ? 1 : 0;  // Y button (index 8 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_SELECT: return controller->IsPressed(5) ? 1 : 0;  // Select (index 5 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_START:  return controller->IsPressed(4) ? 1 : 0;  // Start (index 4 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_UP:     return controller->IsPressed(0) ? 1 : 0;  // Up (index 0 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_DOWN:   return controller->IsPressed(1) ? 1 : 0;  // Down (index 1 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_LEFT:   return controller->IsPressed(2) ? 1 : 0;  // Left (index 2 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return controller->IsPressed(3) ? 1 : 0;  // Right (index 3 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_A:      return controller->IsPressed(7) ? 1 : 0;  // A button (index 7 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_X:      return controller->IsPressed(9) ? 1 : 0;  // X button (index 9 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_L:      return controller->IsPressed(10) ? 1 : 0; // L button (index 10 in NdsController)
+			case RETRO_DEVICE_ID_JOYPAD_R:      return controller->IsPressed(11) ? 1 : 0; // R button (index 11 in NdsController)
+			default: return 0;
+		}
 	}
+	
+	return 0;
 }
 
 size_t LibretroCore::GetSerializeSize()
