@@ -19,7 +19,8 @@ SystemMouseState MinGWMouseManager::GetSystemMouseState(void* rendererHandle)
 		HWND hwnd = (HWND)_windowHandle;
 		POINT point;
 		GetCursorPos(&point);
-		ScreenToClient(hwnd, &point);
+		// Return screen coordinates (consistent with WindowsMouseManager)
+		// UI layer will convert to client coordinates using PointToClient
 
 		state.XPosition = point.x;
 		state.YPosition = point.y;

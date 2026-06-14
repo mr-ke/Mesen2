@@ -70,6 +70,13 @@
 #define RETRO_DEVICE_ID_ANALOG_X         0
 #define RETRO_DEVICE_ID_ANALOG_Y         1
 
+// Pointer device IDs
+// Coordinates are in range [-0x7fff, 0x7fff] = [-32767, 32767]
+// (-0x7fff, -0x7fff) = top-left, (0x7fff, 0x7fff) = bottom-right
+#define RETRO_DEVICE_ID_POINTER_X         0
+#define RETRO_DEVICE_ID_POINTER_Y         1
+#define RETRO_DEVICE_ID_POINTER_PRESSED   2
+
 // Regions
 #define RETRO_REGION_NTSC  0
 #define RETRO_REGION_PAL   1

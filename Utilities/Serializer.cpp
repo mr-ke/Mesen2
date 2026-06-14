@@ -82,8 +82,8 @@ bool Serializer::LoadFrom(istream &file)
 		uint32_t compressedSize;
 		file.read((char*)&compressedSize, sizeof(compressedSize));
 
-		if(decompressedSize >= 1024 * 1024 * 10 || compressedSize >= 1024 * 1024 * 10) {
-			//Limit to 10mb the data's size
+		if(decompressedSize >= 1024 * 1024 * 50 || compressedSize >= 1024 * 1024 * 50) {
+			//Limit to 50mb the data's size (increased from 10MB to support NDS libretro core save states)
 			return false;
 		}
 

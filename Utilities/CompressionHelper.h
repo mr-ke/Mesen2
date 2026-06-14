@@ -27,8 +27,8 @@ public:
 		memcpy(&decompressedSize, input.data(), sizeof(uint32_t));
 		memcpy(&compressedSize, input.data() + sizeof(uint32_t), sizeof(uint32_t));
 
-		if(decompressedSize >= 1024 * 1024 * 10 || compressedSize >= 1024 * 1024 * 10) {
-			//Limit to 10mb the data's size
+		if(decompressedSize >= 1024 * 1024 * 50 || compressedSize >= 1024 * 1024 * 50) {
+			//Limit to 50mb the data's size (increased from 10MB to support NDS libretro core save states)
 			return false;
 		}
 
