@@ -124,6 +124,13 @@ else()
         $<$<CONFIG:Release>:-O3>
         $<$<CONFIG:Release>:-flto>
     )
+    # Static linking for MinGW to avoid runtime DLL dependencies
+    if(MINGW_BUILD OR (WIN32 AND CMAKE_CROSSCOMPILING))
+        target_link_options(MesenCore PRIVATE
+            -static-libgcc
+            -static-libstdc++
+        )
+    endif()
 endif()
 
 if(WIN32)
