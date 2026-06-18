@@ -1,4 +1,4 @@
-﻿﻿﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -1523,7 +1523,8 @@ namespace Mesen.Interop
 		Sms,
 		Gba,
 		Ws,
-		Nds
+		Nds,
+		ThreeDs
 	}
 
 	public enum StepType

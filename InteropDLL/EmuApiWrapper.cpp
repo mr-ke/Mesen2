@@ -14,9 +14,11 @@
 #include "Core/Shared/DebuggerRequest.h"
 #include "Core/Netplay/GameClient.h"
 #include "Core/Netplay/GameServer.h"
+#include "Core/Libretro/LibretroCore.h"
 #include "Utilities/ArchiveReader.h"
 #include "Utilities/FolderUtilities.h"
 #include "Utilities/StringUtilities.h"
+#include "Utilities/VirtualFile.h"
 #include "InteropNotificationListeners.h"
 
 #ifdef _WIN32
@@ -151,6 +153,28 @@ extern "C" {
 	DllExport bool __stdcall LoadRom(char* filename, char* patchFile)
 	{
 		_emu->GetGameClient()->Disconnect();
+		
+		// Check if this ROM needs OpenGL rendering (3DS games)
+		string ext = VirtualFile(filename).GetFileExtension();
+		bool needsOpenGL = LibretroCore::ExtensionNeedsOpenGL(ext);
+		
+		// Recreate renderer with OpenGL if needed
+		if(needsOpenGL && !LibretroCore::GetForceOpenGL()) {
+			// Need to recreate the renderer with OpenGL
+			#if defined(_WIN32) && !defined(__MINGW32__)
+				// Windows DirectX renderer - need to handle differently
+				// For now, just set the flag
+			#else
+				// SDL renderer - can recreate with OpenGL
+				SdlRenderer* sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
+				if(sdlRenderer) {
+					sdlRenderer->RecreateWithOpenGL();
+				}
+			#endif
+		}
+		
+		LibretroCore::SetForceOpenGL(needsOpenGL);
+		
 		return _emu->LoadRom((VirtualFile)filename, patchFile ? (VirtualFile)patchFile : VirtualFile());
 	}
 

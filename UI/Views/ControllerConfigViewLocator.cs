@@ -27,6 +27,7 @@ namespace Mesen.Views
 					ControllerType.GameboyController => new NesControllerView(),
 					ControllerType.GbaController => new GbaControllerView(),
 					ControllerType.NdsController => new NdsControllerView(),
+					ControllerType.ThreeDsController => new ThreeDsControllerView(),
 					ControllerType.PceController => new PceControllerView(),
 					ControllerType.PceAvenuePad6 => new PceAvenuePad6View(),
 					ControllerType.SmsController => new SmsControllerView(),

@@ -175,7 +175,10 @@ namespace Mesen.Interop
 
 		Gba,
 
-		Ws
+		Ws,
+
+		Nds,
+		ThreeDs,
 	}
 
 	public enum ConsoleType
@@ -188,6 +191,7 @@ namespace Mesen.Interop
 		Gba = 5,
 		Ws = 6,
 		Nds = 7,
+		ThreeDs = 8,
 	}
 
 	public struct InteropDipSwitchInfo

@@ -223,7 +223,10 @@ enum class ControllerType
 	WsControllerVertical,
 
 	//NDS
-	NdsController
+	NdsController,
+
+	//3DS
+	ThreeDsController
 };
 
 struct KeyMapping
@@ -253,12 +256,13 @@ struct KeyMapping
 	uint16_t TurboStart = 0;
 	
 	uint16_t GenericKey1 = 0;
+	uint16_t GenericKey2 = 0;
 
 	uint16_t CustomKeys[100] = {};
 
 	bool HasKeySet()
 	{
-		if(A || B || X || Y || L || R || U || D || Up || Down || Left || Right || Start || Select || TurboA || TurboB || TurboX || TurboY || TurboL || TurboR || TurboStart || TurboSelect || GenericKey1) {
+		if(A || B || X || Y || L || R || U || D || Up || Down || Left || Right || Start || Select || TurboA || TurboB || TurboX || TurboY || TurboL || TurboR || TurboStart || TurboSelect || GenericKey1 || GenericKey2) {
 			return true;
 		}
 		for(uint32_t i = 0; i < 100; i++) {
@@ -348,7 +352,8 @@ enum class ConsoleType
 	Sms = 4,
 	Gba = 5,
 	Ws = 6,
-	Nds = 7
+	Nds = 7,
+	ThreeDs = 8
 };
 
 enum class GameboyModel
@@ -468,6 +473,14 @@ struct GbaConfig
 };
 
 struct NdsConfig
+{
+	ControllerConfig Controller;
+
+	bool SkipBootScreen = false;
+	bool AllowInvalidInput = false;
+};
+
+struct ThreeDsConfig
 {
 	ControllerConfig Controller;
 

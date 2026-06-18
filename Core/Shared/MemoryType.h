@@ -17,6 +17,7 @@ enum class MemoryType
 	GbaMemory,
 	WsMemory,
 	NdsMemory,
+	ThreeDsMemory,
 
 	SnesPrgRom,
 	SnesWorkRam,

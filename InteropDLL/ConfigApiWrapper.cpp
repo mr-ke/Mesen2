@@ -46,6 +46,11 @@ extern "C" {
 		_emu->GetSettings()->SetNdsConfig(config);
 	}
 
+	DllExport void __stdcall SetThreeDsConfig(ThreeDsConfig config)
+	{
+		_emu->GetSettings()->SetThreeDsConfig(config);
+	}
+
 	DllExport void __stdcall SetPcEngineConfig(PcEngineConfig config)
 	{
 		_emu->GetSettings()->SetPcEngineConfig(config);

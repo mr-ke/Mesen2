@@ -56,6 +56,9 @@
 		<DataTemplate DataType="{x:Type vm:NdsConfigViewModel}">
 			<v:NdsConfigView />
 		</DataTemplate>
+		<DataTemplate DataType="{x:Type vm:ThreeDsConfigViewModel}">
+			<v:ThreeDsConfigView />
+		</DataTemplate>
 		<DataTemplate DataType="{x:Type vm:OtherConsolesConfigViewModel}">
 			<v:OtherConsolesConfigView />
 		</DataTemplate>
@@ -183,6 +186,15 @@
 					<StackPanel Orientation="Horizontal">
 						<Image Source="/Assets/NdsIcon.png" Margin="0 0 10 0" />
 						<TextBlock VerticalAlignment="Center" Text="{l:Translate tabNds}" />
+					</StackPanel>
+				</TabItem.Header>
+			</TabItem>
+
+			<TabItem Content="{Binding ThreeDs}">
+				<TabItem.Header>
+					<StackPanel Orientation="Horizontal">
+						<Image Source="/Assets/ThreeDsIcon.png" Margin="0 0 10 0" />
+						<TextBlock VerticalAlignment="Center" Text="{l:Translate tabThreeDs}" />
 					</StackPanel>
 				</TabItem.Header>
 			</TabItem>

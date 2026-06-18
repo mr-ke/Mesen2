@@ -1,0 +1,87 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:Mesen.ViewModels"
+	xmlns:l="using:Mesen.Localization"
+	xmlns:c="using:Mesen.Controls"
+	xmlns:cfg="using:Mesen.Config"
+	mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="350"
+	VerticalAlignment="Stretch"
+	HorizontalAlignment="Stretch"
+	x:Name="root"
+	x:DataType="vm:KeyMappingViewModel"
+	x:Class="Mesen.Views.ThreeDsControllerView"
+>
+	<Design.DataContext>
+		<vm:KeyMappingViewModel />
+	</Design.DataContext>
+
+	<Border BorderBrush="{StaticResource MesenGrayBorderColor}" BorderThickness="2" Padding="3" Width="700" Height="350" HorizontalAlignment="Left" VerticalAlignment="Top">
+		<Canvas>
+			<!-- Top row: L, ZL, ZR, R buttons -->
+			<Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" RowDefinitions="Auto,Auto" Width="680" Canvas.Left="10">
+				<c:KeyBindingButton Grid.Column="0" Width="80" KeyBinding="{Binding Mapping.L}" />
+				<TextBlock Grid.Column="0" Grid.Row="1" Text="L" FontSize="14" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton Grid.Column="1" Width="60" KeyBinding="{Binding Mapping.TurboL}" />
+				<TextBlock Grid.Column="1" Grid.Row="1" Text="Turbo L" FontSize="11" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton Grid.Column="2" Width="60" KeyBinding="{Binding Mapping.GenericKey1}" />
+				<TextBlock Grid.Column="2" Grid.Row="1" Text="ZL" FontSize="14" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton Grid.Column="4" Width="60" KeyBinding="{Binding Mapping.GenericKey2}" />
+				<TextBlock Grid.Column="4" Grid.Row="1" Text="ZR" FontSize="14" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton Grid.Column="5" Width="80" KeyBinding="{Binding Mapping.R}" />
+				<TextBlock Grid.Column="5" Grid.Row="1" Text="R" FontSize="14" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton Grid.Column="6" Width="60" KeyBinding="{Binding Mapping.TurboR}" />
+				<TextBlock Grid.Column="6" Grid.Row="1" Text="Turbo R" FontSize="11" HorizontalAlignment="Center" />
+			</Grid>
+
+			<!-- D-Pad (left side) -->
+			<Panel Canvas.Top="70" Canvas.Left="20">
+				<Ellipse Width="160" Height="160" Stroke="{StaticResource MesenGrayBorderColor}" StrokeThickness="2" />
+				<Grid ColumnDefinitions="*,*" RowDefinitions="*,*,*" Width="160" Height="160">
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.Up}" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Width="70" Height="35" HorizontalAlignment="Center" />
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.Left}" Grid.Row="1" Grid.Column="0" Width="70" Height="35" HorizontalAlignment="Center" />
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.Right}" Grid.Row="1" Grid.Column="1" Width="70" Height="35" HorizontalAlignment="Center" />
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.Down}" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Width="70" Height="35" HorizontalAlignment="Center" />
+				</Grid>
+			</Panel>
+
+			<!-- ABXY buttons (right side) -->
+			<Panel Canvas.Top="70" Canvas.Right="20">
+				<Rectangle Width="180" Height="180" Fill="{StaticResource MesenGrayBackgroundColor}" />
+				<Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto,Auto,Auto" Width="175" Height="180">
+					<!-- X button (top) -->
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.X}" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Width="55" Height="30" HorizontalAlignment="Center" />
+					<TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="X" FontSize="14" HorizontalAlignment="Center" />
+
+					<!-- Y button (left) -->
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.Y}" Grid.Row="2" Grid.Column="0" Width="55" Height="30" HorizontalAlignment="Center" />
+					<TextBlock Grid.Row="3" Grid.Column="0" Text="Y" FontSize="14" HorizontalAlignment="Center" />
+
+					<!-- B button (bottom) -->
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.B}" Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Width="55" Height="30" HorizontalAlignment="Center" />
+					<TextBlock Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Text="B" FontSize="14" HorizontalAlignment="Center" />
+
+					<!-- A button (right) -->
+					<c:KeyBindingButton KeyBinding="{Binding Mapping.A}" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Width="55" Height="30" HorizontalAlignment="Center" />
+					<TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="A" FontSize="14" HorizontalAlignment="Center" />
+				</Grid>
+			</Panel>
+
+			<!-- Start/Select buttons (center bottom) -->
+			<Grid ColumnDefinitions="*,Auto,Auto,*" RowDefinitions="Auto,Auto" Width="680" Canvas.Bottom="30">
+				<c:KeyBindingButton KeyBinding="{Binding Mapping.Select}" Grid.Column="1" Width="80" />
+				<TextBlock Grid.Column="1" Grid.Row="1" Text="Select" FontSize="14" HorizontalAlignment="Center" />
+
+				<c:KeyBindingButton KeyBinding="{Binding Mapping.Start}" Grid.Column="2" Width="80" />
+				<TextBlock Grid.Column="2" Grid.Row="1" Text="Start" FontSize="14" HorizontalAlignment="Center" />
+			</Grid>
+		</Canvas>
+	</Border>
+</UserControl>

@@ -9,6 +9,10 @@
 #include <memory>
 #include <cstdarg>
 
+// Forward declarations for SDL OpenGL
+struct SDL_Window;
+typedef void* SDL_GLContext;
+
 class Emulator;
 class BaseControlManager;
 
@@ -58,6 +62,22 @@ public:
 	// Check if game is loaded
 	bool IsGameLoaded() const { return _gameLoaded; }
 	
+	// Check if hardware rendering is enabled
+	bool IsHwRenderEnabled() const { return _useHwRender; }
+	
+	// Static method to check if any libretro core needs hardware rendering
+	static bool NeedsOpenGLRenderer() { return _instance && _instance->_useHwRender; }
+	
+	// Static method to check if a file extension needs OpenGL (call before loading)
+	static bool ExtensionNeedsOpenGL(const std::string& extension);
+	
+	// Static flag to force OpenGL renderer (set before loading 3DS games)
+	static void SetForceOpenGL(bool force) { _forceOpenGL = force; }
+	static bool GetForceOpenGL() { return _forceOpenGL; }
+	
+	// Set the SDL window for OpenGL context creation
+	static void SetSdlWindow(SDL_Window* window) { _sdlWindow = window; }
+	
 	// Get save state size
 	size_t GetSerializeSize();
 	
@@ -85,6 +105,15 @@ private:
 	static int16_t InputStateCallback(unsigned port, unsigned device, unsigned index, unsigned id);
 
 private:
+	// Hardware rendering support
+	bool InitOpenGLContext();
+	void DestroyOpenGLContext();
+	static uintptr_t HwGetCurrentFramebuffer();
+	static void* HwGetProcAddress(const char* sym);
+	static void HwContextReset();
+	static void HwContextDestroy();
+
+private:
 	Emulator* _emu = nullptr;
 	std::string _corePath;
 	
@@ -94,6 +123,15 @@ private:
 	// Core state
 	bool _coreLoaded = false;
 	bool _gameLoaded = false;
+	bool _gameUnloaded = true;  // tracks whether retro_unload_game was called (true = no game loaded)
+	
+	// Hardware rendering state
+	bool _useHwRender = false;
+	bool _hwContextNeedsInit = false;
+	retro_hw_render_callback _hwRenderCallback = {};
+	SDL_Window* _glWindow = nullptr;
+	SDL_GLContext _glContext = nullptr;
+	uint32_t _glFramebuffer = 0;
 	
 	// Core function pointers (no leading underscore to match type names)
 	retro_init_t retro_init = nullptr;
@@ -139,6 +177,12 @@ private:
 	
 	// Current instance for callbacks
 	static LibretroCore* _instance;
+	
+	// Static flag to force OpenGL (set before loading 3DS games)
+	static bool _forceOpenGL;
+	
+	// Static SDL window for OpenGL context (set by SdlRenderer)
+	static SDL_Window* _sdlWindow;
 	
 	// Environment variables
 	std::string _systemDirectory;

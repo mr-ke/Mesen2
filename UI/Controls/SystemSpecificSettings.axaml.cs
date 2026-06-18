@@ -74,6 +74,11 @@ namespace Mesen.Controls
 			NavigateTo(ConfigWindowTab.Nds);
 		}
 
+		private void OnClickThreeDs(object sender, RoutedEventArgs e)
+		{
+			NavigateTo(ConfigWindowTab.ThreeDs);
+		}
+
 		private void NavigateTo(ConfigWindowTab console)
 		{
 			if(VisualRoot is ConfigWindow wnd && wnd.DataContext is ConfigViewModel cfg) {
@@ -163,6 +168,16 @@ namespace Mesen.Controls
 								ConfigType.Input => NdsConfigTab.Input,
 								ConfigType.Video => NdsConfigTab.Video,
 								_ => NdsConfigTab.General,
+							};
+						}
+						break;
+
+					case ConfigWindowTab.ThreeDs:
+						if(cfg.ThreeDs != null) {
+							cfg.ThreeDs.SelectedTab = ConfigType switch {
+								ConfigType.Input => ThreeDsConfigTab.Input,
+								ConfigType.Video => ThreeDsConfigTab.Video,
+								_ => ThreeDsConfigTab.General,
 							};
 						}
 						break;

@@ -34,6 +34,7 @@ enum class RomFormat
 	Ws,
 	
 	Nds,
+	ThreeDs,
 };
 
 struct DipSwitchInfo

@@ -52,7 +52,7 @@ namespace Mesen.Utilities
 				List<FilePickerFileType> filter = new List<FilePickerFileType>();
 				foreach(string ext in extensions) {
 					if(ext == FileDialogHelper.RomExt) {
-						filter.Add(new FilePickerFileType("All supported files") { Patterns = new List<string>() { 
+						filter.Add(new FilePickerFileType("All supported files") { Patterns = new List<string>() {
 							"*.sfc", "*.fig", "*.smc", "*.bs", "*.st", "*.spc",
 							"*.nes", "*.fds", "*.qd", "*.unif", "*.unf", "*.studybox", "*.nsf", "*.nsfe",
 							"*.gb", "*.gbc", "*.gbx", "*.gbs",
@@ -61,6 +61,7 @@ namespace Mesen.Utilities
 							"*.gba",
 							"*.ws", "*.wsc",
 							"*.nds",
+							"*.cci", "*.cia", "*.3ds", "*.3dsx",
 							"*.zip", "*.7z",
 							"*.ips", "*.bps"
 						} });
@@ -69,6 +70,7 @@ namespace Mesen.Utilities
 						filter.Add(new FilePickerFileType("GB ROM files") { Patterns = new List<string>() { "*.gb", "*.gbc", "*.gbx", "*.gbs" } });
 						filter.Add(new FilePickerFileType("GBA ROM files") { Patterns = new List<string>() { "*.gba" } });
 						filter.Add(new FilePickerFileType("NDS ROM files") { Patterns = new List<string>() { "*.nds" } });
+						filter.Add(new FilePickerFileType("3DS ROM files") { Patterns = new List<string>() { "*.cci", "*.cia", "*.3ds", "*.3dsx" } });
 						filter.Add(new FilePickerFileType("PC Engine ROM files") { Patterns = new List<string>() { "*.pce", "*.sgx", "*.cue", "*.hes" } });
 						filter.Add(new FilePickerFileType("SMS / GG ROM files") { Patterns = new List<string>() { "*.sms", "*.gg" } });
 						filter.Add(new FilePickerFileType("SG-1000 ROM files") { Patterns = new List<string>() { "*.sg" } });

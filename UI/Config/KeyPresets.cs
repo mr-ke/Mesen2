@@ -1,4 +1,4 @@
-﻿using Mesen.Interop;
+using Mesen.Interop;
 using Mesen.Utilities;
 using System;
 
@@ -36,6 +36,16 @@ namespace Mesen.Config
 				m.R = InputApi.GetKeyCode("I");
 				m.Select = InputApi.GetKeyCode("O");
 				m.Start = InputApi.GetKeyCode("L");
+			} else if(type == ControllerType.ThreeDsController) {
+				// 3DS controller WASD layout
+				m.X = InputApi.GetKeyCode(";");
+				m.Y = InputApi.GetKeyCode("M");
+				m.L = InputApi.GetKeyCode("U");
+				m.R = InputApi.GetKeyCode("I");
+				m.Select = InputApi.GetKeyCode("O");
+				m.Start = InputApi.GetKeyCode("L");
+				m.GenericKey1 = InputApi.GetKeyCode("Q"); // ZL
+				m.GenericKey2 = InputApi.GetKeyCode("E"); // ZR
 			} else if(type == ControllerType.WsController) {
 				m.B = InputApi.GetKeyCode("Z");
 				m.A = InputApi.GetKeyCode("X");
@@ -100,6 +110,16 @@ namespace Mesen.Config
 				m.Start = InputApi.GetKeyCode("W");
 				m.L = InputApi.GetKeyCode("Z");
 				m.R = InputApi.GetKeyCode("X");
+			} else if(type == ControllerType.ThreeDsController) {
+				// 3DS controller Arrow layout
+				m.X = InputApi.GetKeyCode("X");
+				m.Y = InputApi.GetKeyCode("Z");
+				m.L = InputApi.GetKeyCode("Q");
+				m.R = InputApi.GetKeyCode("W");
+				m.Select = InputApi.GetKeyCode("E");
+				m.Start = InputApi.GetKeyCode("D");
+				m.GenericKey1 = InputApi.GetKeyCode("C"); // ZL
+				m.GenericKey2 = InputApi.GetKeyCode("V"); // ZR
 			} else if(type == ControllerType.WsController) {
 				m.B = InputApi.GetKeyCode("Z");
 				m.A = InputApi.GetKeyCode("X");
@@ -150,6 +170,14 @@ namespace Mesen.Config
 				m.Y = InputApi.GetKeyCode(prefix + "X");
 				m.L = InputApi.GetKeyCode(prefix + "L1");
 				m.R = InputApi.GetKeyCode(prefix + "R1");
+			} else if(type == ControllerType.ThreeDsController) {
+				// 3DS controller mapping
+				m.X = InputApi.GetKeyCode(prefix + "Y");
+				m.Y = InputApi.GetKeyCode(prefix + "X");
+				m.L = InputApi.GetKeyCode(prefix + "L1");
+				m.R = InputApi.GetKeyCode(prefix + "R1");
+				m.GenericKey1 = InputApi.GetKeyCode(prefix + "L2"); // ZL
+				m.GenericKey2 = InputApi.GetKeyCode(prefix + "R2"); // ZR
 			} else if(type == ControllerType.WsController) {
 				m.GenericKey1 = InputApi.GetKeyCode(prefix + "Back");
 				m.U = InputApi.GetKeyCode(prefix + "RT Up");
@@ -195,6 +223,14 @@ namespace Mesen.Config
 				m.Y = InputApi.GetKeyCode(prefix + "But1");
 				m.L = InputApi.GetKeyCode(prefix + "But5");
 				m.R = InputApi.GetKeyCode(prefix + "But6");
+			} else if(type == ControllerType.ThreeDsController) {
+				// 3DS controller mapping for PS4
+				m.X = InputApi.GetKeyCode(prefix + "But4");
+				m.Y = InputApi.GetKeyCode(prefix + "But1");
+				m.L = InputApi.GetKeyCode(prefix + "But5");
+				m.R = InputApi.GetKeyCode(prefix + "But6");
+				m.GenericKey1 = InputApi.GetKeyCode(prefix + "But7"); // ZL (L2)
+				m.GenericKey2 = InputApi.GetKeyCode(prefix + "But8"); // ZR (R2)
 			} else if(type == ControllerType.WsController) {
 				m.GenericKey1 = InputApi.GetKeyCode(prefix + "But9");
 				m.U = InputApi.GetKeyCode(prefix + "Y2+");
