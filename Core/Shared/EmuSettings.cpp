@@ -36,6 +36,7 @@ void EmuSettings::CopySettings(EmuSettings& src)
 	SetSmsConfig(src._sms);
 	SetGbaConfig(src._gba);
 	SetNdsConfig(src._nds);
+	SetThreeDsConfig(src._threeds);
 }
 
 void EmuSettings::Serialize(Serializer& s)
@@ -130,6 +131,10 @@ void EmuSettings::Serialize(Serializer& s)
 
 		case ConsoleType::Nds:
 			// NDS settings are handled by the libretro core
+			break;
+
+		case ConsoleType::ThreeDs:
+			// 3DS settings are handled by the libretro core
 			break;
 
 		default:
@@ -252,6 +257,16 @@ void EmuSettings::SetNdsConfig(NdsConfig& config)
 NdsConfig& EmuSettings::GetNdsConfig()
 {
 	return _nds;
+}
+
+void EmuSettings::SetThreeDsConfig(ThreeDsConfig& config)
+{
+	_threeds = config;
+}
+
+ThreeDsConfig& EmuSettings::GetThreeDsConfig()
+{
+	return _threeds;
 }
 
 void EmuSettings::SetPcEngineConfig(PcEngineConfig& config)

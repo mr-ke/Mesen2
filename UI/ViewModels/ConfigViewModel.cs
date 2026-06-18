@@ -1,4 +1,4 @@
-﻿﻿using Mesen.Config;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Mesen.Config;
 using Mesen.Utilities;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -23,6 +23,7 @@ namespace Mesen.ViewModels
 		[Reactive] public SmsConfigViewModel? Sms { get; set; }
 		[Reactive] public WsConfigViewModel? Ws { get; set; }
 		[Reactive] public NdsConfigViewModel? Nds { get; set; }
+		[Reactive] public ThreeDsConfigViewModel? ThreeDs { get; set; }
 		[Reactive] public OtherConsolesConfigViewModel? OtherConsoles { get; set; }
 
 		[Reactive] public ConfigWindowTab SelectedIndex { get; set; }
@@ -63,6 +64,7 @@ namespace Mesen.ViewModels
 				case ConfigWindowTab.Sms: Sms ??= AddDisposable(new SmsConfigViewModel()); break;
 				case ConfigWindowTab.Ws: Ws ??= AddDisposable(new WsConfigViewModel()); break;
 				case ConfigWindowTab.Nds: Nds ??= AddDisposable(new NdsConfigViewModel()); break;
+				case ConfigWindowTab.ThreeDs: ThreeDs ??= AddDisposable(new ThreeDsConfigViewModel()); break;
 				case ConfigWindowTab.OtherConsoles: OtherConsoles ??= AddDisposable(new OtherConsolesConfigViewModel()); break;
 
 				case ConfigWindowTab.Preferences: Preferences ??= AddDisposable(new PreferencesConfigViewModel()); break;
@@ -93,6 +95,7 @@ namespace Mesen.ViewModels
 			ConfigManager.Config.Sms = Sms?.OriginalConfig ?? ConfigManager.Config.Sms;
 			ConfigManager.Config.Ws = Ws?.OriginalConfig ?? ConfigManager.Config.Ws;
 			ConfigManager.Config.Nds = Nds?.OriginalConfig ?? ConfigManager.Config.Nds;
+			ConfigManager.Config.ThreeDs = ThreeDs?.OriginalConfig ?? ConfigManager.Config.ThreeDs;
 			ConfigManager.Config.Cv = OtherConsoles?.CvOriginalConfig ?? ConfigManager.Config.Cv;
 			ConfigManager.Config.ApplyConfig();
 			ConfigManager.Config.Save();
@@ -114,6 +117,7 @@ namespace Mesen.ViewModels
 				Sms?.OriginalConfig.IsIdentical(ConfigManager.Config.Sms) == false ||
 				Ws?.OriginalConfig.IsIdentical(ConfigManager.Config.Ws) == false ||
 				Nds?.OriginalConfig.IsIdentical(ConfigManager.Config.Nds) == false ||
+				ThreeDs?.OriginalConfig.IsIdentical(ConfigManager.Config.ThreeDs) == false ||
 				OtherConsoles?.CvOriginalConfig.IsIdentical(ConfigManager.Config.Cv) == false
 			);
 		}
@@ -134,8 +138,9 @@ namespace Mesen.ViewModels
 		Sms = 10,
 		Ws = 11,
 		Nds = 12,
-		OtherConsoles = 13,
+		ThreeDs = 13,
+		OtherConsoles = 14,
 		//separator
-		Preferences = 15
+		Preferences = 16
 	}
 }

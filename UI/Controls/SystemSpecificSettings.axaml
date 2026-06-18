@@ -22,6 +22,7 @@
 			<c:ButtonWithIcon Icon="Assets/SmsIcon.png" Text="{l:Translate lblSms}" MinWidth="110" Click="OnClickSms" />
 			<c:ButtonWithIcon Icon="Assets/WsIcon.png" Text="{l:Translate lblWs}" MinWidth="110" Click="OnClickWs" />
 			<c:ButtonWithIcon Icon="Assets/NdsIcon.png" Text="{l:Translate lblNds}" MinWidth="110" Click="OnClickNds" />
+			<c:ButtonWithIcon Icon="Assets/ThreeDsIcon.png" Text="{l:Translate lblThreeDs}" MinWidth="110" Click="OnClickThreeDs" />
 		</WrapPanel>
 	</c:OptionSection>
 </UserControl>

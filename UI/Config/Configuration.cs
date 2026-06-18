@@ -35,6 +35,7 @@ namespace Mesen.Config
 		[Reactive] public CvConfig Cv { get; set; } = new();
 		[Reactive] public GbaConfig Gba { get; set; } = new();
 		[Reactive] public NdsConfig Nds { get; set; } = new();
+		[Reactive] public ThreeDsConfig ThreeDs { get; set; } = new();
 		[Reactive] public WsConfig Ws { get; set; } = new();
 		[Reactive] public PreferencesConfig Preferences { get; set; } = new();
 		[Reactive] public AudioPlayerConfig AudioPlayer { get; set; } = new();
@@ -87,6 +88,7 @@ namespace Mesen.Config
 			Gameboy.ApplyConfig();
 			Gba.ApplyConfig();
 			Nds.ApplyConfig();
+			ThreeDs.ApplyConfig();
 			PcEngine.ApplyConfig();
 			Nes.ApplyConfig();
 			Snes.ApplyConfig();
@@ -130,6 +132,10 @@ namespace Mesen.Config
 				Ws.InitializeDefaults(DefaultKeyMappings);
 			}
 
+			if(ConfigUpgrade < (int)ConfigUpgradeHint.ThreeDsInput) {
+				ThreeDs.InitializeDefaults(DefaultKeyMappings);
+			}
+
 			ConfigUpgrade = (int)ConfigUpgradeHint.NextValue - 1;
 			Version = EmuApi.GetMesenVersion().ToString(3);
 		}
@@ -170,6 +176,9 @@ namespace Mesen.Config
 			}
 			if(Nds.Controller.Mapping1.A == 0) {
 				Nds.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(ThreeDs.Controller.Mapping1.A == 0) {
+				ThreeDs.InitializeDefaults(DefaultKeyMappings);
 			}
 
 			if(needInit) {
@@ -351,6 +360,7 @@ namespace Mesen.Config
 		GbaInput,
 		CvInput,
 		WsInput,
+		ThreeDsInput,
 		NextValue,
 	}
 }

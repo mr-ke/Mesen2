@@ -38,6 +38,7 @@
 #include "GBA/GbaConsole.h"
 #include "WS/WsConsole.h"
 #include "NDS/NdsConsole.h"
+#include "3DS/ThreeDsConsole.h"
 #include "Debugger/Debugger.h"
 #include "Debugger/BaseEventManager.h"
 #include "Debugger/DebugTypes.h"
@@ -580,6 +581,7 @@ void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_pt
 	TryLoadRom<GbaConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<WsConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<NdsConsole>(romFile, result, console, useFileSignature);
+	TryLoadRom<ThreeDsConsole>(romFile, result, console, useFileSignature);
 }
 
 template<typename T>

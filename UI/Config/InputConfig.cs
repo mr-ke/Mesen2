@@ -80,6 +80,7 @@ namespace Mesen.Config
 		[Reactive] public UInt16 TurboStart { get; set; }
 
 		[Reactive] public UInt16 GenericKey1 { get; set; }
+		[Reactive] public UInt16 GenericKey2 { get; set; }
 
 		public virtual InteropKeyMapping ToInterop(ControllerType type, int mappingIndex)
 		{
@@ -106,7 +107,8 @@ namespace Mesen.Config
 				TurboR = this.TurboR,
 				TurboSelect = this.TurboSelect,
 				TurboStart = this.TurboStart,
-				GenericKey1 = this.GenericKey1
+				GenericKey1 = this.GenericKey1,
+				GenericKey2 = this.GenericKey2
 			};
 
 			UInt16[]? customKeys = GetCustomButtons(type);
@@ -182,6 +184,7 @@ namespace Mesen.Config
 			TurboSelect = 0;
 			TurboStart = 0;
 			GenericKey1 = 0;
+			GenericKey2 = 0;
 		}
 	}
 
@@ -322,6 +325,7 @@ namespace Mesen.Config
 		public UInt16 TurboStart;
 		
 		public UInt16 GenericKey1;
+		public UInt16 GenericKey2;
 
 		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 100)]
 		public UInt16[] CustomKeys;
@@ -413,6 +417,9 @@ namespace Mesen.Config
 
 		//NDS
 		NdsController,
+
+		//3DS
+		ThreeDsController,
 	}
 
 	public static class ControllerTypeExtensions
@@ -436,6 +443,7 @@ namespace Mesen.Config
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
 				case ControllerType.NdsController:
+				case ControllerType.ThreeDsController:
 					return true;
 			}
 
@@ -459,6 +467,7 @@ namespace Mesen.Config
 				case ControllerType.BandaiHyperShot:
 				case ControllerType.SmsController:
 				case ControllerType.NdsController:
+				case ControllerType.ThreeDsController:
 					return true;
 			}
 
@@ -506,6 +515,7 @@ namespace Mesen.Config
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
 				case ControllerType.NdsController:
+				case ControllerType.ThreeDsController:
 					return true;
 			}
 

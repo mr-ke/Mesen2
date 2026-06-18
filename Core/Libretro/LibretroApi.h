@@ -269,3 +269,43 @@ typedef void (RETRO_CALLCONV *retro_cheat_set_t)(unsigned index, bool enabled, c
 typedef unsigned (RETRO_CALLCONV *retro_get_region_t)(void);
 typedef void* (RETRO_CALLCONV *retro_get_memory_data_t)(unsigned id);
 typedef size_t (RETRO_CALLCONV *retro_get_memory_size_t)(unsigned id);
+
+// Hardware rendering types
+typedef void (RETRO_CALLCONV *retro_hw_context_reset_t)(void);
+typedef uintptr_t (RETRO_CALLCONV *retro_hw_get_current_framebuffer_t)(void);
+typedef void* (RETRO_CALLCONV *retro_hw_get_proc_address_t)(const char *sym);
+
+// Hardware context types
+enum retro_hw_context_type
+{
+	RETRO_HW_CONTEXT_NONE             = 0,
+	RETRO_HW_CONTEXT_OPENGL           = 1,
+	RETRO_HW_CONTEXT_OPENGLES2        = 2,
+	RETRO_HW_CONTEXT_OPENGL_CORE      = 3,
+	RETRO_HW_CONTEXT_OPENGLES3        = 4,
+	RETRO_HW_CONTEXT_OPENGLES_VERSION = 5,
+	RETRO_HW_CONTEXT_VULKAN           = 6,
+	RETRO_HW_CONTEXT_D3D11            = 7,
+	RETRO_HW_CONTEXT_D3D10            = 8,
+	RETRO_HW_CONTEXT_D3D12            = 9,
+	RETRO_HW_CONTEXT_D3D9             = 10,
+};
+
+// Hardware render callback structure
+struct retro_hw_render_callback
+{
+	enum retro_hw_context_type context_type;
+	retro_hw_context_reset_t context_reset;
+	retro_hw_get_current_framebuffer_t get_current_framebuffer;
+	retro_hw_get_proc_address_t get_proc_address;
+	bool depth;
+	bool stencil;
+	bool bottom_left_origin;
+	unsigned version_major;
+	unsigned version_minor;
+	bool cache_context;
+	retro_hw_context_reset_t context_destroy;
+};
+
+// Procedure address type
+typedef void (RETRO_CALLCONV *retro_proc_address_t)(void);

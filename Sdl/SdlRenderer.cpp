@@ -1,4 +1,4 @@
-﻿#include "SdlRenderer.h"
+#include "SdlRenderer.h"
 #include "Core/Debugger/Debugger.h"
 #include "Core/Shared/Emulator.h"
 #include "Core/Shared/Video/VideoRenderer.h"
@@ -6,6 +6,7 @@
 #include "Core/Shared/EmuSettings.h"
 #include "Core/Shared/MessageManager.h"
 #include "Core/Shared/RenderedFrame.h"
+#include "Core/Libretro/LibretroCore.h"
 
 SimpleLock SdlRenderer::_frameLock;
 
@@ -53,6 +54,11 @@ bool SdlRenderer::Init()
 		return false;
 	};
 
+	// Set OpenGL attributes before creating window (needed for libretro hardware rendering)
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
 	_sdlWindow = SDL_CreateWindowFrom(_windowHandle);
 	if(!_sdlWindow) {
 		#ifdef _WIN32
@@ -67,6 +73,11 @@ bool SdlRenderer::Init()
 			LogSdlError("[SDL] Failed to initialize video subsystem.");
 			return false;
 		}
+
+		// Set OpenGL attributes again after reinit
+		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
 		_sdlWindow = SDL_CreateWindowFrom(_windowHandle);
 		if(!_sdlWindow) {
@@ -83,21 +94,31 @@ bool SdlRenderer::Init()
 
 	uint32_t baseFlags = _vsyncEnabled ? SDL_RENDERER_PRESENTVSYNC : 0;
 
-	#ifdef _WIN32
-	MessageManager::Log("[SDL] Attempting to create Direct3D renderer...");
-	SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d");
-	_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+	// Check if a libretro core needs OpenGL rendering
+	bool needOpenGL = LibretroCore::NeedsOpenGLRenderer() || LibretroCore::GetForceOpenGL();
 	
-	if(!_sdlRenderer) {
-		MessageManager::Log("[SDL] Direct3D failed, trying OpenGL...");
+	#ifdef _WIN32
+	if(needOpenGL) {
+		// Use OpenGL renderer for libretro cores that need hardware rendering
+		MessageManager::Log("[SDL] Libretro core needs OpenGL, using OpenGL renderer...");
 		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 		_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
-	}
-	
-	if(!_sdlRenderer) {
-		MessageManager::Log("[SDL] OpenGL failed, trying default...");
-		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "");
+	} else {
+		MessageManager::Log("[SDL] Attempting to create Direct3D renderer...");
+		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d");
 		_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+		
+		if(!_sdlRenderer) {
+			MessageManager::Log("[SDL] Direct3D failed, trying OpenGL...");
+			SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+			_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+		}
+		
+		if(!_sdlRenderer) {
+			MessageManager::Log("[SDL] OpenGL failed, trying default...");
+			SDL_SetHint(SDL_HINT_RENDER_DRIVER, "");
+			_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
+		}
 	}
 	#else
 	_sdlRenderer = SDL_CreateRenderer(_sdlWindow, -1, baseFlags | SDL_RENDERER_ACCELERATED);
@@ -173,6 +194,22 @@ void SdlRenderer::Reset()
 	} else {
 		Cleanup();
 	}
+}
+
+void SdlRenderer::RecreateWithOpenGL()
+{
+	MessageManager::Log("[SDL] Setting up OpenGL for libretro hardware rendering...");
+	
+	// Force OpenGL flag
+	LibretroCore::SetForceOpenGL(true);
+	
+	// Set the SDL window to nullptr - libretro will create its own OpenGL window
+	// This avoids the issue where SDL_CreateWindowFrom doesn't support OpenGL
+	LibretroCore::SetSdlWindow(nullptr);
+	
+	// Keep the existing renderer (don't recreate)
+	// The libretro core will handle its own OpenGL context
+	MessageManager::Log("[SDL] OpenGL setup complete - libretro will use its own context");
 }
 
 void SdlRenderer::SetScreenSize(uint32_t width, uint32_t height)

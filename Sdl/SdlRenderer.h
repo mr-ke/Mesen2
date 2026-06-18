@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "SDL.h"
 #include "Core/Shared/Interfaces/IRenderingDevice.h"
 #include "Utilities/SimpleLock.h"
@@ -69,4 +69,10 @@ public:
 	void OnRendererThreadStarted() override;
 
 	void SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle) override;
+	
+	// Recreate renderer with OpenGL (for libretro cores that need hardware rendering)
+	void RecreateWithOpenGL();
+	
+	// Get the SDL window (for libretro OpenGL context)
+	SDL_Window* GetSdlWindow() { return _sdlWindow; }
 };

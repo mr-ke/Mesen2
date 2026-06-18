@@ -24,6 +24,7 @@ public:
 			case CpuType::Gba: return MemoryType::GbaMemory;
 			case CpuType::Ws: return MemoryType::WsMemory;
 			case CpuType::Nds: return MemoryType::NdsMemory;
+			case CpuType::ThreeDs: return MemoryType::ThreeDsMemory;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -46,6 +47,7 @@ public:
 			case CpuType::Gba: return 8;
 			case CpuType::Ws: return 5;
 			case CpuType::Nds: return 8;
+			case CpuType::ThreeDs: return 8;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -173,6 +175,9 @@ public:
 			case MemoryType::NdsMemory:
 				return CpuType::Nds;
 
+			case MemoryType::ThreeDsMemory:
+				return CpuType::ThreeDs;
+
 			default:
 				throw std::runtime_error("Invalid CPU type");
 		}
@@ -185,7 +190,7 @@ public:
 
 	static constexpr MemoryType GetLastCpuMemoryType()
 	{
-		return MemoryType::NdsMemory;
+		return MemoryType::ThreeDsMemory;
 	}
 
 	static constexpr bool IsPpuMemory(MemoryType memType)

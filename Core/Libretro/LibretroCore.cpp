@@ -11,6 +11,11 @@
 #include "Utilities/FolderUtilities.h"
 #include <fstream>
 
+#ifdef USE_SDL
+	#include <SDL.h>
+	#include <SDL_syswm.h>
+#endif
+
 #ifdef _WIN32
 	#include <windows.h>
 #else
@@ -19,6 +24,8 @@
 
 // Static instance for callbacks
 LibretroCore* LibretroCore::_instance = nullptr;
+bool LibretroCore::_forceOpenGL = false;
+SDL_Window* LibretroCore::_sdlWindow = nullptr;
 
 LibretroCore::LibretroCore(Emulator* emu, const std::string& corePath)
 	: _emu(emu)
@@ -26,6 +33,26 @@ LibretroCore::LibretroCore(Emulator* emu, const std::string& corePath)
 {
 	memset(&_systemInfo, 0, sizeof(_systemInfo));
 	memset(&_avInfo, 0, sizeof(_avInfo));
+	memset(&_hwRenderCallback, 0, sizeof(_hwRenderCallback));
+}
+
+bool LibretroCore::ExtensionNeedsOpenGL(const std::string& extension)
+{
+	// Extensions that require OpenGL hardware rendering
+	static const std::vector<std::string> openglExtensions = {
+		".cci", ".cia", ".3ds", ".3dsx"  // 3DS
+	};
+	
+	std::string ext = extension;
+	// Convert to lowercase
+	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+	
+	for(const auto& e : openglExtensions) {
+		if(ext == e) {
+			return true;
+		}
+	}
+	return false;
 }
 
 LibretroCore::~LibretroCore()
@@ -43,9 +70,6 @@ bool LibretroCore::LoadCore()
 	// This can happen during Reload Rom when a new NdsConsole is created
 	// before the old one is destroyed
 	if(_instance && _instance != this && _instance->_coreLoaded) {
-		// Another instance is active, force unload it first
-		// This is necessary to prevent resource conflicts
-		MessageManager::Log("[Libretro] Another core instance is active, unloading it first");
 		_instance->UnloadCore();
 	}
 
@@ -57,7 +81,6 @@ bool LibretroCore::LoadCore()
 #ifdef _WIN32
 	_libraryHandle = LoadLibraryA(_corePath.c_str());
 	if(!_libraryHandle) {
-		DWORD error = GetLastError();
 		MessageManager::DisplayMessage("Libretro", "CouldNotLoadCore", _corePath);
 		return false;
 	}
@@ -121,14 +144,25 @@ void LibretroCore::UnloadCore()
 		return;
 	}
 
+	// DON'T clear instance pointer yet - callbacks during unload may need it
+	// We'll clear it at the end after all callbacks are done
 
-	// Unload game first
+	// Unload game first - the core may need OpenGL context to clean up resources
 	if(_gameLoaded) {
 		UnloadGame();
 	}
 
+	// Destroy OpenGL context after game is unloaded
+	if(_useHwRender) {
+		DestroyOpenGLContext();
+	}
+
 	// Deinitialize core
-	if(retro_deinit) {
+	// Skip retro_deinit if retro_unload_game was not called (e.g., GL context
+	// MakeCurrent failed). Calling retro_deinit on a core with loaded game state
+	// causes access violations because the core tries to clean up resources that
+	// require a valid GL context (which has already been destroyed).
+	if(retro_deinit && _gameUnloaded) {
 		retro_deinit();
 	}
 
@@ -145,7 +179,12 @@ void LibretroCore::UnloadCore()
 
 	_libraryHandle = nullptr;
 	_coreLoaded = false;
-	_instance = nullptr;
+	_useHwRender = false;
+
+	// NOW clear the instance pointer - all callbacks are done
+	if(_instance == this) {
+		_instance = nullptr;
+	}
 
 	// Clear function pointers
 	retro_init = nullptr;
@@ -284,6 +323,7 @@ bool LibretroCore::LoadGame(const std::string& romPath, const void* romData, siz
 	_frameHeight = _avInfo.geometry.base_height;
 
 	_gameLoaded = true;
+	_gameUnloaded = false;
 	return true;
 }
 
@@ -293,8 +333,50 @@ void LibretroCore::UnloadGame()
 		return;
 	}
 
+	// For hardware rendering cores, make GL context current before unloading game
+	// The core may need to clean up OpenGL resources during retro_unload_game
+#ifdef USE_SDL
+	if(_useHwRender) {
+		if(!_glContext || !_glWindow) {
+			_gameLoaded = false;
+			_frameBuffer.clear();
+			_audioBuffer.clear();
+			return;
+		}
+
+		int result = SDL_GL_MakeCurrent(_glWindow, _glContext);
+		if(result != 0) {
+			_gameLoaded = false;
+			_frameBuffer.clear();
+			_audioBuffer.clear();
+			return;
+		}
+		
+		// Reset OpenGL state to a clean state
+		// This helps ensure the core's cleanup code works correctly
+		typedef void (*glBindFramebufferPROC)(unsigned int target, unsigned int framebuffer);
+		typedef void (*glBindTexturePROC)(unsigned int target, unsigned int texture);
+		typedef void (*glBindBufferPROC)(unsigned int target, unsigned int buffer);
+		typedef void (*glBindVertexArrayPROC)(unsigned int array);
+		typedef void (*glUseProgramPROC)(unsigned int program);
+		
+		auto glBindFramebuffer = (glBindFramebufferPROC)SDL_GL_GetProcAddress("glBindFramebuffer");
+		auto glBindTexture = (glBindTexturePROC)SDL_GL_GetProcAddress("glBindTexture");
+		auto glBindBuffer = (glBindBufferPROC)SDL_GL_GetProcAddress("glBindBuffer");
+		auto glBindVertexArray = (glBindVertexArrayPROC)SDL_GL_GetProcAddress("glBindVertexArray");
+		auto glUseProgram = (glUseProgramPROC)SDL_GL_GetProcAddress("glUseProgram");
+		
+		if(glBindFramebuffer) glBindFramebuffer(0x8D40, 0); // GL_FRAMEBUFFER
+		if(glBindTexture) glBindTexture(0x0DE1, 0); // GL_TEXTURE_2D
+		if(glBindBuffer) glBindBuffer(0x8892, 0); // GL_ARRAY_BUFFER
+		if(glBindVertexArray) glBindVertexArray(0);
+		if(glUseProgram) glUseProgram(0);
+	}
+#endif
+
 	if(retro_unload_game) {
 		retro_unload_game();
+		_gameUnloaded = true;
 	}
 
 	_gameLoaded = false;
@@ -308,9 +390,32 @@ void LibretroCore::RunFrame()
 		return;
 	}
 
+#ifdef USE_SDL
+	// Initialize OpenGL context on first run if needed
+	if(_useHwRender && _hwContextNeedsInit) {
+		if(!InitOpenGLContext()) {
+			_useHwRender = false;
+		}
+		_hwContextNeedsInit = false;
+	}
+	
+	// Make GL context current for hardware rendering
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(_glWindow, _glContext);
+	}
+#endif
+
 	if(retro_run) {
 		retro_run();
 	}
+
+#ifdef USE_SDL
+	// Release GL context after frame to allow other threads to use it
+	// This is important for Reload ROM functionality
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(nullptr, nullptr);
+	}
+#endif
 }
 
 void LibretroCore::Reset()
@@ -319,9 +424,24 @@ void LibretroCore::Reset()
 		return;
 	}
 
+#ifdef USE_SDL
+	// Make GL context current before calling retro_reset for hardware rendering cores
+	// The core may need OpenGL access during reset
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(_glWindow, _glContext);
+	}
+#endif
+
 	if(retro_reset) {
 		retro_reset();
 	}
+
+#ifdef USE_SDL
+	// Release GL context after reset to allow other threads to use it
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(nullptr, nullptr);
+	}
+#endif
 }
 
 int16_t LibretroCore::GetInputState(unsigned port, unsigned device, unsigned index, unsigned id)
@@ -366,11 +486,12 @@ int16_t LibretroCore::GetInputState(unsigned port, unsigned device, unsigned ind
 			return 0;
 		}
 
-		// Find the NDS controller device
+		// Find the controller device (NDS or 3DS)
 		shared_ptr<BaseControlDevice> controller;
 		auto devices = controlManager->GetControlDevices();
 		for(auto& dev : devices) {
-			if(dev && dev->GetControllerType() == ControllerType::NdsController) {
+			if(dev && (dev->GetControllerType() == ControllerType::NdsController || 
+			           dev->GetControllerType() == ControllerType::ThreeDsController)) {
 				controller = dev;
 				break;
 			}
@@ -380,24 +501,35 @@ int16_t LibretroCore::GetInputState(unsigned port, unsigned device, unsigned ind
 			return 0;
 		}
 
-		// Map libretro joypad IDs to NDS controller buttons
+		// Check if this is a 3DS controller (has more buttons)
+		bool isThreeDs = (controller->GetControllerType() == ControllerType::ThreeDsController);
+
+		// Map libretro joypad IDs to controller buttons
 		// NdsController::Buttons enum: Up = 0, Down, Left, Right, Start, Select, B, A, Y, X, L, R
+		// ThreeDsController::Buttons enum: Up = 0, Down, Left, Right, Start, Select, B, A, Y, X, L, R, ZL, ZR, Home, Power, ...
 		// So: Up=0, Down=1, Left=2, Right=3, Start=4, Select=5, B=6, A=7, Y=8, X=9, L=10, R=11
+		int16_t result = 0;
 		switch(id) {
-			case RETRO_DEVICE_ID_JOYPAD_B:      return controller->IsPressed(6) ? 1 : 0;  // B button (index 6 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_Y:      return controller->IsPressed(8) ? 1 : 0;  // Y button (index 8 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_SELECT: return controller->IsPressed(5) ? 1 : 0;  // Select (index 5 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_START:  return controller->IsPressed(4) ? 1 : 0;  // Start (index 4 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_UP:     return controller->IsPressed(0) ? 1 : 0;  // Up (index 0 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_DOWN:   return controller->IsPressed(1) ? 1 : 0;  // Down (index 1 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_LEFT:   return controller->IsPressed(2) ? 1 : 0;  // Left (index 2 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return controller->IsPressed(3) ? 1 : 0;  // Right (index 3 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_A:      return controller->IsPressed(7) ? 1 : 0;  // A button (index 7 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_X:      return controller->IsPressed(9) ? 1 : 0;  // X button (index 9 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_L:      return controller->IsPressed(10) ? 1 : 0; // L button (index 10 in NdsController)
-			case RETRO_DEVICE_ID_JOYPAD_R:      return controller->IsPressed(11) ? 1 : 0; // R button (index 11 in NdsController)
-			default: return 0;
+			case RETRO_DEVICE_ID_JOYPAD_B:      result = controller->IsPressed(6) ? 1 : 0; break;  // B button
+			case RETRO_DEVICE_ID_JOYPAD_Y:      result = controller->IsPressed(8) ? 1 : 0; break;  // Y button
+			case RETRO_DEVICE_ID_JOYPAD_SELECT: result = controller->IsPressed(5) ? 1 : 0; break;  // Select
+			case RETRO_DEVICE_ID_JOYPAD_START:  result = controller->IsPressed(4) ? 1 : 0; break;  // Start
+			case RETRO_DEVICE_ID_JOYPAD_UP:     result = controller->IsPressed(0) ? 1 : 0; break;  // Up
+			case RETRO_DEVICE_ID_JOYPAD_DOWN:   result = controller->IsPressed(1) ? 1 : 0; break;  // Down
+			case RETRO_DEVICE_ID_JOYPAD_LEFT:   result = controller->IsPressed(2) ? 1 : 0; break;  // Left
+			case RETRO_DEVICE_ID_JOYPAD_RIGHT:  result = controller->IsPressed(3) ? 1 : 0; break;  // Right
+			case RETRO_DEVICE_ID_JOYPAD_A:      result = controller->IsPressed(7) ? 1 : 0; break;  // A button
+			case RETRO_DEVICE_ID_JOYPAD_X:      result = controller->IsPressed(9) ? 1 : 0; break;  // X button
+			case RETRO_DEVICE_ID_JOYPAD_L:      result = controller->IsPressed(10) ? 1 : 0; break; // L button
+			case RETRO_DEVICE_ID_JOYPAD_R:      result = controller->IsPressed(11) ? 1 : 0; break; // R button
+			case RETRO_DEVICE_ID_JOYPAD_L2:     result = (isThreeDs && controller->IsPressed(12)) ? 1 : 0; break; // ZL button (3DS only)
+			case RETRO_DEVICE_ID_JOYPAD_R2:     result = (isThreeDs && controller->IsPressed(13)) ? 1 : 0; break; // ZR button (3DS only)
+			case RETRO_DEVICE_ID_JOYPAD_L3:     result = 0; break; // Not used
+			case RETRO_DEVICE_ID_JOYPAD_R3:     result = 0; break; // Not used
+			default: result = 0; break;
 		}
+		
+		return result;
 	}
 	
 	return 0;
@@ -416,7 +548,25 @@ bool LibretroCore::Serialize(void* data, size_t size)
 	if(!_coreLoaded || !_gameLoaded || !retro_serialize) {
 		return false;
 	}
-	return retro_serialize(data, size);
+
+#ifdef USE_SDL
+	// Make GL context current before calling retro_serialize for hardware rendering cores
+	// The core may need OpenGL access during serialization (e.g., to save texture state)
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(_glWindow, _glContext);
+	}
+#endif
+
+	bool result = retro_serialize(data, size);
+
+#ifdef USE_SDL
+	// Release GL context after serialization
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(nullptr, nullptr);
+	}
+#endif
+
+	return result;
 }
 
 bool LibretroCore::Unserialize(const void* data, size_t size)
@@ -424,7 +574,25 @@ bool LibretroCore::Unserialize(const void* data, size_t size)
 	if(!_coreLoaded || !_gameLoaded || !retro_unserialize) {
 		return false;
 	}
-	return retro_unserialize(data, size);
+
+#ifdef USE_SDL
+	// Make GL context current before calling retro_unserialize for hardware rendering cores
+	// The core may need OpenGL access during deserialization (e.g., to restore texture state)
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(_glWindow, _glContext);
+	}
+#endif
+
+	bool result = retro_unserialize(data, size);
+
+#ifdef USE_SDL
+	// Release GL context after deserialization
+	if(_useHwRender && _glContext) {
+		SDL_GL_MakeCurrent(nullptr, nullptr);
+	}
+#endif
+
+	return result;
 }
 
 void* LibretroCore::GetMemoryData(unsigned id)
@@ -447,22 +615,7 @@ size_t LibretroCore::GetMemorySize(unsigned id)
 
 void LibretroCore::RetroLog(int level, const char* fmt, ...)
 {
-	va_list args;
-	va_start(args, fmt);
-	
-	char buffer[2048];
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
-	va_end(args);
-	
-	const char* prefix;
-	switch(level) {
-		case 0: prefix = "[RETRO_DEBUG] "; break;
-		case 1: prefix = "[RETRO_INFO] "; break;
-		case 2: prefix = "[RETRO_WARN] "; break;
-		case 3: prefix = "[RETRO_ERROR] "; break;
-		default: prefix = "[RETRO] "; break;
-	}
-	
+	// Logging is disabled - can be re-enabled for debugging
 }
 
 bool LibretroCore::EnvironmentCallback(unsigned cmd, void* data)
@@ -649,7 +802,31 @@ bool LibretroCore::EnvironmentCallback(unsigned cmd, void* data)
 		}
 		
 		case RETRO_ENVIRONMENT_SET_HW_RENDER: {
-			return false;
+			retro_hw_render_callback* hwRender = (retro_hw_render_callback*)data;
+			if(!hwRender) return false;
+			
+			// Check if we support the requested context type
+			// We support OpenGL, OpenGL Core, OpenGL ES, and Vulkan
+			if(hwRender->context_type != RETRO_HW_CONTEXT_OPENGL &&
+			   hwRender->context_type != RETRO_HW_CONTEXT_OPENGL_CORE &&
+			   hwRender->context_type != RETRO_HW_CONTEXT_OPENGLES2 &&
+			   hwRender->context_type != RETRO_HW_CONTEXT_OPENGLES3 &&
+			   hwRender->context_type != RETRO_HW_CONTEXT_VULKAN) {
+				return false;
+			}
+			
+			// Store the callback structure
+			_instance->_hwRenderCallback = *hwRender;
+			
+			// Set our callbacks - these will be called by the core when it needs them
+			_instance->_hwRenderCallback.get_current_framebuffer = HwGetCurrentFramebuffer;
+			_instance->_hwRenderCallback.get_proc_address = HwGetProcAddress;
+			
+			// Mark that we need hardware rendering (but don't create context yet)
+			_instance->_useHwRender = true;
+			_instance->_hwContextNeedsInit = true;
+			
+			return true;
 		}
 		
 		case RETRO_ENVIRONMENT_SET_FRAME_TIME_CALLBACK: {
@@ -797,10 +974,80 @@ bool LibretroCore::EnvironmentCallback(unsigned cmd, void* data)
 
 void LibretroCore::VideoRefreshCallback(const void* data, unsigned width, unsigned height, size_t pitch)
 {
-	if(!_instance || !data) return;
+	if(!_instance) return;
 
 	_instance->_frameWidth = width;
 	_instance->_frameHeight = height;
+
+	// Handle hardware rendering case
+	// When HW_RENDER is used, data can be:
+	// - NULL (core didn't render anything)
+	// - RETRO_HW_FRAME_BUFFER_VALID ((void*)-1) - core rendered to FBO
+	// Hardware rendering is indicated by pitch == 0
+	if(!data || data == (const void*)-1 || pitch == 0) {
+		// Hardware rendering - read pixels from OpenGL framebuffer
+#ifdef USE_SDL
+		if(_instance->_useHwRender && _instance->_glContext) {
+			SDL_GL_MakeCurrent(_instance->_glWindow, _instance->_glContext);
+			
+			// Resize frame buffer if needed
+			size_t requiredSize = width * height;
+			if(_instance->_frameBuffer.size() < requiredSize) {
+				_instance->_frameBuffer.resize(requiredSize);
+			}
+			
+			// Get OpenGL functions
+			typedef void (*glBindFramebufferPROC)(unsigned int target, unsigned int framebuffer);
+			typedef void (*glReadPixelsPROC)(int x, int y, int width, int height, unsigned int format, unsigned int type, void* data);
+			typedef void (*glFinishPROC)(void);
+			typedef int (*glGetIntegervPROC)(unsigned int pname, int* params);
+			typedef unsigned int GLenum;
+			typedef GLenum (*glGetErrorPROC)(void);
+			
+			glBindFramebufferPROC glBindFramebuffer = (glBindFramebufferPROC)SDL_GL_GetProcAddress("glBindFramebuffer");
+			glReadPixelsPROC glReadPixels = (glReadPixelsPROC)SDL_GL_GetProcAddress("glReadPixels");
+			glFinishPROC glFinish = (glFinishPROC)SDL_GL_GetProcAddress("glFinish");
+			glGetIntegervPROC glGetIntegerv = (glGetIntegervPROC)SDL_GL_GetProcAddress("glGetIntegerv");
+			glGetErrorPROC glGetError = (glGetErrorPROC)SDL_GL_GetProcAddress("glGetError");
+			
+			if(glReadPixels) {
+				// Clear any previous GL errors
+				if(glGetError) { while(glGetError() != 0) {} }
+				
+				// First, try to read from the default framebuffer (0)
+				// Some cores render to the default framebuffer instead of the FBO
+				int currentFbo = 0;
+				if(glGetIntegerv && glBindFramebuffer) {
+					glGetIntegerv(0x8CA6, &currentFbo); // GL_FRAMEBUFFER_BINDING
+				}
+				
+				// Ensure all rendering is complete
+				if(glFinish) glFinish();
+				
+				// Read pixels from the currently bound framebuffer
+				// GL_BGRA = 0x80E1, GL_UNSIGNED_BYTE = 0x1401
+				glReadPixels(0, 0, width, height, 0x80E1, 0x1401, _instance->_frameBuffer.data());
+				
+				// Check for errors
+				GLenum err = glGetError ? glGetError() : 0;
+				if(err == 0) {
+					// Flip the image vertically (OpenGL origin is bottom-left, we need top-left)
+					std::vector<uint32_t> tempRow(width);
+					for(unsigned y = 0; y < height / 2; y++) {
+						uint32_t* topRow = _instance->_frameBuffer.data() + y * width;
+						uint32_t* bottomRow = _instance->_frameBuffer.data() + (height - 1 - y) * width;
+						memcpy(tempRow.data(), topRow, width * sizeof(uint32_t));
+						memcpy(topRow, bottomRow, width * sizeof(uint32_t));
+						memcpy(bottomRow, tempRow.data(), width * sizeof(uint32_t));
+					}
+				}
+			}
+		}
+#endif
+		return;
+	}
+
+	// Software rendering path
 
 	uint32_t* dest = _instance->_frameBuffer.data();
 	
@@ -902,4 +1149,224 @@ int16_t LibretroCore::InputStateCallback(unsigned port, unsigned device, unsigne
 {
 	if(!_instance) return 0;
 	return _instance->GetInputState(port, device, index, id);
+}
+
+// Hardware rendering implementation
+bool LibretroCore::InitOpenGLContext()
+{
+#ifdef USE_SDL
+	// Initialize SDL video subsystem if not already initialized
+	if(!SDL_WasInit(SDL_INIT_VIDEO)) {
+		if(SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
+			return false;
+		}
+	}
+	
+	// Set OpenGL attributes based on requested context type
+	switch(_hwRenderCallback.context_type) {
+		case RETRO_HW_CONTEXT_OPENGL_CORE:
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+			if(_hwRenderCallback.version_major > 0) {
+				SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, _hwRenderCallback.version_major);
+				SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, _hwRenderCallback.version_minor);
+			}
+			break;
+		case RETRO_HW_CONTEXT_OPENGLES2:
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+			break;
+		case RETRO_HW_CONTEXT_OPENGLES3:
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+			break;
+		default:
+			// Use compatibility profile for RETRO_HW_CONTEXT_OPENGL
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+			break;
+	}
+	
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, _hwRenderCallback.depth ? 24 : 0);
+	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, _hwRenderCallback.stencil ? 8 : 0);
+	
+	// Use the SDL window provided by SdlRenderer if available
+	if(_sdlWindow) {
+		_glWindow = _sdlWindow;
+	} else {
+		// Create a hidden window for OpenGL context
+		_glWindow = SDL_CreateWindow(
+			"Libretro GL",
+			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			640, 480,
+			SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN
+		);
+		
+		if(!_glWindow) {
+			return false;
+		}
+	}
+	
+	_glContext = SDL_GL_CreateContext(_glWindow);
+	if(!_glContext) {
+		if(_glWindow != _sdlWindow) {
+			SDL_DestroyWindow(_glWindow);
+		}
+		_glWindow = nullptr;
+		return false;
+	}
+	
+	SDL_GL_MakeCurrent(_glWindow, _glContext);
+	
+	// Create a framebuffer for the core to render to
+	typedef unsigned int GLenum;
+	typedef unsigned int GLuint;
+	typedef int GLsizei;
+	typedef void (*glGenFramebuffersPROC)(GLsizei n, GLuint* framebuffers);
+	typedef void (*glBindFramebufferPROC)(GLenum target, GLuint framebuffer);
+	typedef void (*glGenRenderbuffersPROC)(GLsizei n, GLuint* renderbuffers);
+	typedef void (*glBindRenderbufferPROC)(GLenum target, GLuint renderbuffer);
+	typedef void (*glRenderbufferStoragePROC)(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
+	typedef void (*glFramebufferRenderbufferPROC)(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+	typedef int (*glCheckFramebufferStatusPROC)(GLenum target);
+	typedef void (*glGetIntegervPROC)(GLenum pname, int* params);
+	
+	glGenFramebuffersPROC glGenFramebuffers = (glGenFramebuffersPROC)SDL_GL_GetProcAddress("glGenFramebuffers");
+	glBindFramebufferPROC glBindFramebuffer = (glBindFramebufferPROC)SDL_GL_GetProcAddress("glBindFramebuffer");
+	glGenRenderbuffersPROC glGenRenderbuffers = (glGenRenderbuffersPROC)SDL_GL_GetProcAddress("glGenRenderbuffers");
+	glBindRenderbufferPROC glBindRenderbuffer = (glBindRenderbufferPROC)SDL_GL_GetProcAddress("glBindRenderbuffer");
+	glRenderbufferStoragePROC glRenderbufferStorage = (glRenderbufferStoragePROC)SDL_GL_GetProcAddress("glRenderbufferStorage");
+	glFramebufferRenderbufferPROC glFramebufferRenderbuffer = (glFramebufferRenderbufferPROC)SDL_GL_GetProcAddress("glFramebufferRenderbuffer");
+	glCheckFramebufferStatusPROC glCheckFramebufferStatus = (glCheckFramebufferStatusPROC)SDL_GL_GetProcAddress("glCheckFramebufferStatus");
+	glGetIntegervPROC glGetIntegerv = (glGetIntegervPROC)SDL_GL_GetProcAddress("glGetIntegerv");
+	
+	if(glGenFramebuffers && glBindFramebuffer && glGenRenderbuffers && glBindRenderbuffer && glRenderbufferStorage && glFramebufferRenderbuffer) {
+		GLuint fbo = 0;
+		GLuint colorRb = 0;
+		GLuint depthRb = 0;
+		
+		glGenFramebuffers(1, &fbo);
+		glBindFramebuffer(0x8D40, fbo); // GL_FRAMEBUFFER
+		
+		glGenRenderbuffers(1, &colorRb);
+		glBindRenderbuffer(0x8D41, colorRb); // GL_RENDERBUFFER
+		glRenderbufferStorage(0x8D41, 0x8058, 640, 480); // GL_RGBA8
+		
+		glFramebufferRenderbuffer(0x8D40, 0x8CE0, 0x8D41, colorRb); // GL_COLOR_ATTACHMENT0
+		
+		if(_hwRenderCallback.depth) {
+			glGenRenderbuffers(1, &depthRb);
+			glBindRenderbuffer(0x8D41, depthRb);
+			if(_hwRenderCallback.stencil) {
+				glRenderbufferStorage(0x8D41, 0x88F0, 640, 480); // GL_DEPTH24_STENCIL8
+				glFramebufferRenderbuffer(0x8D40, 0x821A, 0x8D41, depthRb); // GL_DEPTH_STENCIL_ATTACHMENT
+			} else {
+				glRenderbufferStorage(0x8D41, 0x81A6, 640, 480); // GL_DEPTH_COMPONENT24
+				glFramebufferRenderbuffer(0x8D40, 0x8D00, 0x8D41, depthRb); // GL_DEPTH_ATTACHMENT
+			}
+		}
+		
+		_glFramebuffer = fbo;
+		
+		// Unbind for now
+		glBindFramebuffer(0x8D40, 0);
+	}
+	
+	// Call the core's context reset callback
+	if(_hwRenderCallback.context_reset) {
+		// Make sure GL context is current
+		SDL_GL_MakeCurrent(_glWindow, _glContext);
+		
+		// Clear any GL errors
+		typedef unsigned int GLenum;
+		typedef GLenum (*glGetErrorPROC)(void);
+		glGetErrorPROC glGetError = (glGetErrorPROC)SDL_GL_GetProcAddress("glGetError");
+		if(glGetError) {
+			while(glGetError() != 0) {} // Clear all errors
+		}
+		
+		// Call the callback with exception handling
+		try {
+			_hwRenderCallback.context_reset();
+		} catch(...) {
+			return false;
+		}
+	}
+	
+	return true;
+#else
+	return false;
+#endif
+}
+
+void LibretroCore::DestroyOpenGLContext()
+{
+#ifdef USE_SDL
+	// Check if we have valid context and window
+	if(!_glContext || !_glWindow) {
+		return;
+	}
+	
+	// Make the context current before destroying
+	SDL_GL_MakeCurrent(_glWindow, _glContext);
+	
+	// Skip context_destroy callback during reload - the core should have cleaned up
+	// in retro_unload_game. Calling context_destroy after retro_unload_game can cause
+	// crashes because the core's OpenGL resources may already be partially destroyed.
+	// 
+	// The context_destroy callback is meant to be called when the context is lost
+	// (e.g., when switching to a different renderer), not during normal shutdown.
+	
+	// Clear the callback to prevent any further calls
+	_hwRenderCallback.context_reset = nullptr;
+	_hwRenderCallback.context_destroy = nullptr;
+	
+	if(_glContext) {
+		SDL_GL_DeleteContext(_glContext);
+		_glContext = nullptr;
+	}
+	
+	// Only destroy the window if we created it (not shared from SdlRenderer)
+	if(_glWindow && _glWindow != _sdlWindow) {
+		SDL_DestroyWindow(_glWindow);
+	}
+	_glWindow = nullptr;
+	
+	_glFramebuffer = 0;
+	_useHwRender = false;
+#endif
+}
+
+uintptr_t LibretroCore::HwGetCurrentFramebuffer()
+{
+	// Return the framebuffer we created during initialization
+	return _instance ? _instance->_glFramebuffer : 0;
+}
+
+void* LibretroCore::HwGetProcAddress(const char* sym)
+{
+#ifdef USE_SDL
+	if(!_instance) return nullptr;
+	
+	SDL_GL_MakeCurrent(_instance->_glWindow, _instance->_glContext);
+	
+	return SDL_GL_GetProcAddress(sym);
+#else
+	return nullptr;
+#endif
+}
+
+void LibretroCore::HwContextReset()
+{
+	if(_instance && _instance->_hwRenderCallback.context_reset) {
+		_instance->_hwRenderCallback.context_reset();
+	}
+}
+
+void LibretroCore::HwContextDestroy()
+{
+	if(_instance && _instance->_hwRenderCallback.context_destroy) {
+		_instance->_hwRenderCallback.context_destroy();
+	}
 }

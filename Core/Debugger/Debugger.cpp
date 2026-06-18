@@ -101,6 +101,7 @@ Debugger::Debugger(Emulator* emu, IConsole* console)
 			case CpuType::Gba: debugger.reset(new GbaDebugger(this)); break;
 			case CpuType::Ws: debugger.reset(new WsDebugger(this)); break;
 			case CpuType::Nds: throw std::runtime_error("NDS debugging is not supported");
+			case CpuType::ThreeDs: throw std::runtime_error("3DS debugging is not supported");
 			default: throw std::runtime_error("Unsupported CPU type");
 		}
 
@@ -849,6 +850,7 @@ void Debugger::GetCpuState(BaseState &dstState, CpuType cpuType)
 		case CpuType::Gba: memcpy(&dstState, &srcState, sizeof(GbaCpuState)); break;
 		case CpuType::Ws: memcpy(&dstState, &srcState, sizeof(WsCpuState)); break;
 		case CpuType::Nds: break; // NDS uses libretro core, no direct state access
+		case CpuType::ThreeDs: break; // 3DS uses libretro core, no direct state access
 	}
 }
 
@@ -871,6 +873,7 @@ void Debugger::SetCpuState(BaseState& srcState, CpuType cpuType)
 		case CpuType::Gba: memcpy(&dstState, &srcState, sizeof(GbaCpuState)); break;
 		case CpuType::Ws: memcpy(&dstState, &srcState, sizeof(WsCpuState)); break;
 		case CpuType::Nds: break; // NDS uses libretro core, no direct state access
+		case CpuType::ThreeDs: break; // 3DS uses libretro core, no direct state access
 	}
 }
 
@@ -924,6 +927,7 @@ void Debugger::GetPpuState(BaseState& state, CpuType cpuType)
 		}
 
 		case CpuType::Nds: break; // NDS uses libretro core, no direct PPU state access
+		case CpuType::ThreeDs: break; // 3DS uses libretro core, no direct PPU state access
 	}
 }
 
@@ -973,6 +977,7 @@ void Debugger::SetPpuState(BaseState& state, CpuType cpuType)
 		}
 
 		case CpuType::Nds: break; // NDS uses libretro core, no direct PPU state access
+		case CpuType::ThreeDs: break; // 3DS uses libretro core, no direct PPU state access
 	}
 }
 
@@ -1090,6 +1095,7 @@ bool Debugger::SaveRomToDisk(string filename, bool saveAsIps, CdlStripOption str
 		case CpuType::Gba: return GetDebugger<CpuType::Gba, GbaDebugger>()->SaveRomToDisk(filename, saveAsIps, stripOption);
 		case CpuType::Ws: return GetDebugger<CpuType::Ws, WsDebugger>()->SaveRomToDisk(filename, saveAsIps, stripOption);
 		case CpuType::Nds: return false; // NDS uses libretro core, no direct ROM access
+		case CpuType::ThreeDs: return false; // 3DS uses libretro core, no direct ROM access
 	}
 
 	return false;

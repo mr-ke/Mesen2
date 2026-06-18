@@ -15,6 +15,7 @@ namespace Mesen.Interop
 				ConsoleType.Gba => CpuType.Gba,
 				ConsoleType.Ws => CpuType.Ws,
 				ConsoleType.Nds => throw new NotSupportedException("NDS debugging is not supported"),
+				ConsoleType.ThreeDs => throw new NotSupportedException("3DS debugging is not supported"),
 				_ => throw new Exception("Invalid type")
 			};
 		}
@@ -25,6 +26,7 @@ namespace Mesen.Interop
 				ConsoleType.Gba => false,
 				ConsoleType.Ws => false,
 				ConsoleType.Nds => false,
+				ConsoleType.ThreeDs => false,
 				_ => true
 			};
 		}
@@ -33,6 +35,7 @@ namespace Mesen.Interop
 		{
 			return type switch {
 				ConsoleType.Nds => false,
+				ConsoleType.ThreeDs => false,
 				_ => true
 			};
 		}
