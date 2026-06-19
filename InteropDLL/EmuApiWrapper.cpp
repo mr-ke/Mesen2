@@ -158,7 +158,7 @@ extern "C" {
 		// Recreate renderer with OpenGL if needed
 		if(needsOpenGL && !LibretroCore::GetForceOpenGL()) {
 			// Need to recreate the renderer with OpenGL
-			#if defined(_WIN32) && !defined(__MINGW32__)
+			#if defined(_WIN32)
 				// Windows DirectX renderer - need to handle differently
 				// For now, just set the flag
 			#else
