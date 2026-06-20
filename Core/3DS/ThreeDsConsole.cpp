@@ -123,6 +123,17 @@ void ThreeDsConsole::RunFrame()
 		return;
 	}
 
+	// Check for pending serialization request from the UI thread
+	{
+		std::lock_guard<std::mutex> lock(_serializeMutex);
+		if(_pendingSerializer) {
+			DoSerialize(*_pendingSerializer);
+			_pendingSerializer = nullptr;
+			_serializeDone = true;
+			_serializeCV.notify_one();
+		}
+	}
+
 	_core->RunFrame();
 	_frameCount++;
 
@@ -259,38 +270,77 @@ void ThreeDsConsole::GetConsoleState(BaseState& state, ConsoleType consoleType)
 	// State is managed by the libretro core
 }
 
-void ThreeDsConsole::Serialize(Serializer& s)
+void ThreeDsConsole::DoSerialize(Serializer& s)
 {
-	// Save states are handled by the libretro core
-	if(_core && _gameLoaded) {
-		// Skip serialization when the emulation thread has stopped (e.g., during exit).
-		// The 3DS libretro core has thread-local state that becomes invalid after the
-		// emu thread exits, causing access violations if retro_serialize is called
-		// from the main thread afterward. Manual/auto save states still work because
-		// the emu thread is alive (just paused) in those cases.
-		if(_emu && _emu->GetEmulationThreadId() == std::thread::id()) {
-			return;
-		}
-
-		size_t size = _core->GetSerializeSize();
-		// Skip serialization if size is 0 or unreasonably large (> 256MB)
-		if(size > 0 && size < 256 * 1024 * 1024) {
-			vector<uint8_t> stateData;
-			if(s.IsSaving()) {
-				try {
-					stateData.resize(size);
-					if(_core->Serialize(stateData.data(), size)) {
-						SVVector(stateData);
-					}
-				} catch(std::exception&) {
-					// Serialization failed (out of memory, etc.) - skip save state
+	size_t size = _core->GetSerializeSize();
+	// Skip serialization if size is 0 or unreasonably large (> 400MB)
+	if(size > 0 && size < 400 * 1024 * 1024) {
+		vector<uint8_t> stateData;
+		if(s.IsSaving()) {
+			try {
+				stateData.resize(size);
+				if(_core->Serialize(stateData.data(), size)) {
+					SVVector(stateData);
 				}
-			} else {
-				SVVector(stateData);
-				if(!stateData.empty()) {
-					_core->Unserialize(stateData.data(), stateData.size());
-				}
+			} catch(std::exception&) {
+				// Serialization failed (out of memory, etc.) - skip save state
+			}
+		} else {
+			SVVector(stateData);
+			if(!stateData.empty()) {
+				_core->Unserialize(stateData.data(), stateData.size());
 			}
 		}
 	}
+}
+
+void ThreeDsConsole::Serialize(Serializer& s)
+{
+	// Save states are handled by the libretro core
+	if(!_core || !_gameLoaded) {
+		return;
+	}
+
+	// The 3DS libretro core (Azahar) requires OpenGL context for serialization.
+	// The GL context is created on the emulation thread and has thread affinity on
+	// Windows (WGL contexts cannot be used from a different thread). Calling
+	// retro_serialize from the main thread causes access violations (0xc0000005).
+	if(_emu && _emu->GetEmulationThreadId() == std::this_thread::get_id()) {
+		// Already on emulation thread - proceed directly
+		DoSerialize(s);
+	} else if(_emu && _emu->GetEmulationThreadId() != std::thread::id()) {
+		// Not on emulation thread - defer serialization to the emulation thread.
+		// Store the request, release the emulator lock so the emulation thread can
+		// run, and wait for it to process the serialization in RunFrame().
+		bool wasPaused = _emu->IsPaused();
+
+		{
+			std::lock_guard<std::mutex> lock(_serializeMutex);
+			_pendingSerializer = &s;
+			_serializeDone = false;
+		}
+
+		// Temporarily resume emulation so the thread can process the request
+		if(wasPaused) {
+			_emu->Resume();
+		}
+
+		// Release emulator lock so the emulation thread can run
+		_emu->Unlock();
+
+		// Wait for the emulation thread to process the serialization
+		{
+			std::unique_lock<std::mutex> lock(_serializeMutex);
+			_serializeCV.wait(lock, [this] { return _serializeDone; });
+		}
+
+		// Re-acquire emulator lock
+		_emu->Lock();
+
+		// Restore pause state
+		if(wasPaused) {
+			_emu->Pause();
+		}
+	}
+	// If emulation thread has stopped (id == thread::id()), skip serialization
 }

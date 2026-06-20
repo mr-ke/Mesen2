@@ -279,11 +279,21 @@ void Emulator::Stop(bool sendNotification, bool preventRecentGameSave, bool save
 {
 	BlockDebuggerRequests();
 
-	_stopFlag = true;
-
 	_notificationManager->SendNotification(ConsoleNotificationType::BeforeGameUnload);
 
 	ResetDebugger();
+
+	// Save recent game BEFORE setting _stopFlag and joining the emulation thread.
+	// For 3DS mode, the save state requires the emulation thread to be alive
+	// (the GL context has thread affinity on Windows). If we stop the thread
+	// first, the deferred serialization mechanism can't work and the save state
+	// will be empty/invalid.
+	if(!preventRecentGameSave && _console && !_settings->GetPreferences().DisableGameSelectionScreen && !_audioPlayerHud) {
+		RomInfo romInfo = GetRomInfo();
+		_saveStateManager->SaveRecentGame(romInfo.RomFile.GetFileName(), romInfo.RomFile, romInfo.PatchFile);
+	}
+
+	_stopFlag = true;
 
 	if(_emuThread) {
 		_emuThread->join();
@@ -293,11 +303,6 @@ void Emulator::Stop(bool sendNotification, bool preventRecentGameSave, bool save
 	if(_console && saveBattery) {
 		//Only save battery on power off, otherwise SaveBattery() is called by LoadRom()
 		_console->SaveBattery();
-	}
-
-	if(!preventRecentGameSave && _console && !_settings->GetPreferences().DisableGameSelectionScreen && !_audioPlayerHud) {
-		RomInfo romInfo = GetRomInfo();
-		_saveStateManager->SaveRecentGame(romInfo.RomFile.GetFileName(), romInfo.RomFile, romInfo.PatchFile);
 	}
 
 	if(sendNotification) {

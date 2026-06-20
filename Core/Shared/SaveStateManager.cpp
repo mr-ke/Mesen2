@@ -275,7 +275,13 @@ void SaveStateManager::SaveRecentGame(string romName, string romPath, string pat
 	writer.AddFile(pngStream, "Screenshot.png");
 
 	std::stringstream stateStream;
-	SaveStateManager::SaveState(stateStream);
+	{
+		// Acquire emulator lock for save state serialization.
+		// The 3DS core requires serialization on the emulation thread, which needs
+		// the emulator lock to be held so the deferred mechanism can release/reacquire it.
+		auto lock = _emu->AcquireLock();
+		SaveStateManager::SaveState(stateStream);
+	}
 	writer.AddFile(stateStream, "Savestate.mss");
 
 	std::stringstream romInfoStream;
