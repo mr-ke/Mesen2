@@ -5,6 +5,8 @@
 #include "Shared/Interfaces/IConsole.h"
 #include "Utilities/ISerializable.h"
 #include "Core/Libretro/LibretroCore.h"
+#include <mutex>
+#include <condition_variable>
 
 class Emulator;
 class BaseControlManager;
@@ -23,6 +25,18 @@ private:
 	
 	bool _gameLoaded = false;
 	uint32_t _frameCount = 0;
+
+	// Deferred serialization support
+	// The 3DS libretro core requires OpenGL context for serialization, which has
+	// thread affinity on Windows. Serialization must happen on the emulation thread.
+	// When Serialize() is called from the UI thread, it stores the request and waits
+	// for the emulation thread to process it in RunFrame().
+	std::mutex _serializeMutex;
+	std::condition_variable _serializeCV;
+	Serializer* _pendingSerializer = nullptr;
+	bool _serializeDone = false;
+
+	void DoSerialize(Serializer& s);
 
 public:
 	ThreeDsConsole(Emulator* emu);
