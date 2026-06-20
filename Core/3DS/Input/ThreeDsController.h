@@ -3,7 +3,6 @@
 #include "Shared/BaseControlDevice.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
-#include "Shared/InputHud.h"
 #include "Utilities/Serializer.h"
 
 class ThreeDsController : public BaseControlDevice
@@ -92,47 +91,6 @@ public:
 
 	void WriteRam(uint16_t addr, uint8_t value) override
 	{}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(50, 20);
-
-		// D-pad
-		hud.DrawButton(5, 5, 3, 3, IsPressed(Buttons::Up));
-		hud.DrawButton(5, 11, 3, 3, IsPressed(Buttons::Down));
-		hud.DrawButton(2, 8, 3, 3, IsPressed(Buttons::Left));
-		hud.DrawButton(8, 8, 3, 3, IsPressed(Buttons::Right));
-		hud.DrawButton(5, 8, 3, 3, false);
-
-		// Circle Pad (left analog)
-		hud.DrawButton(15, 8, 4, 4, IsPressed(Buttons::CirclePadUp) || IsPressed(Buttons::CirclePadDown) || 
-		                          IsPressed(Buttons::CirclePadLeft) || IsPressed(Buttons::CirclePadRight));
-
-		// ABXY buttons
-		hud.DrawButton(42, 6, 3, 3, IsPressed(Buttons::X));
-		hud.DrawButton(42, 12, 3, 3, IsPressed(Buttons::B));
-		hud.DrawButton(39, 9, 3, 3, IsPressed(Buttons::Y));
-		hud.DrawButton(45, 9, 3, 3, IsPressed(Buttons::A));
-
-		// C-Stick (right analog)
-		hud.DrawButton(35, 5, 3, 3, IsPressed(Buttons::CStickUp) || IsPressed(Buttons::CStickDown) || 
-		                          IsPressed(Buttons::CStickLeft) || IsPressed(Buttons::CStickRight));
-
-		// L, ZL, R, ZR buttons
-		hud.DrawButton(4, 0, 5, 2, IsPressed(Buttons::L));
-		hud.DrawButton(10, 0, 4, 2, IsPressed(Buttons::ZL));
-		hud.DrawButton(36, 0, 5, 2, IsPressed(Buttons::R));
-		hud.DrawButton(31, 0, 4, 2, IsPressed(Buttons::ZR));
-
-		// Start and Select
-		hud.DrawButton(21, 13, 4, 2, IsPressed(Buttons::Select));
-		hud.DrawButton(26, 13, 4, 2, IsPressed(Buttons::Start));
-
-		// Home button
-		hud.DrawButton(23, 8, 4, 4, IsPressed(Buttons::Home));
-
-		hud.DrawNumber(_port + 1, 23, 4);
-	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override
 	{

@@ -5,9 +5,8 @@
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/Video/DebugHud.h"
-#include "Shared/Video/SystemHud.h"
-#include "Shared/InputHud.h"
 #include "Shared/MessageManager.h"
+#include "Shared/Osd/osd_core.hpp"
 #include "Utilities/Video/IVideoRecorder.h"
 #include "Utilities/Video/AviRecorder.h"
 #include "Utilities/Video/GifRecorder.h"
@@ -16,10 +15,6 @@ VideoRenderer::VideoRenderer(Emulator* emu)
 {
 	_emu = emu;
 	_stopFlag = false;
-
-	_rendererHud.reset(new DebugHud());
-	_systemHud.reset(new SystemHud(_emu));
-	_inputHud.reset(new InputHud(emu, _rendererHud.get()));
 }
 
 VideoRenderer::~VideoRenderer()
@@ -80,48 +75,22 @@ void VideoRenderer::RenderThread()
 			FrameInfo size = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
 			_scriptHudSurface.UpdateSize(size.Width * _scriptHudScale, size.Height * _scriptHudScale);
 
-			size = GetEmuHudSize(size);
-			if(_emuHudSurface.UpdateSize(size.Width, size.Height)) {
-				_rendererHud->ClearScreen();
-			}
-
 			RenderedFrame frame;
 			{
 				auto lock = _frameLock.AcquireSafe();
 				frame = _lastFrame;
 			}
 
-			_inputHud->DrawControllers(size, frame.InputData);
-			{
-				auto lock = _hudLock.AcquireSafe();
-				_systemHud->Draw(_rendererHud.get(), size.Width, size.Height);
-			}
-			
-			_emuHudSurface.IsDirty = _rendererHud->Draw(_emuHudSurface.Buffer, size, {}, 0, {}, true);
+			// SystemHud/InputHud/emuHud are now rendered by the ImGui OSD overlay.
+			// Only the script HUD still uses the pixel-based DebugHud pipeline.
 			_scriptHudSurface.IsDirty = DrawScriptHud(frame);
 
-			if(forceRender || _needRedraw || _emuHudSurface.IsDirty || _scriptHudSurface.IsDirty) {
+			if(forceRender || _needRedraw || _scriptHudSurface.IsDirty) {
 				_needRedraw = false;
-				_renderer->Render(_emuHudSurface, _scriptHudSurface);
+				_renderer->Render(_scriptHudSurface);
 			}
 		}
 	}
-}
-
-FrameInfo VideoRenderer::GetEmuHudSize(FrameInfo baseFrameSize)
-{
-	FrameInfo size = {};
-	if(_emu->GetSettings()->GetPreferences().HudSize == HudDisplaySize::Scaled) {
-		//Adjust the system HUD's width to match the aspect ratio to allow text to be unstretched
-		//(The Lua HUD is not adjusted to allow scripts that need to match positions on the game screen to work correctly.)
-		double aspectRatio = _emu->GetSettings()->GetAspectRatio(_emu->GetRegion(), baseFrameSize);
-		size.Width = (uint32_t)std::round(baseFrameSize.Height * aspectRatio);
-		size.Height = baseFrameSize.Height;
-	} else {
-		size.Width = _rendererWidth / 2;
-		size.Height = _rendererHeight / 2;
-	}
-	return size;
 }
 
 bool VideoRenderer::DrawScriptHud(RenderedFrame& frame)
@@ -161,10 +130,7 @@ std::pair<FrameInfo, OverscanDimensions> VideoRenderer::GetScriptHudSize()
 
 void VideoRenderer::UpdateFrame(RenderedFrame& frame)
 {
-	{
-		auto lock = _hudLock.AcquireSafe();
-		_systemHud->UpdateHud();
-	}
+	osd_core_update();
 
 	ProcessAviRecording(frame);
 
@@ -212,8 +178,6 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 		if(_recorderOptions.RecordInputHud || _recorderOptions.RecordSystemHud) {
 			//Calculate the scale needed for the HUD elements
 			FrameInfo originalSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
-			double scale = (double)frame.Height / originalSize.Height;
-			FrameInfo scaledFrameSize = { (uint32_t)(frame.Width / scale), (uint32_t)(frame.Height / scale) };
 
 			//Update the surface to match the frame's size
 			_aviRecorderSurface.UpdateSize(frame.Width, frame.Height);
@@ -221,18 +185,12 @@ void VideoRenderer::ProcessAviRecording(RenderedFrame& frame)
 			//Copy the game screen
 			memcpy(_aviRecorderSurface.Buffer, frame.FrameBuffer, frame.Width * frame.Height * sizeof(uint32_t));
 
-			//Draw the system/input HUDs
-			DebugHud hud;
-			InputHud inputHud(_emu, &hud);
-			if(_recorderOptions.RecordSystemHud) {
-				_systemHud->Draw(&hud, scaledFrameSize.Width, scaledFrameSize.Height);
-			}
-			if(_recorderOptions.RecordInputHud) {
-				inputHud.DrawControllers(scaledFrameSize, frame.InputData);
-			}
-
-			FrameInfo frameSize = { frame.Width, frame.Height };
-			hud.Draw((uint32_t*)_aviRecorderSurface.Buffer, frameSize, {}, frame.FrameNumber, { scale, scale });
+			//Draw the OSD (system HUD + input HUD) directly into the pixel buffer
+			osd_core_draw_to_buffer(
+				_aviRecorderSurface.Buffer,
+				frame.Width, frame.Height,
+				originalSize.Width, originalSize.Height
+			);
 
 			//Record the final result
 			if(!recorder->AddFrame(_aviRecorderSurface.Buffer, frame.Width, frame.Height, _emu->GetFps())) {

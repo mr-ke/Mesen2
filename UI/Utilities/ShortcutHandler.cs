@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Mesen.Config;
 using Mesen.Config.Shortcuts;
@@ -441,8 +441,15 @@ namespace Mesen.Utilities
 		
 		private void ToggleOsd()
 		{
-			ConfigManager.Config.Preferences.DisableOsd = !ConfigManager.Config.Preferences.DisableOsd;
-			ConfigManager.Config.Preferences.ApplyConfig();
+			// Toggle the ImGui OSD overlay (rendered by SdlRenderer on top of the HUD).
+			// Falls back to the legacy "hide on-screen messages" behavior when the
+			// native renderer doesn't support the overlay (e.g. MSVC/DirectX builds).
+			try {
+				EmuApi.SetOsdVisible(!EmuApi.IsOsdVisible());
+			} catch {
+				ConfigManager.Config.Preferences.DisableOsd = !ConfigManager.Config.Preferences.DisableOsd;
+				ConfigManager.Config.Preferences.ApplyConfig();
+			}
 		}
 
 		private void ToggleFps()

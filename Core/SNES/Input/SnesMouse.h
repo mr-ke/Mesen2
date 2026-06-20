@@ -3,7 +3,6 @@
 #include "Shared/BaseControlDevice.h"
 #include "Shared/Interfaces/IKeyManager.h"
 #include "Shared/KeyManager.h"
-#include "Shared/InputHud.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
 #include "Utilities/Serializer.h"
@@ -103,16 +102,6 @@ public:
 		uint8_t byte4 = dx | _leftFlag;
 
 		_stateBuffer = (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4;
-	}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(11, 14);
-
-		hud.DrawButton(1, 1, 4, 5, IsPressed(Buttons::Left));
-		hud.DrawButton(6, 1, 4, 5, IsPressed(Buttons::Right));
-
-		hud.DrawNumber(hud.GetControllerIndex() + 1, 4, 7);
 	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override

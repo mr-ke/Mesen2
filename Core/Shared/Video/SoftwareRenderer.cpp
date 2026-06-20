@@ -68,7 +68,7 @@ struct SoftwareRendererFrame
 	SoftwareRendererSurface ScriptHud;
 };
 
-void SoftwareRenderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
+void SoftwareRenderer::Render(RenderSurfaceInfo& scriptHud)
 {
 	auto lock = _frameLock.AcquireSafe();
 	
@@ -80,7 +80,7 @@ void SoftwareRenderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scri
 
 	SoftwareRendererFrame frame = {
 		{ _textureBuffer[1], _frameWidth, _frameHeight, true },
-		{ emuHud.Buffer, emuHud.Width, emuHud.Height, emuHud.IsDirty },
+		{ nullptr, 0, 0, false },
 		{ scriptHud.Buffer, scriptHud.Width, scriptHud.Height, scriptHud.IsDirty }
 	};
 

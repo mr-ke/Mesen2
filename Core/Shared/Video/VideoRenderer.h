@@ -10,10 +10,6 @@
 
 class IRenderingDevice;
 class Emulator;
-class SystemHud;
-class DebugHud;
-class InputHud;
-
 class IVideoRecorder;
 enum class VideoCodec;
 
@@ -39,15 +35,9 @@ private:
 	uint32_t _rendererWidth = 512;
 	uint32_t _rendererHeight = 480;
 
-	unique_ptr<DebugHud> _rendererHud;
-	unique_ptr<SystemHud> _systemHud;
-	unique_ptr<InputHud> _inputHud;
-	SimpleLock _hudLock;
-
 	RenderSurfaceInfo _aviRecorderSurface = {};
 	RecordAviOptions _recorderOptions = {};
 
-	RenderSurfaceInfo _emuHudSurface = {};
 	RenderSurfaceInfo _scriptHudSurface = {};
 	bool _needScriptHudClear = false;
 	uint32_t _scriptHudScale = 2;
@@ -61,8 +51,6 @@ private:
 
 	void RenderThread();
 	bool DrawScriptHud(RenderedFrame& frame);
-	
-	FrameInfo GetEmuHudSize(FrameInfo baseFrameSize);
 
 	void ProcessAviRecording(RenderedFrame& frame);
 

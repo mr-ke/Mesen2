@@ -7,7 +7,6 @@
 #include "Utilities/ISerializable.h"
 
 class Emulator;
-class InputHud;
 
 struct DeviceButtonName
 {
@@ -92,9 +91,6 @@ public:
 	
 	virtual void SetRawState(ControlDeviceState state);
 	virtual ControlDeviceState GetRawState();
-
-	virtual void InternalDrawController(InputHud& hud) {}
-	virtual void DrawController(InputHud& hud);
 
 	virtual uint8_t ReadRam(uint16_t addr) = 0;
 	virtual void WriteRam(uint16_t addr, uint8_t value) = 0;

@@ -2,7 +2,6 @@
 
 #include "pch.h"
 #include "Shared/BaseControlDevice.h"
-#include "Shared/InputHud.h"
 #include "Shared/IControllerHub.h"
 #include "SNES/Input/SnesController.h"
 #include "SNES/Input/SnesMouse.h"
@@ -94,17 +93,6 @@ public:
 		for(int i = 0; i < HubPortCount; i++) {
 			if(_ports[i]) {
 				_ports[i]->WriteRam(addr, value);
-			}
-		}
-	}
-
-	void DrawController(InputHud& hud) override
-	{
-		for(int i = 0; i < HubPortCount; i++) {
-			if(_ports[i]) {
-				_ports[i]->DrawController(hud);
-			} else {
-				hud.EndDrawController();
 			}
 		}
 	}

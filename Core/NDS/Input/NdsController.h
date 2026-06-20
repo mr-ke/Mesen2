@@ -3,7 +3,6 @@
 #include "Shared/BaseControlDevice.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
-#include "Shared/InputHud.h"
 #include "Utilities/Serializer.h"
 
 class NdsController : public BaseControlDevice
@@ -76,34 +75,6 @@ public:
 
 	void WriteRam(uint16_t addr, uint8_t value) override
 	{}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(40, 16);
-
-		// D-pad
-		hud.DrawButton(5, 3, 3, 3, IsPressed(Buttons::Up));
-		hud.DrawButton(5, 9, 3, 3, IsPressed(Buttons::Down));
-		hud.DrawButton(2, 6, 3, 3, IsPressed(Buttons::Left));
-		hud.DrawButton(8, 6, 3, 3, IsPressed(Buttons::Right));
-		hud.DrawButton(5, 6, 3, 3, false);
-
-		// ABXY buttons
-		hud.DrawButton(35, 4, 3, 3, IsPressed(Buttons::X));
-		hud.DrawButton(35, 10, 3, 3, IsPressed(Buttons::B));
-		hud.DrawButton(32, 7, 3, 3, IsPressed(Buttons::Y));
-		hud.DrawButton(38, 7, 3, 3, IsPressed(Buttons::A));
-
-		// L and R buttons
-		hud.DrawButton(4, 0, 5, 2, IsPressed(Buttons::L));
-		hud.DrawButton(31, 0, 5, 2, IsPressed(Buttons::R));
-
-		// Start and Select
-		hud.DrawButton(16, 11, 4, 2, IsPressed(Buttons::Select));
-		hud.DrawButton(21, 11, 4, 2, IsPressed(Buttons::Start));
-
-		hud.DrawNumber(_port + 1, 18, 4);
-	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override
 	{

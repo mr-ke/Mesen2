@@ -25,13 +25,12 @@ class CheatManager;
 class MovieManager;
 class HistoryViewer;
 class FrameLimiter;
-class DebugStats;
 class BaseControlManager;
 class VirtualFile;
 class BaseVideoFilter;
 class ShortcutKeyHandler;
 class SystemActionManager;
-class AudioPlayerHud;
+class AudioPlayer;
 class GameServer;
 class GameClient;
 
@@ -62,7 +61,7 @@ private:
 	friend class EmulatorLock;
 
 	unique_ptr<thread> _emuThread;
-	unique_ptr<AudioPlayerHud> _audioPlayerHud;
+	unique_ptr<AudioPlayer> _audioPlayer;
 	safe_ptr<IConsole> _console;
 
 	shared_ptr<ShortcutKeyHandler> _shortcutKeyHandler;
@@ -110,9 +109,9 @@ private:
 
 	ConsoleMemoryInfo _consoleMemory[DebugUtilities::GetMemoryTypeCount()] = {};
 
-	unique_ptr<DebugStats> _stats;
 	unique_ptr<FrameLimiter> _frameLimiter;
 	Timer _lastFrameTimer;
+	double _lastFrameTime = 0;
 	double _frameDelay = 0;
 	
 	uint32_t _autoSaveStateFrameCounter = 0;
@@ -231,7 +230,7 @@ public:
 
 	AudioTrackInfo GetAudioTrackInfo();
 	void ProcessAudioPlayerAction(AudioPlayerActionParams p);
-	AudioPlayerHud* GetAudioPlayerHud() { return _audioPlayerHud.get(); }
+	AudioPlayer* GetAudioPlayer() { return _audioPlayer.get(); }
 
 	bool IsRunning() { return _console != nullptr; }
 	bool IsRunAheadFrame() { return _isRunAheadFrame; }
@@ -248,6 +247,7 @@ public:
 	void UnregisterInputProvider(IInputProvider* provider);
 
 	double GetFps();
+	double GetLastFrameTime() { return _lastFrameTime; }
 	
 	template<CpuType type> __forceinline void ProcessInstruction()
 	{

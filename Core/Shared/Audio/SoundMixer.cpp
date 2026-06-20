@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "Shared/Audio/SoundMixer.h"
-#include "Shared/Audio/AudioPlayerHud.h"
+#include "Shared/Audio/AudioPlayer.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/Audio/SoundResampler.h"
@@ -72,7 +72,7 @@ void SoundMixer::PlayAudioBuffer(int16_t* samples, uint32_t sampleCount, uint32_
 	}
 
 	EmuSettings* settings = _emu->GetSettings();
-	AudioPlayerHud* audioPlayer = _emu->GetAudioPlayerHud();
+	AudioPlayer* audioPlayer = _emu->GetAudioPlayer();
 	AudioConfig cfg = settings->GetAudioConfig();
 	bool isRecording = _waveRecorder || _emu->GetVideoRenderer()->IsRecording();
 

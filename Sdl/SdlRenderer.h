@@ -2,8 +2,10 @@
 #include "SDL.h"
 #include "Core/Shared/Interfaces/IRenderingDevice.h"
 #include "Utilities/SimpleLock.h"
+#include "Utilities/Timer.h"
 #include "Core/Shared/Video/VideoRenderer.h"
 #include "Core/Shared/RenderedFrame.h"
+#include "Core/Shared/Osd/osd_core.hpp"
 
 class Emulator;
 
@@ -24,7 +26,6 @@ private:
 	SDL_Renderer *_sdlRenderer = nullptr;
 	SDL_Texture* _sdlTexture = nullptr;
 
-	HudRenderInfo _emuHud = {};
 	HudRenderInfo _scriptHud = {};
 	
 	bool _useBilinearInterpolation = false;
@@ -49,8 +50,31 @@ private:
 
 	bool _vsyncEnabled = false;
 
+	// OSD (ImGui) overlay state
+	bool _osdReady = false;
+	bool _osdVisible = false;
+	int  _osdLastScreenWidth = 0;
+	int  _osdLastScreenHeight = 0;
+	bool _osdEventWatchInstalled = false;
+
+	// FPS tracking for ImGui HUD (mirrors SystemHud logic)
+	Timer _osdFpsTimer;
+	uint32_t _osdLastFrameCount = 0;
+	uint32_t _osdCurrentFps = 0;
+
+	// Frame time tracking for DebugStats display
+	double _osdLastFrameTimeMs = 0;
+	double _osdFrameTimeMin = 9999;
+	double _osdFrameTimeMax = 0;
+	double _osdFrameDurations[60] = {};
+	uint32_t _osdFrameDurationIndex = 0;
+
+	static SdlRenderer* _osdInstance; // for SDL event watch callback
+
 	bool Init();
 	bool InitTexture();
+	bool InitOsd();
+	void ShutdownOsd();
 	void Cleanup();
 	void LogSdlError(const char* msg);
 	void SetScreenSize(uint32_t width, uint32_t height);
@@ -64,7 +88,7 @@ public:
 
 	void ClearFrame() override;
 	void UpdateFrame(RenderedFrame& frame) override;
-	void Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud) override;
+	void Render(RenderSurfaceInfo& scriptHud) override;
 	void Reset() override;
 	void OnRendererThreadStarted() override;
 
@@ -75,4 +99,8 @@ public:
 	
 	// Get the SDL window (for libretro OpenGL context)
 	SDL_Window* GetSdlWindow() { return _sdlWindow; }
+
+	// OSD overlay controls
+	void SetOsdVisible(bool visible);
+	bool IsOsdVisible() const { return _osdVisible; }
 };

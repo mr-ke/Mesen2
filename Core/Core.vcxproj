@@ -757,7 +757,7 @@
     <ClInclude Include="SNES\Coprocessors\SPC7110\Spc7110Decomp.h" />
     <ClInclude Include="SNES\Debugger\SpcDebugger.h" />
     <ClInclude Include="SNES\Debugger\SpcDisUtils.h" />
-    <ClInclude Include="Shared\Audio\AudioPlayerHud.h" />
+    <ClInclude Include="Shared\Audio\AudioPlayer.h" />
     <ClInclude Include="SNES\SpcFileData.h" />
     <ClInclude Include="SNES\SpcTimer.h" />
     <ClInclude Include="SNES\SpcTypes.h" />
@@ -1070,7 +1070,7 @@
     <ClCompile Include="SNES\Coprocessors\SPC7110\Spc7110Decomp.cpp" />
     <ClCompile Include="SNES\Debugger\SpcDebugger.cpp" />
     <ClCompile Include="SNES\Debugger\SpcDisUtils.cpp" />
-    <ClCompile Include="Shared\Audio\AudioPlayerHud.cpp" />
+    <ClCompile Include="Shared\Audio\AudioPlayer.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='PGO Profile|x64'">Create</PrecompiledHeader>

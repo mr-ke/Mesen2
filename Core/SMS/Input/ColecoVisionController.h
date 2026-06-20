@@ -3,7 +3,6 @@
 #include "Shared/BaseControlDevice.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
-#include "Shared/InputHud.h"
 #include "Utilities/Serializer.h"
 
 class ColecoVisionController : public BaseControlDevice
@@ -72,38 +71,6 @@ public:
 	void WriteRam(uint16_t addr, uint8_t value) override
 	{
 		_modeSelect = value & 0x01;
-	}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(21, 31);
-
-		hud.DrawButton(9, 3, 3, 3, IsPressed(Buttons::Up));
-		hud.DrawButton(9, 9, 3, 3, IsPressed(Buttons::Down));
-		hud.DrawButton(6, 6, 3, 3, IsPressed(Buttons::Left));
-		hud.DrawButton(12, 6, 3, 3, IsPressed(Buttons::Right));
-		hud.DrawButton(9, 6, 3, 3, false);
-
-		hud.DrawButton(0, 10, 3, 3, IsPressed(Buttons::L));
-		hud.DrawButton(18, 10, 3, 3, IsPressed(Buttons::R));
-
-		hud.DrawButton(4, 14, 3, 3, IsPressed(Buttons::Num1));
-		hud.DrawButton(9, 14, 3, 3, IsPressed(Buttons::Num2));
-		hud.DrawButton(14, 14, 3, 3, IsPressed(Buttons::Num3));
-
-		hud.DrawButton(4, 18, 3, 3, IsPressed(Buttons::Num4));
-		hud.DrawButton(9, 18, 3, 3, IsPressed(Buttons::Num5));
-		hud.DrawButton(14, 18, 3, 3, IsPressed(Buttons::Num6));
-
-		hud.DrawButton(4, 22, 3, 3, IsPressed(Buttons::Num7));
-		hud.DrawButton(9, 22, 3, 3, IsPressed(Buttons::Num8));
-		hud.DrawButton(14, 22, 3, 3, IsPressed(Buttons::Num9));
-
-		hud.DrawButton(4, 26, 3, 3, IsPressed(Buttons::Star));
-		hud.DrawButton(9, 26, 3, 3, IsPressed(Buttons::Num0));
-		hud.DrawButton(14, 26, 3, 3, IsPressed(Buttons::Pound));
-
-		hud.DrawNumber(_port + 1, 16, 2);
 	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override

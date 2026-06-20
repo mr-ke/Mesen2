@@ -3,7 +3,7 @@
 #include "Shared/Emulator.h"
 #include "Shared/NotificationManager.h"
 #include "Shared/Audio/SoundMixer.h"
-#include "Shared/Audio/AudioPlayerHud.h"
+#include "Shared/Audio/AudioPlayer.h"
 #include "Shared/Video/VideoDecoder.h"
 #include "Shared/Video/VideoRenderer.h"
 #include "Shared/Video/DebugHud.h"
@@ -12,7 +12,6 @@
 #include "Shared/KeyManager.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/SaveStateManager.h"
-#include "Shared/Video/DebugStats.h"
 #include "Shared/RewindManager.h"
 #include "Shared/ShortcutKeyHandler.h"
 #include "Shared/EmulatorLock.h"
@@ -134,12 +133,11 @@ void Emulator::Run()
 	_emulationThreadId = std::this_thread::get_id();
 
 	_frameDelay = GetFrameDelay();
-	_stats.reset(new DebugStats());
 	_frameLimiter.reset(new FrameLimiter(_frameDelay));
 	_lastFrameTimer.Reset();
 
 	while(!_stopFlag) {
-		bool useRunAhead = _settings->GetEmulationConfig().RunAheadFrames > 0 && !_debugger && !_audioPlayerHud && !_rewindManager->IsRewinding() && _settings->GetEmulationSpeed() > 0 && _settings->GetEmulationSpeed() <= 100;
+		bool useRunAhead = _settings->GetEmulationConfig().RunAheadFrames > 0 && !_debugger && !_audioPlayer && !_rewindManager->IsRewinding() && _settings->GetEmulationSpeed() > 0 && _settings->GetEmulationSpeed() <= 100;
 		if(useRunAhead) {
 			RunFrameWithRunAhead();
 		} else {
@@ -241,15 +239,13 @@ void Emulator::RunFrameWithRunAhead()
 void Emulator::OnBeforeSendFrame()
 {
 	if(!_isRunAheadFrame) {
-		if(_audioPlayerHud) {
-			_audioPlayerHud->Draw(GetFrameCount(), GetFps());
+		if(_audioPlayer) {
+			_audioPlayer->CheckSilence(GetFrameCount(), GetFps());
 		}
 
-		if(_stats && _settings->GetPreferences().ShowDebugInfo) {
-			double lastFrameTime = _lastFrameTimer.GetElapsedMS();
-			_lastFrameTimer.Reset();
-			_stats->DisplayStats(this, lastFrameTime);
-		}
+		// Frame time tracking for ImGui OSD debug stats
+		_lastFrameTime = _lastFrameTimer.GetElapsedMS();
+		_lastFrameTimer.Reset();
 	}
 }
 
@@ -288,7 +284,7 @@ void Emulator::Stop(bool sendNotification, bool preventRecentGameSave, bool save
 	// (the GL context has thread affinity on Windows). If we stop the thread
 	// first, the deferred serialization mechanism can't work and the save state
 	// will be empty/invalid.
-	if(!preventRecentGameSave && _console && !_settings->GetPreferences().DisableGameSelectionScreen && !_audioPlayerHud) {
+	if(!preventRecentGameSave && _console && !_settings->GetPreferences().DisableGameSelectionScreen && !_audioPlayer) {
 		RomInfo romInfo = GetRomInfo();
 		_saveStateManager->SaveRecentGame(romInfo.RomFile.GetFileName(), romInfo.RomFile, romInfo.PatchFile);
 	}
@@ -483,9 +479,9 @@ bool Emulator::InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool 
 	_rom.DipSwitches = console->GetDipSwitchInfo();
 
 	if(_rom.Format == RomFormat::Spc || _rom.Format == RomFormat::Nsf || _rom.Format == RomFormat::Gbs || _rom.Format == RomFormat::PceHes) {
-		_audioPlayerHud.reset(new AudioPlayerHud(this));
+		_audioPlayer.reset(new AudioPlayer(this));
 	} else {
-		_audioPlayerHud.reset();
+		_audioPlayer.reset();
 	}
 
 	_cheatManager->ClearCheats(false);
@@ -540,7 +536,7 @@ bool Emulator::InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool 
 	_notificationManager->SendNotification(ConsoleNotificationType::GameLoaded, &params);
 	_threadPaused = false;
 
-	if(!forPowerCycle && !_audioPlayerHud) {
+	if(!forPowerCycle && !_audioPlayer) {
 		ConsoleRegion region = _console->GetRegion();
 		string modelName = region == ConsoleRegion::Pal ? "PAL" : (region == ConsoleRegion::Dendy ? "Dendy" : "NTSC");
 		MessageManager::DisplayMessage(modelName, FolderUtilities::GetFilename(GetRomInfo().RomFile.GetFileName(), false));

@@ -38,6 +38,9 @@ if(WIN32)
 endif()
 
 file(GLOB_RECURSE SDL_SOURCES "Sdl/*.cpp")
+if(UNIX AND NOT APPLE)
+    list(FILTER SDL_SOURCES EXCLUDE REGEX ".*/MinGW.*\\.cpp$")
+endif()
 
 file(GLOB_RECURSE INTEROP_SOURCES "InteropDLL/*.cpp")
 
@@ -62,6 +65,8 @@ if(WIN32)
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsKeyManager\\.cpp$")
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsMouseManager\\.cpp$")
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/XInputManager\\.cpp$")
+        # MinGW uses SdlRenderer (enables ImGui OSD); exclude DirectX Renderer
+        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/Renderer\\.cpp$")
     endif()
     
     list(APPEND PLATFORM_SOURCES ${WINDOWS_SOURCES})
@@ -91,6 +96,8 @@ target_include_directories(MesenCore PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Sdl
     ${CMAKE_CURRENT_SOURCE_DIR}/InteropDLL
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/librashader-dist/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Shared/Osd
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Shared/Osd/imgui
 )
 
 if(WIN32)

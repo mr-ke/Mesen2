@@ -27,7 +27,7 @@ public:
 
 	void UpdateFrame(RenderedFrame& frame) override;
 	void ClearFrame() override;
-	void Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud) override;
+	void Render(RenderSurfaceInfo& scriptHud) override;
 	void Reset() override;
 	void SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle) override;
 };

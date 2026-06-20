@@ -946,10 +946,10 @@
     <ClInclude Include="NES\Mappers\A12Watcher.h">
       <Filter>NES\Mappers</Filter>
     </ClInclude>
-    <ClCompile Include="Shared\Audio\AudioPlayerHud.cpp">
+    <ClCompile Include="Shared\Audio\AudioPlayer.cpp">
       <Filter>Shared\Audio</Filter>
     </ClCompile>
-    <ClInclude Include="Shared\Audio\AudioPlayerHud.h">
+    <ClInclude Include="Shared\Audio\AudioPlayer.h">
       <Filter>Shared\Audio</Filter>
     </ClInclude>
     <ClInclude Include="Shared\Audio\AudioPlayerTypes.h">

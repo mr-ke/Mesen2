@@ -15,8 +15,8 @@
 	#include "Windows/Renderer.h"
 	#include "Windows/SoundManager.h"
 #elif defined(__MINGW32__)
-	// MinGW uses DirectX renderer with SDL audio
-	#include "Windows/Renderer.h"
+	// MinGW cross-compile (WSL -> Windows) uses SDL renderer (enables ImGui OSD)
+	#include "Sdl/SdlRenderer.h"
 	#include "Sdl/SdlSoundManager.h"
 #elif __APPLE__
 	#include "Sdl/SdlSoundManager.h"
@@ -69,8 +69,9 @@ extern "C"
 		if(_softwareRenderer) {
 			_historyRenderer.reset(new SoftwareRenderer(_historyPlayer.get()));
 		} else {
-			// Use DirectX Renderer for all Windows builds (MSVC and MinGW)
-			#if defined(_WIN32)
+			// Use SdlRenderer for MinGW cross-compiled builds (enables ImGui OSD).
+			// MSVC builds still use the native DirectX Renderer.
+			#if defined(_WIN32) && !defined(__MINGW32__)
 				_historyRenderer.reset(new Renderer(_historyPlayer.get(), (HWND)viewerHandle));
 			#else
 				_historyRenderer.reset(new SdlRenderer(_historyPlayer.get(), viewerHandle));

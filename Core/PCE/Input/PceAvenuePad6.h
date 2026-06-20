@@ -3,7 +3,6 @@
 #include "Shared/BaseControlDevice.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
-#include "Shared/InputHud.h"
 #include "Utilities/Serializer.h"
 
 class PceAvenuePad6 : public BaseControlDevice
@@ -116,30 +115,6 @@ public:
 		}
 		_disableInput = disableInput;
 		_selectDPad = (value & 0x01) != 0;
-	}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(35, 14);
-
-		hud.DrawButton(5, 3, 3, 3, IsPressed(Buttons::Up));
-		hud.DrawButton(5, 9, 3, 3, IsPressed(Buttons::Down));
-		hud.DrawButton(2, 6, 3, 3, IsPressed(Buttons::Left));
-		hud.DrawButton(8, 6, 3, 3, IsPressed(Buttons::Right));
-		hud.DrawButton(5, 6, 3, 3, false);
-
-		hud.DrawButton(22, 8, 3, 3, IsPressed(Buttons::III));
-		hud.DrawButton(26, 8, 3, 3, IsPressed(Buttons::II));
-		hud.DrawButton(30, 8, 3, 3, IsPressed(Buttons::I));
-
-		hud.DrawButton(22, 3, 3, 3, IsPressed(Buttons::IV));
-		hud.DrawButton(26, 3, 3, 3, IsPressed(Buttons::V));
-		hud.DrawButton(30, 3, 3, 3, IsPressed(Buttons::VI));
-
-		hud.DrawButton(12, 9, 4, 2, IsPressed(Buttons::Select));
-		hud.DrawButton(17, 9, 4, 2, IsPressed(Buttons::Run));
-
-		hud.DrawNumber(hud.GetControllerIndex() + 1, 15, 2);
 	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override

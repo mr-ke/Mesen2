@@ -1,5 +1,6 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Shared/MessageManager.h"
+#include "Shared/Osd/osd_core.hpp"
 
 std::unordered_map<string, string> MessageManager::_enResources = {
 	{ "Cheats", u8"Cheats" },
@@ -83,26 +84,8 @@ std::unordered_map<string, string> MessageManager::_enResources = {
 
 std::list<string> MessageManager::_log;
 SimpleLock MessageManager::_logLock;
-SimpleLock MessageManager::_messageLock;
 bool MessageManager::_osdEnabled = true;
 bool MessageManager::_outputToStdout = false;
-IMessageManager* MessageManager::_messageManager = nullptr;
-
-void MessageManager::RegisterMessageManager(IMessageManager* messageManager)
-{
-	auto lock = _messageLock.AcquireSafe();
-	if(MessageManager::_messageManager == nullptr) {
-		MessageManager::_messageManager = messageManager;
-	}
-}
-
-void MessageManager::UnregisterMessageManager(IMessageManager* messageManager)
-{
-	auto lock = _messageLock.AcquireSafe();
-	if(MessageManager::_messageManager == messageManager) {
-		MessageManager::_messageManager = nullptr;
-	}
-}
 
 void MessageManager::SetOptions(bool osdEnabled, bool outputToStdout)
 {
@@ -141,30 +124,23 @@ string MessageManager::Localize(string key)
 
 void MessageManager::DisplayMessage(string title, string message, string param1, string param2)
 {
-	if(MessageManager::_messageManager) {
-		auto lock = _messageLock.AcquireSafe();
-		if(!MessageManager::_messageManager) {
-			return;
-		}
+	title = Localize(title);
+	message = Localize(message);
 
-		title = Localize(title);
-		message = Localize(message);
+	size_t startPos = message.find(u8"%1");
+	if(startPos != std::string::npos) {
+		message.replace(startPos, 2, param1);
+	}
 
-		size_t startPos = message.find(u8"%1");
-		if(startPos != std::string::npos) {
-			message.replace(startPos, 2, param1);
-		}
+	startPos = message.find(u8"%2");
+	if(startPos != std::string::npos) {
+		message.replace(startPos, 2, param2);
+	}
 
-		startPos = message.find(u8"%2");
-		if(startPos != std::string::npos) {
-			message.replace(startPos, 2, param2);
-		}
-
-		if(_osdEnabled) {
-			MessageManager::_messageManager->DisplayMessage(title, message);
-		} else {
-			MessageManager::Log("[" + title + "] " + message);
-		}
+	if(_osdEnabled) {
+		osd_core_show_message(title.c_str(), message.c_str());
+	} else {
+		MessageManager::Log("[" + title + "] " + message);
 	}
 }
 

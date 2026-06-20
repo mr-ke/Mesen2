@@ -5,7 +5,6 @@
 #include "NES/BaseNesPpu.h"
 #include "NES/NesConsole.h"
 #include "Shared/Emulator.h"
-#include "Shared/InputHud.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/KeyManager.h"
 #include "Utilities/Serializer.h"
@@ -93,15 +92,6 @@ public:
 		}
 
 		return false;
-	}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(11, 14);
-		hud.DrawButton(2, 1, 7, 5, IsPressed(Buttons::Fire));
-		hud.DrawNumber(hud.GetControllerIndex() + 1, 4, 7);
-		
-		hud.DrawMousePosition(GetCoordinates());
 	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override

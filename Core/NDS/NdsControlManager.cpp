@@ -5,7 +5,6 @@
 #include "Core/Shared/Emulator.h"
 #include "Core/Shared/EmuSettings.h"
 #include "Core/Shared/KeyManager.h"
-#include "Core/Shared/InputHud.h"
 #include "Core/Shared/CpuType.h"
 
 NdsControlManager::NdsControlManager(Emulator* emu, NdsConsole* console)

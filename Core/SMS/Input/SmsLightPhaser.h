@@ -4,7 +4,6 @@
 #include "SMS/SmsConsole.h"
 #include "SMS/SmsVdp.h"
 #include "Shared/Emulator.h"
-#include "Shared/InputHud.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/KeyManager.h"
 #include "Utilities/Serializer.h"
@@ -109,15 +108,6 @@ public:
 		if(pos.X >= 0 && pos.Y >= 0 && IsLightFound(pos, true)) {
 			_console->GetVdp()->SetLocationLatchRequest(pos.X+38);
 		}
-	}
-
-	void InternalDrawController(InputHud& hud) override
-	{
-		hud.DrawOutline(11, 14);
-		hud.DrawButton(2, 1, 7, 5, IsPressed(Buttons::Fire));
-		hud.DrawNumber(hud.GetControllerIndex() + 1, 4, 7);
-
-		hud.DrawMousePosition(GetCoordinates());
 	}
 
 	vector<DeviceButtonName> GetKeyNameAssociations() override

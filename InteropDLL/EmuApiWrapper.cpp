@@ -31,8 +31,9 @@
 	#include "Windows/WindowsKeyManager.h"
 	#include "Windows/WindowsMouseManager.h"
 #elif defined(__MINGW32__)
-	// MinGW uses DirectX renderer with SDL audio/input
-	#include "Windows/Renderer.h"
+	// MinGW cross-compile (WSL -> Windows) uses SDL renderer (enables ImGui OSD)
+	// with SDL audio/input. MSVC builds use the native DirectX renderer.
+	#include "Sdl/SdlRenderer.h"
 	#include "Sdl/SdlSoundManager.h"
 	#include "Sdl/MinGWKeyManager.h"
 	#include "Sdl/MinGWMouseManager.h"
@@ -103,15 +104,16 @@ extern "C" {
 				if(softwareRenderer) {
 					_renderer.reset(new SoftwareRenderer(_emu.get()));
 				} else {
-					// Use DirectX Renderer for all Windows builds (MSVC and MinGW)
-					// MinGW now has DirectXMath support from 3rdParty/DirectXMath
-					#if defined(_WIN32)
+					// Use SdlRenderer for MinGW cross-compiled builds (WSL -> Windows)
+					// so the ImGui OSD overlay (which uses imgui_impl_sdlrenderer2) works.
+					// MSVC builds still use the native DirectX Renderer.
+					#if defined(_WIN32) && !defined(__MINGW32__)
 						_renderer.reset(new Renderer(_emu.get(), (HWND)_viewerHandle));
 					#else
 						_renderer.reset(new SdlRenderer(_emu.get(), _viewerHandle));
 					#endif
 				}
-			} 
+			}
 
 			if(!noAudio) {
 				#if defined(_WIN32) && !defined(__MINGW32__)
@@ -138,7 +140,9 @@ extern "C" {
 				#endif
 				
 				KeyManager::RegisterKeyManager(_keyManager.get());
+#ifdef _WIN32
 				OutputDebugStringA("[EmuApi] KeyManager registered\n");
+#endif
 			}
 		}
 	}
@@ -294,6 +298,27 @@ extern "C" {
 		if(_emu->GetVideoRenderer()) {
 			_emu->GetVideoRenderer()->SetRendererSize(width, height);
 		}
+	}
+
+	DllExport void __stdcall SetOsdVisible(bool visible)
+	{
+		#if !defined(_WIN32) || defined(__MINGW32__)
+			SdlRenderer *sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
+			if(sdlRenderer) {
+				sdlRenderer->SetOsdVisible(visible);
+			}
+		#endif
+	}
+
+	DllExport bool __stdcall IsOsdVisible()
+	{
+		#if !defined(_WIN32) || defined(__MINGW32__)
+			SdlRenderer *sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
+			if(sdlRenderer) {
+				return sdlRenderer->IsOsdVisible();
+			}
+		#endif
+		return false;
 	}
 
 	DllExport double __stdcall GetAspectRatio()

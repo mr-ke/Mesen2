@@ -2,6 +2,7 @@
 #include "pch.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <climits>
 
 // libretro API types - based on libretro.h
 

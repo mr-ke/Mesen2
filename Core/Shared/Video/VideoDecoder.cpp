@@ -10,9 +10,7 @@
 #include "Shared/SettingTypes.h"
 #include "Shared/Video/RotateFilter.h"
 #include "Shared/Video/DebugHud.h"
-#include "Shared/InputHud.h"
 #include "Shared/RenderedFrame.h"
-#include "Shared/Video/SystemHud.h"
 #include "SNES/CartTypes.h"
 
 VideoDecoder::VideoDecoder(Emulator* emu)
@@ -94,7 +92,7 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 {
 	UpdateVideoFilter();
 
-	bool isAudioPlayer = _emu->GetAudioPlayerHud() != nullptr;
+	bool isAudioPlayer = _emu->GetAudioPlayer() != nullptr;
 	if(isAudioPlayer) {
 		//When an audio file is loaded, force base resolution to 256x240 for all consoles
 		_baseFrameSize.Width = 256;
