@@ -31,9 +31,9 @@
 	#include "Windows/WindowsKeyManager.h"
 	#include "Windows/WindowsMouseManager.h"
 #elif defined(__MINGW32__)
-	// MinGW cross-compile (WSL -> Windows) uses SDL renderer (enables ImGui OSD)
-	// with SDL audio/input. MSVC builds use the native DirectX renderer.
-	#include "Sdl/SdlRenderer.h"
+	// MinGW cross-compile (WSL -> Windows) uses D3D11 Renderer (Librashader + ImGui OSD)
+	// with SDL audio/input.
+	#include "Windows/Renderer.h"
 	#include "Sdl/SdlSoundManager.h"
 	#include "Sdl/MinGWKeyManager.h"
 	#include "Sdl/MinGWMouseManager.h"
@@ -104,10 +104,9 @@ extern "C" {
 				if(softwareRenderer) {
 					_renderer.reset(new SoftwareRenderer(_emu.get()));
 				} else {
-					// Use SdlRenderer for MinGW cross-compiled builds (WSL -> Windows)
-					// so the ImGui OSD overlay (which uses imgui_impl_sdlrenderer2) works.
-					// MSVC builds still use the native DirectX Renderer.
-					#if defined(_WIN32) && !defined(__MINGW32__)
+					// All Windows builds (MSVC and MinGW) use the D3D11 Renderer
+					// which supports both Librashader and ImGui OSD (via imgui_impl_dx11).
+					#if defined(_WIN32)
 						_renderer.reset(new Renderer(_emu.get(), (HWND)_viewerHandle));
 					#else
 						_renderer.reset(new SdlRenderer(_emu.get(), _viewerHandle));
@@ -302,7 +301,12 @@ extern "C" {
 
 	DllExport void __stdcall SetOsdVisible(bool visible)
 	{
-		#if !defined(_WIN32) || defined(__MINGW32__)
+		#if defined(_WIN32)
+			Renderer *dxRenderer = dynamic_cast<Renderer*>(_renderer.get());
+			if(dxRenderer) {
+				dxRenderer->SetOsdVisible(visible);
+			}
+		#else
 			SdlRenderer *sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
 			if(sdlRenderer) {
 				sdlRenderer->SetOsdVisible(visible);
@@ -312,7 +316,12 @@ extern "C" {
 
 	DllExport bool __stdcall IsOsdVisible()
 	{
-		#if !defined(_WIN32) || defined(__MINGW32__)
+		#if defined(_WIN32)
+			Renderer *dxRenderer = dynamic_cast<Renderer*>(_renderer.get());
+			if(dxRenderer) {
+				return dxRenderer->IsOsdVisible();
+			}
+		#else
 			SdlRenderer *sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
 			if(sdlRenderer) {
 				return sdlRenderer->IsOsdVisible();

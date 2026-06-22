@@ -7,9 +7,33 @@
 #include "Core/Shared/MessageManager.h"
 #include "Core/Shared/SettingTypes.h"
 #include "Core/Shared/EmuSettings.h"
+#include "Core/Shared/EmuSettings.h"
+#include "Core/Shared/BaseControlManager.h"
+#include "Core/Shared/BaseControlDevice.h"
+#include "Core/Shared/ControlDeviceState.h"
+#include "Core/Shared/Audio/AudioPlayer.h"
+#include "Core/Shared/Audio/SoundMixer.h"
+#include "Core/Shared/Movies/MovieManager.h"
+#include "Core/Shared/RewindManager.h"
+#include "Core/Shared/NotificationManager.h"
 #include "Utilities/UTF8Util.h"
 
+// ImGui headers
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+
 using namespace DirectX;
+
+// Static instance for WndProc routing
+Renderer* Renderer::_osdInstance = nullptr;
+
+// OSD font size constants (matching SdlRenderer)
+static constexpr int OSD_FONT_SIZE_REF = 13;
+static constexpr int OSD_FONT_SIZE_MIN = 8;
+
+// Forward declare WndProc handler (ImGui needs this)
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 Renderer::Renderer(Emulator* emu, HWND hWnd)
 {
@@ -164,6 +188,9 @@ void Renderer::Reset()
 
 void Renderer::CleanupDevice()
 {
+	// Cleanup ImGui OSD first (before releasing D3D device)
+	ShutdownOsd();
+
 	// Cleanup librashader resources first
 	CleanupShaderResources();
 
@@ -278,6 +305,9 @@ HRESULT Renderer::CreateEmuTextureBuffers()
 
 	// Initialize librashader (optional - will fall back to normal rendering if it fails)
 	InitShaderResources();
+
+	// Initialize ImGui OSD (optional - will work without if it fails)
+	InitOsd();
 
 	return S_OK;
 }
@@ -586,7 +616,7 @@ void Renderer::DrawHud(HudRenderInfo& hud, RenderSurfaceInfo& hudSurface)
 	_spriteBatch->Draw(hud.Shader, destRect);
 }
 
-void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
+void Renderer::Render(RenderSurfaceInfo& scriptHud)
 {
 	auto lock = _frameLock.AcquireSafe();
 	if(_newFullscreen != _fullscreen) {
@@ -627,8 +657,12 @@ void Renderer::Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud)
 	//Draw HUD
 	_spriteBatch->Begin(SpriteSortMode_Immediate, false);
 	DrawHud(_scriptHud, scriptHud);
-	DrawHud(_emuHud, emuHud);
 	_spriteBatch->End();
+
+	// ImGui OSD overlay (always render HUD layer when initialized)
+	if(_osdReady) {
+		RenderOsd();
+	}
 
 	// Present the information rendered to the back buffer to the front buffer (the screen)
 	HRESULT hr = _pSwapChain->Present(cfg.VerticalSync ? 1 : 0, 0);
@@ -836,4 +870,456 @@ void Renderer::DrawScreenWithShader()
 		_spriteBatch->Draw(_pShaderOutputSrv, destRect);
 		_spriteBatch->End();
 	}
+}
+
+// ---------------------------------------------------------------------------
+// OSD (ImGui) implementation
+// ---------------------------------------------------------------------------
+
+bool Renderer::InitOsd()
+{
+	if(!_hWnd || !_pd3dDevice || !_pDeviceContext) {
+		return false;
+	}
+
+	if(_osdReady) {
+		return true;
+	}
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO &io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	io.IniFilename = nullptr; // don't write imgui.ini
+
+	if(!ImGui_ImplWin32_Init(_hWnd)) {
+		MessageManager::Log("[OSD] ImGui_ImplWin32_Init failed");
+		ImGui::DestroyContext();
+		return false;
+	}
+	if(!ImGui_ImplDX11_Init(_pd3dDevice, _pDeviceContext)) {
+		MessageManager::Log("[OSD] ImGui_ImplDX11_Init failed");
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext();
+		return false;
+	}
+
+	osd_core_setup_style();
+	osd_core_rebuild_default_font(osd_core_default_font_size());
+
+	// Install host callbacks
+	static auto osdToggleFullscreen = []() {};
+	static auto osdRequestExit = []() {};
+	static auto osdExecuteShortcut = [](int shortcut) {
+		Renderer *self = Renderer::_osdInstance;
+		if(self && self->_emu) {
+			ExecuteShortcutParams params = {};
+			params.Shortcut = (EmulatorShortcut)shortcut;
+			self->_emu->GetNotificationManager()->SendNotification(
+				ConsoleNotificationType::ExecuteShortcut, &params);
+		}
+	};
+	osd_host_t host{ osdToggleFullscreen, osdRequestExit, osdExecuteShortcut };
+	osd_core_set_host(&host);
+
+	_osdInstance = this;
+	_osdReady = true;
+	MessageManager::Log("[OSD] ImGui OSD initialized (D3D11)");
+	return true;
+}
+
+void Renderer::ShutdownOsd()
+{
+	if(!_osdReady) {
+		return;
+	}
+	if(_osdInstance == this) {
+		_osdInstance = nullptr;
+	}
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
+	_osdReady = false;
+	MessageManager::Log("[OSD] ImGui OSD shut down");
+}
+
+void Renderer::SetOsdVisible(bool visible)
+{
+	if(visible && !_osdReady) {
+		InitOsd();
+	}
+	if(visible && _osdReady) {
+		osd_core_reset_to_menu();
+	}
+	_osdVisible = visible && _osdReady;
+}
+
+LRESULT CALLBACK Renderer::OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if(_osdInstance && _osdInstance->_osdReady) {
+		return ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+	}
+	return 0;
+}
+
+void Renderer::FeedOsdState()
+{
+	if(!_emu) return;
+
+	// Update FPS counter
+	if(_emu->IsRunning() && _osdFpsTimer.GetElapsedMS() > 1000) {
+		uint32_t frameCount = _emu->GetFrameCount();
+		if(_osdLastFrameCount > frameCount) {
+			_osdCurrentFps = 0;
+		} else {
+			_osdCurrentFps = (uint32_t)std::round(
+				(double)(frameCount - _osdLastFrameCount) /
+				(_osdFpsTimer.GetElapsedMS() / 1000.0));
+		}
+		_osdLastFrameCount = frameCount;
+		_osdFpsTimer.Reset();
+	}
+	if(_osdCurrentFps > 5000) _osdCurrentFps = 0;
+
+	// Track frame time for DebugStats display
+	if(_emu->IsRunning()) {
+		double elapsed = _emu->GetLastFrameTime();
+		if(elapsed > 0 && elapsed < 100) {
+			_osdLastFrameTimeMs = elapsed;
+			_osdFrameDurations[_osdFrameDurationIndex] = elapsed;
+			_osdFrameDurationIndex = (_osdFrameDurationIndex + 1) % 60;
+			if(_emu->GetFrameCount() > 60) {
+				_osdFrameTimeMin = std::min(elapsed, _osdFrameTimeMin);
+				_osdFrameTimeMax = std::max(elapsed, _osdFrameTimeMax);
+			} else {
+				_osdFrameTimeMin = 9999;
+				_osdFrameTimeMax = 0;
+			}
+		}
+	}
+
+	// Feed emulator state
+	osd_emu_state_t state = {};
+	state.is_running = _emu->IsRunning();
+	state.is_paused = _emu->IsPaused();
+	state.fps = _osdCurrentFps;
+	state.frame_count = _emu->GetFrameCount();
+	state.lag_count = _emu->GetLagCounter();
+	state.fps_rate = _emu->GetFps();
+	state.is_turbo = _emu->GetSettings()->CheckFlag(EmulationFlags::Turbo);
+	state.is_rewind = _emu->GetSettings()->CheckFlag(EmulationFlags::Rewind);
+	state.is_movie_playing = _emu->GetMovieManager()->Playing();
+	state.is_movie_recording = _emu->GetMovieManager()->Recording();
+	PreferencesConfig cfg = _emu->GetSettings()->GetPreferences();
+	state.show_fps = cfg.ShowFps;
+	state.show_game_timer = cfg.ShowGameTimer;
+	state.show_frame_counter = cfg.ShowFrameCounter;
+	state.show_lag_counter = cfg.ShowLagCounter;
+	state.show_turbo_rewind_icons = cfg.ShowTurboRewindIcons;
+	state.show_movie_icons = cfg.ShowMovieIcons;
+	state.show_debug_info = cfg.ShowDebugInfo;
+	osd_core_set_emu_state(&state);
+
+	// Feed controller states
+	auto console = _emu->GetConsole();
+	if(console) {
+		auto ctrlManager = console->GetControlManager();
+		vector<ControllerData> portStates = ctrlManager->GetPortStates();
+		osd_controller_t osd_ctrl[OSD_MAX_CONTROLLERS];
+		int count = 0;
+		for(auto& cd : portStates) {
+			if(count >= OSD_MAX_CONTROLLERS) break;
+			osd_ctrl[count] = {};
+			osd_ctrl[count].port = cd.Port;
+
+			switch(cd.Type) {
+				case ControllerType::NesController:
+				case ControllerType::FamicomController:
+				case ControllerType::FamicomControllerP2:
+					osd_ctrl[count].layout = OSD_LAYOUT_NES;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw >> 4) & 1;
+						osd_ctrl[count].buttons[6] = (raw >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw >> 7) & 1;
+					}
+					break;
+
+				case ControllerType::SnesController:
+				case ControllerType::SnesRumbleController:
+					osd_ctrl[count].layout = OSD_LAYOUT_SNES;
+					if(cd.State.State.size() >= 2) {
+						uint8_t raw0 = cd.State.State[0];
+						uint8_t raw1 = cd.State.State[1];
+						osd_ctrl[count].buttons[0] = (raw1 >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw1 >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw1 >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw1 >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw0 >> 6) & 1;
+						osd_ctrl[count].buttons[5] = (raw0 >> 7) & 1;
+						osd_ctrl[count].buttons[6] = (raw0 >> 1) & 1;
+						osd_ctrl[count].buttons[7] = (raw0 >> 0) & 1;
+						osd_ctrl[count].buttons[8] = (raw0 >> 3) & 1;
+						osd_ctrl[count].buttons[9] = (raw0 >> 2) & 1;
+						osd_ctrl[count].buttons[10] = (raw0 >> 4) & 1;
+						osd_ctrl[count].buttons[11] = (raw0 >> 5) & 1;
+					}
+					break;
+
+				case ControllerType::GameboyController:
+				case ControllerType::GameboyAccelerometer:
+					osd_ctrl[count].layout = OSD_LAYOUT_NES;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw >> 4) & 1;
+						osd_ctrl[count].buttons[6] = (raw >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw >> 7) & 1;
+					}
+					break;
+
+				case ControllerType::GbaController:
+					osd_ctrl[count].layout = OSD_LAYOUT_GBA;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw0 = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw0 >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw0 >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw0 >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw0 >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw0 >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw0 >> 4) & 1;
+						osd_ctrl[count].buttons[6] = (raw0 >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw0 >> 7) & 1;
+					}
+					if(cd.State.State.size() >= 2) {
+						uint8_t raw1 = cd.State.State[1];
+						osd_ctrl[count].buttons[10] = (raw1 >> 0) & 1;
+						osd_ctrl[count].buttons[11] = (raw1 >> 1) & 1;
+					}
+					break;
+
+				case ControllerType::PceController:
+				case ControllerType::PceTurboTap:
+				case ControllerType::PceAvenuePad6:
+					osd_ctrl[count].layout = OSD_LAYOUT_PCE;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw >> 4) & 1;
+						osd_ctrl[count].buttons[5] = (raw >> 5) & 1;
+						osd_ctrl[count].buttons[6] = (raw >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw >> 7) & 1;
+					}
+					break;
+
+				case ControllerType::SmsController:
+					osd_ctrl[count].layout = OSD_LAYOUT_SMS;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw >> 3) & 1;
+						osd_ctrl[count].buttons[6] = (raw >> 4) & 1;
+						osd_ctrl[count].buttons[7] = (raw >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw >> 6) & 1;
+					}
+					break;
+
+				case ControllerType::WsController:
+				case ControllerType::WsControllerVertical:
+					osd_ctrl[count].layout = OSD_LAYOUT_WS;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw0 = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw0 >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw0 >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw0 >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw0 >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw0 >> 4) & 1;
+						osd_ctrl[count].buttons[5] = (raw0 >> 5) & 1;
+						osd_ctrl[count].buttons[6] = (raw0 >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw0 >> 7) & 1;
+					}
+					if(cd.State.State.size() >= 2) {
+						uint8_t raw1 = cd.State.State[1];
+						osd_ctrl[count].buttons[8] = (raw1 >> 0) & 1;
+						osd_ctrl[count].buttons[9] = (raw1 >> 1) & 1;
+						osd_ctrl[count].buttons[10] = (raw1 >> 2) & 1;
+						osd_ctrl[count].buttons[11] = (raw1 >> 3) & 1;
+					}
+					break;
+
+				case ControllerType::NdsController:
+					osd_ctrl[count].layout = OSD_LAYOUT_NDS;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw0 = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw0 >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw0 >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw0 >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw0 >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw0 >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw0 >> 4) & 1;
+						osd_ctrl[count].buttons[6] = (raw0 >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw0 >> 7) & 1;
+					}
+					if(cd.State.State.size() >= 2) {
+						uint8_t raw1 = cd.State.State[1];
+						osd_ctrl[count].buttons[8] = (raw1 >> 0) & 1;
+						osd_ctrl[count].buttons[9] = (raw1 >> 1) & 1;
+						osd_ctrl[count].buttons[10] = (raw1 >> 2) & 1;
+						osd_ctrl[count].buttons[11] = (raw1 >> 3) & 1;
+					}
+					break;
+
+				case ControllerType::ThreeDsController:
+					osd_ctrl[count].layout = OSD_LAYOUT_3DS;
+					if(cd.State.State.size() >= 1) {
+						uint8_t raw0 = cd.State.State[0];
+						osd_ctrl[count].buttons[0] = (raw0 >> 0) & 1;
+						osd_ctrl[count].buttons[1] = (raw0 >> 1) & 1;
+						osd_ctrl[count].buttons[2] = (raw0 >> 2) & 1;
+						osd_ctrl[count].buttons[3] = (raw0 >> 3) & 1;
+						osd_ctrl[count].buttons[4] = (raw0 >> 5) & 1;
+						osd_ctrl[count].buttons[5] = (raw0 >> 4) & 1;
+						osd_ctrl[count].buttons[6] = (raw0 >> 6) & 1;
+						osd_ctrl[count].buttons[7] = (raw0 >> 7) & 1;
+					}
+					if(cd.State.State.size() >= 2) {
+						uint8_t raw1 = cd.State.State[1];
+						osd_ctrl[count].buttons[8] = (raw1 >> 0) & 1;
+						osd_ctrl[count].buttons[9] = (raw1 >> 1) & 1;
+						osd_ctrl[count].buttons[10] = (raw1 >> 2) & 1;
+						osd_ctrl[count].buttons[11] = (raw1 >> 3) & 1;
+					}
+					if(cd.State.State.size() >= 3) {
+						uint8_t raw2 = cd.State.State[2];
+						osd_ctrl[count].buttons[12] = (raw2 >> 0) & 1;
+						osd_ctrl[count].buttons[13] = (raw2 >> 1) & 1;
+					}
+					break;
+
+				default:
+					osd_ctrl[count].layout = OSD_LAYOUT_GENERIC;
+					break;
+			}
+			count++;
+		}
+		osd_core_set_controllers(osd_ctrl, count);
+
+		// Feed input display preferences
+		InputConfig& inputCfg = _emu->GetSettings()->GetInputConfig();
+		osd_input_prefs_t prefs = {};
+		prefs.display_position = (int)inputCfg.DisplayInputPosition;
+		prefs.display_horizontally = inputCfg.DisplayInputHorizontally;
+		for(int i = 0; i < 8; i++)
+			prefs.display_port[i] = inputCfg.DisplayInputPort[i];
+		osd_core_set_input_prefs(&prefs);
+	}
+
+	// Feed audio player state
+	AudioPlayer* audioPlayer = _emu->GetAudioPlayer();
+	if(audioPlayer) {
+		osd_audio_player_t ap = {};
+		AudioTrackInfo trackInfo = _emu->GetAudioTrackInfo();
+		strncpy(ap.game_title, trackInfo.GameTitle.c_str(), sizeof(ap.game_title) - 1);
+		strncpy(ap.artist, trackInfo.Artist.c_str(), sizeof(ap.artist) - 1);
+		strncpy(ap.comment, trackInfo.Comment.c_str(), sizeof(ap.comment) - 1);
+		strncpy(ap.song_title, trackInfo.SongTitle.c_str(), sizeof(ap.song_title) - 1);
+		strncpy(ap.rom_filename, _emu->GetRomInfo().RomFile.GetFileName().c_str(), sizeof(ap.rom_filename) - 1);
+		ap.track_number = trackInfo.TrackNumber;
+		ap.track_count = trackInfo.TrackCount;
+		ap.position = trackInfo.Position;
+		ap.length = trackInfo.Length;
+		ap.fade_length = trackInfo.FadeLength;
+		const std::vector<double> &amps = audioPlayer->GetAmplitudes();
+		ap.amplitudes = amps.data();
+		ap.amplitudes_count = (int)amps.size();
+		ap.sample_rate = audioPlayer->GetSampleRate();
+		osd_core_set_audio_player(&ap);
+	} else {
+		osd_core_set_audio_player(nullptr);
+	}
+
+	// Feed debug statistics when ShowDebugInfo is enabled
+	VideoConfig videoCfg = _emu->GetSettings()->GetVideoConfig();
+	if(cfg.ShowDebugInfo) {
+		osd_debug_stats_t dbg = {};
+		AudioStatistics audioStats = _emu->GetSoundMixer()->GetStatistics();
+		AudioConfig audioCfg = _emu->GetSettings()->GetAudioConfig();
+		dbg.audio_latency = audioStats.AverageLatency;
+		dbg.audio_target_latency = audioCfg.AudioLatency;
+		dbg.audio_underruns = audioStats.BufferUnderrunEventCount;
+		dbg.audio_buffer_size = audioStats.BufferSize;
+		dbg.audio_sample_rate = (uint32_t)(audioCfg.SampleRate * _emu->GetSoundMixer()->GetRateAdjustment());
+
+		double totalDuration = 0;
+		for(int i = 0; i < 60; i++) {
+			totalDuration += _osdFrameDurations[i];
+		}
+		dbg.video_fps = (totalDuration > 0) ? (1000.0 / (totalDuration / 60.0)) : 0;
+		dbg.video_last_frame_ms = _osdLastFrameTimeMs;
+		dbg.video_min_frame_ms = _osdFrameTimeMin;
+		dbg.video_max_frame_ms = _osdFrameTimeMax;
+		memcpy(dbg.frame_durations, _osdFrameDurations, sizeof(dbg.frame_durations));
+
+		RewindStats rewindStats = _emu->GetRewindManager()->GetStats();
+		dbg.rewind_memory_mb = (double)rewindStats.MemoryUsage / (1024.0 * 1024.0);
+		if(rewindStats.HistoryDuration > 0) {
+			dbg.rewind_per_minute_mb = dbg.rewind_memory_mb * 3600.0 / rewindStats.HistoryDuration;
+		}
+
+		osd_core_set_debug_stats(&dbg);
+	}
+}
+
+void Renderer::RenderOsd()
+{
+	if(!_osdReady) {
+		return;
+	}
+
+	// Update OSD layout scale when the output size changes
+	if((int)_screenWidth != _osdLastScreenWidth || (int)_screenHeight != _osdLastScreenHeight) {
+		float newScale = osd_core_layout_scale_for_output((int)_screenWidth, (int)_screenHeight);
+		osd_core_set_layout_scale(newScale);
+		int fontSize = std::max(OSD_FONT_SIZE_MIN,
+			(int)std::round(OSD_FONT_SIZE_REF * newScale));
+		osd_core_rebuild_default_font(fontSize);
+		_osdLastScreenWidth = (int)_screenWidth;
+		_osdLastScreenHeight = (int)_screenHeight;
+	}
+
+	// Feed emulator state
+	FeedOsdState();
+
+	// ImGui frame
+	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplDX11_NewFrame();
+	ImGui::NewFrame();
+
+	// HUD layer: always drawn (FPS, messages, status icons)
+	osd_hud_draw();
+
+	// OSD menu layer: only when toggled on
+	if(_osdVisible) {
+		bool keepOpen = osd_core_build_ui();
+		if(!keepOpen) {
+			_osdVisible = false;
+		}
+	}
+
+	ImGui::Render();
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 }
