@@ -65,8 +65,7 @@ if(WIN32)
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsKeyManager\\.cpp$")
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/WindowsMouseManager\\.cpp$")
         list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/XInputManager\\.cpp$")
-        # MinGW uses SdlRenderer (enables ImGui OSD); exclude DirectX Renderer
-        list(FILTER WINDOWS_SOURCES EXCLUDE REGEX ".*/Renderer\\.cpp$")
+        # MinGW now uses D3D11 Renderer (with ImGui OSD + Librashader support)
     endif()
     
     list(APPEND PLATFORM_SOURCES ${WINDOWS_SOURCES})
@@ -176,6 +175,8 @@ if(WIN32)
         winmm
         d3d11
         dxgi
+        d3dcompiler
+        dwmapi
     )
 elseif(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)

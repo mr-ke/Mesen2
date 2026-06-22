@@ -2,11 +2,11 @@
 
 #include "Common.h"
 #include "Core/Shared/Interfaces/IRenderingDevice.h"
-#include "Core/Shared/Interfaces/IMessageManager.h"
 #include "Utilities/FolderUtilities.h"
 #include "Utilities/SimpleLock.h"
 #include "Utilities/Timer.h"
 #include "LibraShaderManager.h"
+#include "Core/Shared/Osd/osd_core.hpp"
 
 using namespace DirectX;
 
@@ -82,6 +82,25 @@ private:
 	size_t _frameCount = 0;
 	std::string _currentShaderPreset;
 
+	// OSD (ImGui) overlay state
+	bool _osdReady = false;
+	bool _osdVisible = false;
+	int  _osdLastScreenWidth = 0;
+	int  _osdLastScreenHeight = 0;
+	static Renderer* _osdInstance;
+
+	// FPS tracking for OSD HUD
+	Timer _osdFpsTimer;
+	uint32_t _osdLastFrameCount = 0;
+	uint32_t _osdCurrentFps = 0;
+
+	// Frame time tracking for DebugStats display
+	double _osdLastFrameTimeMs = 0;
+	double _osdFrameTimeMin = 9999;
+	double _osdFrameTimeMax = 0;
+	double _osdFrameDurations[60] = {};
+	uint32_t _osdFrameDurationIndex = 0;
+
 	HRESULT InitDevice();
 	void CleanupDevice();
 
@@ -107,6 +126,12 @@ private:
 	void DrawScreenWithShader();
 	void ReloadShader();
 
+	// OSD helper methods
+	bool InitOsd();
+	void ShutdownOsd();
+	void RenderOsd();
+	void FeedOsdState();
+
 public:
 	Renderer(Emulator* emu, HWND hWnd);
 	~Renderer();
@@ -114,8 +139,15 @@ public:
 	void SetExclusiveFullscreenMode(bool fullscreen, void* windowHandle) override;
 
 	void Reset() override;
-	void Render(RenderSurfaceInfo& emuHud, RenderSurfaceInfo& scriptHud) override;
+	void Render(RenderSurfaceInfo& scriptHud) override;
 	void ClearFrame() override;
 
 	void UpdateFrame(RenderedFrame& frame) override;
+
+	// OSD overlay controls
+	void SetOsdVisible(bool visible);
+	bool IsOsdVisible() const { return _osdVisible; }
+
+	// WndProc handler for ImGui input (call from the main window proc)
+	static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
