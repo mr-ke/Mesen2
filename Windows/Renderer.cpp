@@ -32,6 +32,84 @@ Renderer* Renderer::_osdInstance = nullptr;
 static constexpr int OSD_FONT_SIZE_REF = 13;
 static constexpr int OSD_FONT_SIZE_MIN = 8;
 
+// Feed keyboard state to ImGui using Win32 GetAsyncKeyState.
+// Avalonia consumes key events before they reach the Win32 message queue,
+// so ImGui_ImplWin32_WndProcHandler never sees WM_KEYDOWN/WM_KEYUP.
+// This is the same approach used by SdlRenderer.
+static void osd_inject_keyboard_state()
+{
+	ImGuiIO &io = ImGui::GetIO();
+
+	struct KeyMapping { int vk; ImGuiKey imguiKey; };
+	static const KeyMapping keys[] = {
+		{ VK_UP,        ImGuiKey_UpArrow    },
+		{ VK_DOWN,      ImGuiKey_DownArrow  },
+		{ VK_LEFT,      ImGuiKey_LeftArrow  },
+		{ VK_RIGHT,     ImGuiKey_RightArrow },
+		{ VK_HOME,      ImGuiKey_Home       },
+		{ VK_END,       ImGuiKey_End        },
+		{ VK_RETURN,    ImGuiKey_Enter      },
+		{ VK_ESCAPE,    ImGuiKey_Escape     },
+		{ VK_SPACE,     ImGuiKey_Space      },
+		{ VK_BACK,      ImGuiKey_Backspace  },
+		{ VK_DELETE,    ImGuiKey_Delete     },
+		{ VK_PRIOR,     ImGuiKey_PageUp     },
+		{ VK_NEXT,      ImGuiKey_PageDown   },
+		{ VK_TAB,       ImGuiKey_Tab        },
+		{ 'A',          ImGuiKey_A          },
+		{ 'B',          ImGuiKey_B          },
+		{ 'C',          ImGuiKey_C          },
+		{ 'D',          ImGuiKey_D          },
+		{ 'E',          ImGuiKey_E          },
+		{ 'F',          ImGuiKey_F          },
+		{ 'G',          ImGuiKey_G          },
+		{ 'H',          ImGuiKey_H          },
+		{ 'I',          ImGuiKey_I          },
+		{ 'J',          ImGuiKey_J          },
+		{ 'K',          ImGuiKey_K          },
+		{ 'L',          ImGuiKey_L          },
+		{ 'M',          ImGuiKey_M          },
+		{ 'N',          ImGuiKey_N          },
+		{ 'O',          ImGuiKey_O          },
+		{ 'P',          ImGuiKey_P          },
+		{ 'Q',          ImGuiKey_Q          },
+		{ 'R',          ImGuiKey_R          },
+		{ 'S',          ImGuiKey_S          },
+		{ 'T',          ImGuiKey_T          },
+		{ 'U',          ImGuiKey_U          },
+		{ 'V',          ImGuiKey_V          },
+		{ 'W',          ImGuiKey_W          },
+		{ 'X',          ImGuiKey_X          },
+		{ 'Y',          ImGuiKey_Y          },
+		{ 'Z',          ImGuiKey_Z          },
+		{ '0',          ImGuiKey_0          },
+		{ '1',          ImGuiKey_1          },
+		{ '2',          ImGuiKey_2          },
+		{ '3',          ImGuiKey_3          },
+		{ '4',          ImGuiKey_4          },
+		{ '5',          ImGuiKey_5          },
+		{ '6',          ImGuiKey_6          },
+		{ '7',          ImGuiKey_7          },
+		{ '8',          ImGuiKey_8          },
+		{ '9',          ImGuiKey_9          },
+	};
+
+	for(const auto &km : keys) {
+		bool down = (GetAsyncKeyState(km.vk) & 0x8000) != 0;
+		io.AddKeyEvent(km.imguiKey, down);
+	}
+
+	// Modifier keys
+	io.AddKeyEvent(ImGuiKey_LeftShift,  (GetAsyncKeyState(VK_LSHIFT)   & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_RightShift, (GetAsyncKeyState(VK_RSHIFT)   & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_LeftCtrl,   (GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_RightCtrl,  (GetAsyncKeyState(VK_RCONTROL) & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_LeftAlt,    (GetAsyncKeyState(VK_LMENU)    & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_RightAlt,   (GetAsyncKeyState(VK_RMENU)    & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_LeftSuper,  (GetAsyncKeyState(VK_LWIN)     & 0x8000) != 0);
+	io.AddKeyEvent(ImGuiKey_RightSuper, (GetAsyncKeyState(VK_RWIN)     & 0x8000) != 0);
+}
+
 // Forward declare WndProc handler (ImGui needs this)
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -924,6 +1002,14 @@ bool Renderer::InitOsd()
 
 	_osdInstance = this;
 	_osdReady = true;
+
+	// Subclass the viewer window so ImGui receives mouse/keyboard messages
+	// via the standard Win32 WndProc mechanism.
+	_originalWndProc = (WNDPROC)SetWindowLongPtrW(_hWnd, GWLP_WNDPROC, (LONG_PTR)SubclassedWndProc);
+	if(!_originalWndProc) {
+		MessageManager::Log("[OSD] Warning: failed to subclass window, ImGui input may not work");
+	}
+
 	MessageManager::Log("[OSD] ImGui OSD initialized (D3D11)");
 	return true;
 }
@@ -933,6 +1019,13 @@ void Renderer::ShutdownOsd()
 	if(!_osdReady) {
 		return;
 	}
+
+	// Restore the original WndProc before shutting down ImGui
+	if(_originalWndProc && _hWnd) {
+		SetWindowLongPtrW(_hWnd, GWLP_WNDPROC, (LONG_PTR)_originalWndProc);
+		_originalWndProc = nullptr;
+	}
+
 	if(_osdInstance == this) {
 		_osdInstance = nullptr;
 	}
@@ -954,12 +1047,48 @@ void Renderer::SetOsdVisible(bool visible)
 	_osdVisible = visible && _osdReady;
 }
 
-LRESULT CALLBACK Renderer::OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+bool Renderer::IsOsdCapturingInput() const
 {
-	if(_osdInstance && _osdInstance->_osdReady) {
-		return ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+	if(!_osdReady || !_osdVisible) {
+		return false;
 	}
-	return 0;
+	ImGuiIO &io = ImGui::GetIO();
+	return io.WantCaptureKeyboard || io.WantCaptureMouse;
+}
+
+LRESULT CALLBACK Renderer::SubclassedWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	Renderer* self = _osdInstance;
+	if(self && self->_osdReady) {
+		// Forward mouse/keyboard messages to ImGui when the OSD menu is visible
+		if(self->_osdVisible) {
+			LRESULT result = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+			if(result != 0) {
+				// ImGui consumed the message - check if it wants to capture input
+				ImGuiIO& io = ImGui::GetIO();
+				bool isMouseMsg = (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ||
+				                  msg == WM_MOUSEWHEEL || msg == WM_MOUSEHWHEEL;
+				bool isKeyMsg = (msg == WM_KEYDOWN || msg == WM_KEYUP ||
+				                 msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP ||
+				                 msg == WM_CHAR);
+				if((isMouseMsg && io.WantCaptureMouse) || (isKeyMsg && io.WantCaptureKeyboard)) {
+					return 1; // Block the message from reaching the emulator
+				}
+			}
+		} else {
+			// OSD menu hidden - always forward mouse to ImGui for HUD hover detection
+			if(msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST ||
+			   msg == WM_MOUSEWHEEL || msg == WM_MOUSEHWHEEL) {
+				ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+			}
+		}
+	}
+
+	// Call the original WndProc
+	if(self && self->_originalWndProc) {
+		return CallWindowProcW(self->_originalWndProc, hWnd, msg, wParam, lParam);
+	}
+	return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
 void Renderer::FeedOsdState()
@@ -1303,6 +1432,11 @@ void Renderer::RenderOsd()
 
 	// Feed emulator state
 	FeedOsdState();
+
+	// Inject keyboard state via GetAsyncKeyState (Avalonia consumes key events
+	// before they reach the Win32 message queue, so ImGui_ImplWin32_WndProcHandler
+	// never sees WM_KEYDOWN/WM_KEYUP).  This mirrors the SdlRenderer approach.
+	osd_inject_keyboard_state();
 
 	// ImGui frame
 	ImGui_ImplWin32_NewFrame();

@@ -330,6 +330,22 @@ extern "C" {
 		return false;
 	}
 
+	DllExport bool __stdcall IsOsdCapturingInput()
+	{
+		#if defined(_WIN32)
+			Renderer *dxRenderer = dynamic_cast<Renderer*>(_renderer.get());
+			if(dxRenderer) {
+				return dxRenderer->IsOsdCapturingInput();
+			}
+		#else
+			SdlRenderer *sdlRenderer = dynamic_cast<SdlRenderer*>(_renderer.get());
+			if(sdlRenderer) {
+				return sdlRenderer->IsOsdVisible();
+			}
+		#endif
+		return false;
+	}
+
 	DllExport double __stdcall GetAspectRatio()
 	{
 		return _emu->GetSettings()->GetAspectRatio(_emu->GetRegion(), _emu->GetVideoDecoder()->GetBaseFrameInfo(true));

@@ -85,6 +85,7 @@ namespace Mesen.Interop
 
 		[DllImport(DllPath)] public static extern void SetOsdVisible([MarshalAs(UnmanagedType.I1)] bool visible);
 		[DllImport(DllPath)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool IsOsdVisible();
+		[DllImport(DllPath)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool IsOsdCapturingInput();
 
 		[DllImport(DllPath)] public static extern void ExecuteShortcut(ExecuteShortcutParams p);
 		[DllImport(DllPath)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool IsShortcutAllowed(EmulatorShortcut shortcut, UInt32 shortcutParam = 0);

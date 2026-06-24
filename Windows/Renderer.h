@@ -89,6 +89,10 @@ private:
 	int  _osdLastScreenHeight = 0;
 	static Renderer* _osdInstance;
 
+	// Window subclass for ImGui WndProc routing
+	WNDPROC _originalWndProc = nullptr;
+	static LRESULT CALLBACK SubclassedWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 	// FPS tracking for OSD HUD
 	Timer _osdFpsTimer;
 	uint32_t _osdLastFrameCount = 0;
@@ -147,7 +151,5 @@ public:
 	// OSD overlay controls
 	void SetOsdVisible(bool visible);
 	bool IsOsdVisible() const { return _osdVisible; }
-
-	// WndProc handler for ImGui input (call from the main window proc)
-	static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	bool IsOsdCapturingInput() const;
 };

@@ -667,6 +667,11 @@ namespace Mesen.Windows
 				return;
 			}
 
+			// When the OSD menu is capturing keyboard input, don't forward keys to the emulator
+			if(EmuApi.IsOsdCapturingInput()) {
+				return;
+			}
+
 			if(e.Key != Key.None) {
 				_keyPressedStamp[e.Key] = _stopWatch.ElapsedTicks;
 
@@ -689,6 +694,11 @@ namespace Mesen.Windows
 		{
 			if(OperatingSystem.IsMacOS()) {
 				//Keyhandler handles key internally on macOS
+				return;
+			}
+
+			// When the OSD menu is capturing keyboard input, don't forward keys to the emulator
+			if(EmuApi.IsOsdCapturingInput()) {
 				return;
 			}
 
