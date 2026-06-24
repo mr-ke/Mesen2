@@ -17,6 +17,8 @@
 #include <mutex>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
+#include <string>
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -55,6 +57,26 @@ static osd_emu_state_t osd_emu  = {};
 static float      osd_layout_scale = 1.0f;
 static float      osd_font_raster_scale = 1.0f;
 static ImGuiStyle osd_style_base;
+
+/* ------------------------------------------------------------------ */
+/*  Label localization (key → translated string)                       */
+/* ------------------------------------------------------------------ */
+static std::unordered_map<std::string, std::string> osd_labels;
+
+void osd_core_set_label(const char *key, const char *value)
+{
+    if (key && value) osd_labels[key] = value;
+}
+
+/* Look up a translated label by key.  Returns the key itself when no
+   translation has been registered (acts as the English fallback). */
+static const char *osd_label(const char *key)
+{
+    if (!key) return "";
+    auto it = osd_labels.find(key);
+    if (it != osd_labels.end()) return it->second.c_str();
+    return key;
+}
 static bool       osd_style_ready = false;
 
 /* ------------------------------------------------------------------ */
@@ -295,7 +317,7 @@ static constexpr int GAME_COUNT = (int)(sizeof(game_items) / sizeof(game_items[0
 
 /* ---- Per-tab data ---- */
 struct TabDef {
-    const char    *name;
+    const char    *name;   // key for osd_label()
     const MenuItem *items;
     int            count;
 };
@@ -369,7 +391,7 @@ static void draw_item_list(const MenuItem *items, int count, bool *close_osd)
             continue;
         }
         const bool selected = (i == menu_sel);
-        if (ImGui::Selectable(mi.label, selected)) {
+        if (ImGui::Selectable(osd_label(mi.label), selected)) {
             menu_sel = i;
             activate_menu_item(mi, close_osd);
         }
@@ -1239,7 +1261,7 @@ static bool draw_menu(void)
     /* ---- ImGui native TabBar (overlapping tab style) ---- */
     if (ImGui::BeginTabBar("OSDTabs")) {
         for (int t = 0; t < TAB_COUNT; t++) {
-            if (ImGui::BeginTabItem(tabs[t].name)) {
+            if (ImGui::BeginTabItem(osd_label(tabs[t].name))) {
                 if ((int)current_tab != t) {
                     current_tab = (OsdTab)t;
                     menu_sel = -1;
@@ -1253,7 +1275,7 @@ static bool draw_menu(void)
     }
 
     ImGui::Separator();
-    if (ImGui::Selectable("Close OSD", false)) {
+    if (ImGui::Selectable(osd_label("Close OSD"), false)) {
         close_osd = true;
     }
 

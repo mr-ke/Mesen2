@@ -346,6 +346,11 @@ extern "C" {
 		return false;
 	}
 
+	DllExport void __stdcall SetOsdLabel(const char* key, const char* value)
+	{
+		osd_core_set_label(key, value);
+	}
+
 	DllExport double __stdcall GetAspectRatio()
 	{
 		return _emu->GetSettings()->GetAspectRatio(_emu->GetRegion(), _emu->GetVideoDecoder()->GetBaseFrameInfo(true));

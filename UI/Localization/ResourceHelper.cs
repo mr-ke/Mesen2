@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,6 +15,7 @@ namespace Mesen.Localization
 		private static Dictionary<Enum, string> _enumLabelCache = new();
 		private static Dictionary<string, string> _viewLabelCache = new();
 		private static Dictionary<string, string> _messageCache = new();
+		private static Dictionary<string, string> _osdLabelCache = new();
 
 		public static void LoadResources()
 		{
@@ -53,6 +54,14 @@ namespace Mesen.Localization
 							_viewLabelCache[viewName + "_" + elem.Attributes!["ID"]!.Value] = elem.InnerText;
 						}
 					}
+				}
+
+				// Load OSD menu labels and push to native core
+				foreach(XmlNode node in _resources.SelectNodes("/Resources/OsdLabels/Label")!) {
+					string key = node.Attributes!["ID"]!.Value;
+					string value = node.InnerText;
+					_osdLabelCache[key] = value;
+					EmuApi.SetOsdLabel(key, value);
 				}
 			} catch {
 			}

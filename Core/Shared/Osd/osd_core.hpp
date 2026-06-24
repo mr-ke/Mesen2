@@ -52,6 +52,11 @@ typedef struct osd_host_t {
 
 void osd_core_set_host(const osd_host_t *host);
 
+/* Set a translated label for the OSD menu.  The key is the English text
+   used as fallback when no translation is registered.  Call this from
+   the C# UI after loading localization resources. */
+void osd_core_set_label(const char *key, const char *value);
+
 /* Provide the current emulator state snapshot for this frame. */
 void osd_core_set_emu_state(const osd_emu_state_t *state);
 
