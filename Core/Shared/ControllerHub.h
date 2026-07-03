@@ -83,6 +83,8 @@ public:
 				case ControllerType::PceAvenuePad6:
 					_ports[i].reset(new PceAvenuePad6(emu, 0, controllers[i].Keys));
 					break;
+
+				default: break;
 			}
 		}
 	}

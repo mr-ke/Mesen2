@@ -184,6 +184,8 @@ namespace Mesen.Interop
 
 		Nds,
 		ThreeDs,
+
+		Genesis,
 	}
 
 	public enum ConsoleType
@@ -197,6 +199,7 @@ namespace Mesen.Interop
 		Ws = 6,
 		Nds = 7,
 		ThreeDs = 8,
+		Genesis = 9,
 	}
 
 	public struct InteropDipSwitchInfo

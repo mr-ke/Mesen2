@@ -18,6 +18,7 @@ enum class MemoryType
 	WsMemory,
 	NdsMemory,
 	ThreeDsMemory,
+	GenesisMemory,
 
 	SnesPrgRom,
 	SnesWorkRam,
@@ -101,6 +102,16 @@ enum class MemoryType
 	WsBootRom,
 	WsInternalEeprom,
 	WsPort,
+
+	GenesisM68KRam,
+	GenesisZ80Ram,
+	GenesisZ80Bus,
+	GenesisVdpVram,
+	GenesisVdpVsram,
+	GenesisVdpCram,
+	GenesisCartridgeRom,
+	GenesisCartridgeRam,
+	GenesisPort,
 
 	None
 };

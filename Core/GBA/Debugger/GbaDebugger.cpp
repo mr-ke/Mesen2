@@ -207,6 +207,7 @@ void GbaDebugger::ProcessWrite(uint32_t addr, uint32_t value, MemoryOperationTyp
 		case MemoryType::GbaPaletteRam:
 			_disassembler->InvalidateCache(addressInfo, CpuType::Gba);
 			break;
+		default: break;
 	}
 
 	if(_traceLogger->IsEnabled()) {

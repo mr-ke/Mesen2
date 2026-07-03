@@ -37,6 +37,7 @@ namespace Mesen.Config
 		[Reactive] public NdsConfig Nds { get; set; } = new();
 		[Reactive] public ThreeDsConfig ThreeDs { get; set; } = new();
 		[Reactive] public WsConfig Ws { get; set; } = new();
+		[Reactive] public GenesisConfig Genesis { get; set; } = new();
 		[Reactive] public PreferencesConfig Preferences { get; set; } = new();
 		[Reactive] public AudioPlayerConfig AudioPlayer { get; set; } = new();
 		[Reactive] public DebugConfig Debug { get; set; } = new();
@@ -95,6 +96,7 @@ namespace Mesen.Config
 			Sms.ApplyConfig();
 			Cv.ApplyConfig();
 			Ws.ApplyConfig();
+			Genesis.ApplyConfig();
 			Preferences.ApplyConfig();
 			AudioPlayer.ApplyConfig();
 			Debug.ApplyConfig();
@@ -134,6 +136,10 @@ namespace Mesen.Config
 
 			if(ConfigUpgrade < (int)ConfigUpgradeHint.ThreeDsInput) {
 				ThreeDs.InitializeDefaults(DefaultKeyMappings);
+			}
+
+			if(ConfigUpgrade < (int)ConfigUpgradeHint.GenesisInput) {
+				Genesis.InitializeDefaults(DefaultKeyMappings);
 			}
 
 			ConfigUpgrade = (int)ConfigUpgradeHint.NextValue - 1;
@@ -179,6 +185,9 @@ namespace Mesen.Config
 			}
 			if(ThreeDs.Controller.Mapping1.A == 0) {
 				ThreeDs.InitializeDefaults(DefaultKeyMappings);
+			}
+			if(Genesis.Port1.Mapping1.A == 0) {
+				Genesis.InitializeDefaults(DefaultKeyMappings);
 			}
 
 			if(needInit) {
@@ -361,6 +370,7 @@ namespace Mesen.Config
 		CvInput,
 		WsInput,
 		ThreeDsInput,
+		GenesisInput,
 		NextValue,
 	}
 }

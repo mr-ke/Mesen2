@@ -154,6 +154,7 @@ int St018::GetArmRelativeAddress(AddressInfo& absoluteAddr)
 		case MemoryType::St018PrgRom: return absoluteAddr.Address;
 		case MemoryType::St018DataRom: return 0xA0000000 | absoluteAddr.Address;
 		case MemoryType::St018WorkRam: return 0xE0000000 | absoluteAddr.Address;
+		default: break;
 	}
 
 	return -1;

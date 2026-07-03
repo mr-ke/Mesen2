@@ -34,6 +34,7 @@ void EmuSettings::CopySettings(EmuSettings& src)
 	SetNesConfig(src._nes);
 	SetPcEngineConfig(src._pce);
 	SetSmsConfig(src._sms);
+	SetGenesisConfig(src._genesis);
 	SetGbaConfig(src._gba);
 	SetNdsConfig(src._nds);
 	SetThreeDsConfig(src._threeds);
@@ -117,6 +118,14 @@ void EmuSettings::Serialize(Serializer& s)
 			SV(_sms.Region);
 			SV(_sms.Revision);
 			SV(_sms.EnableFmAudio);
+			break;
+
+		case ConsoleType::Genesis:
+			SV(_genesis.RamPowerOnState);
+			SV(_genesis.Port1.Type);
+			SV(_genesis.Port2.Type);
+			SV(_genesis.Region);
+			SV(_genesis.Model);
 			break;
 
 		case ConsoleType::Gba:
@@ -287,6 +296,16 @@ void EmuSettings::SetSmsConfig(SmsConfig& config)
 SmsConfig& EmuSettings::GetSmsConfig()
 {
 	return _sms;
+}
+
+void EmuSettings::SetGenesisConfig(GenesisConfig& config)
+{
+	_genesis = config;
+}
+
+GenesisConfig& EmuSettings::GetGenesisConfig()
+{
+	return _genesis;
 }
 
 void EmuSettings::SetCvConfig(CvConfig& config)
@@ -460,6 +479,7 @@ OverscanDimensions EmuSettings::GetOverscan()
 		case ConsoleType::Snes: return _snes.Overscan;
 		case ConsoleType::Nes: return _emu->GetRegion() == ConsoleRegion::Ntsc ? _nes.NtscOverscan : _nes.PalOverscan;
 		case ConsoleType::PcEngine: return _pce.Overscan;
+		case ConsoleType::Genesis: return _emu->GetRegion() == ConsoleRegion::Ntsc ? _genesis.NtscOverscan : _genesis.PalOverscan;
 		case ConsoleType::Sms:
 			if(romFormat == RomFormat::ColecoVision) {
 				return { 0, 0, 24, 24 };
@@ -579,6 +599,7 @@ bool EmuSettings::HasRandomPowerOnState(ConsoleType consoleType)
 		case ConsoleType::Nes: return _nes.RamPowerOnState == RamState::Random || _nes.RandomizeCpuPpuAlignment || _nes.RandomizeMapperPowerOnState;
 		case ConsoleType::PcEngine: return _pce.RamPowerOnState == RamState::Random || _pce.EnableRandomPowerOnState;
 		case ConsoleType::Sms: return _sms.RamPowerOnState == RamState::Random;
+		case ConsoleType::Genesis: return _genesis.RamPowerOnState == RamState::Random;
 		case ConsoleType::Gba: return _gba.RamPowerOnState == RamState::Random;
 	}
 

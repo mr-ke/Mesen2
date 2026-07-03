@@ -28,6 +28,7 @@ private:
 	NesConfig _nes;
 	PcEngineConfig _pce;
 	SmsConfig _sms;
+	GenesisConfig _genesis;
 	CvConfig _cv;
 	GbaConfig _gba;
 	WsConfig _ws;
@@ -97,6 +98,9 @@ public:
 
 	void SetSmsConfig(SmsConfig& config);
 	SmsConfig& GetSmsConfig();
+
+	void SetGenesisConfig(GenesisConfig& config);
+	GenesisConfig& GetGenesisConfig();
 
 	void SetCvConfig(CvConfig& config);
 	CvConfig& GetCvConfig();

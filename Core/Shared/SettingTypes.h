@@ -226,7 +226,10 @@ enum class ControllerType
 	NdsController,
 
 	//3DS
-	ThreeDsController
+	ThreeDsController,
+
+	//Genesis / Mega Drive
+	GenesisController
 };
 
 struct KeyMapping
@@ -353,7 +356,8 @@ enum class ConsoleType
 	Gba = 5,
 	Ws = 6,
 	Nds = 7,
-	ThreeDs = 8
+	ThreeDs = 8,
+	Genesis = 9
 };
 
 enum class GameboyModel
@@ -723,6 +727,33 @@ struct SmsConfig
 	OverscanDimensions NtscOverscan = {};
 	OverscanDimensions PalOverscan = {};
 	OverscanDimensions GameGearOverscan = {};
+};
+
+enum class GenesisModel
+{
+	Model1,    //Genesis Model 1 / Mega Drive (TMSS, full I/O region decode)
+	Model2,    //Genesis Model 2 (no TMSS, simplified I/O decode)
+	MegaDrive, //PAL Mega Drive
+};
+
+struct GenesisConfig
+{
+	ControllerConfig Port1;
+	ControllerConfig Port2;
+
+	ConsoleRegion Region = ConsoleRegion::Auto;
+	GenesisModel Model = GenesisModel::Model1;
+	RamState RamPowerOnState = RamState::Random;
+
+	bool DisableSprites = false;
+	bool DisableBackground = false;
+	bool RemoveSpriteLimit = false;
+
+	uint32_t PsgVolume = 100;
+	uint32_t Ym2612Volume = 100;
+
+	OverscanDimensions NtscOverscan = {};
+	OverscanDimensions PalOverscan = {};
 };
 
 struct CvConfig

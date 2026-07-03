@@ -25,6 +25,8 @@ public:
 			case CpuType::Ws: return MemoryType::WsMemory;
 			case CpuType::Nds: return MemoryType::NdsMemory;
 			case CpuType::ThreeDs: return MemoryType::ThreeDsMemory;
+			case CpuType::GenesisM68K: return MemoryType::GenesisMemory;
+			case CpuType::GenesisZ80: return MemoryType::GenesisMemory;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -48,6 +50,8 @@ public:
 			case CpuType::Ws: return 5;
 			case CpuType::Nds: return 8;
 			case CpuType::ThreeDs: return 8;
+			case CpuType::GenesisM68K: return 6;  //24-bit address bus
+			case CpuType::GenesisZ80: return 4;   //16-bit address bus
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -178,6 +182,18 @@ public:
 			case MemoryType::ThreeDsMemory:
 				return CpuType::ThreeDs;
 
+			case MemoryType::GenesisMemory:
+			case MemoryType::GenesisM68KRam:
+			case MemoryType::GenesisZ80Ram:
+			case MemoryType::GenesisZ80Bus:
+			case MemoryType::GenesisVdpVram:
+			case MemoryType::GenesisVdpVsram:
+			case MemoryType::GenesisVdpCram:
+			case MemoryType::GenesisCartridgeRom:
+			case MemoryType::GenesisCartridgeRam:
+			case MemoryType::GenesisPort:
+				return CpuType::GenesisM68K;
+
 			default:
 				throw std::runtime_error("Invalid CPU type");
 		}
@@ -222,6 +238,11 @@ public:
 			case MemoryType::SmsPaletteRam:
 				return true;
 
+			case MemoryType::GenesisVdpVram:
+			case MemoryType::GenesisVdpVsram:
+			case MemoryType::GenesisVdpCram:
+				return true;
+
 			case MemoryType::GbaVideoRam:
 			case MemoryType::GbaSpriteRam:
 			case MemoryType::GbaPaletteRam:
@@ -253,6 +274,7 @@ public:
 			case MemoryType::GbaPrgRom:
 			case MemoryType::GbaBootRom:
 			case MemoryType::WsPrgRom:
+			case MemoryType::GenesisCartridgeRom:
 				return true;
 
 			default:
@@ -276,6 +298,7 @@ public:
 			case MemoryType::SmsCartRam:
 			case MemoryType::GbaSaveRam:
 			case MemoryType::WsCartRam:
+			case MemoryType::GenesisCartridgeRam:
 				return false;
 
 			default:
@@ -285,7 +308,7 @@ public:
 
 	static constexpr CpuType GetLastCpuType()
 	{
-		return CpuType::Nds;
+		return CpuType::GenesisZ80;
 	}
 
 	static string AddressToHex(CpuType cpuType, int32_t address)

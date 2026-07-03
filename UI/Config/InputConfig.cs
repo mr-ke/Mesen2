@@ -420,6 +420,9 @@ namespace Mesen.Config
 
 		//3DS
 		ThreeDsController,
+
+		//Genesis / Mega Drive
+		GenesisController,
 	}
 
 	public static class ControllerTypeExtensions
@@ -444,6 +447,7 @@ namespace Mesen.Config
 				case ControllerType.WsControllerVertical:
 				case ControllerType.NdsController:
 				case ControllerType.ThreeDsController:
+				case ControllerType.GenesisController:
 					return true;
 			}
 
@@ -468,6 +472,7 @@ namespace Mesen.Config
 				case ControllerType.SmsController:
 				case ControllerType.NdsController:
 				case ControllerType.ThreeDsController:
+				case ControllerType.GenesisController:
 					return true;
 			}
 
@@ -516,6 +521,7 @@ namespace Mesen.Config
 				case ControllerType.WsControllerVertical:
 				case ControllerType.NdsController:
 				case ControllerType.ThreeDsController:
+				case ControllerType.GenesisController:
 					return true;
 			}
 
@@ -533,6 +539,7 @@ namespace Mesen.Config
 				case ControllerType.HoriTrack:
 				case ControllerType.BandaiHyperShot:
 				case ControllerType.SmsController:
+				case ControllerType.GenesisController:
 				case ControllerType.WsController:
 					return true;
 			}

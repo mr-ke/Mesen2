@@ -17,7 +17,9 @@ enum class CpuType : uint8_t
 	Gba,
 	Ws,
 	Nds,
-	ThreeDs
+	ThreeDs,
+	GenesisM68K,
+	GenesisZ80
 };
 
 class CpuTypeUtilities
@@ -25,6 +27,6 @@ class CpuTypeUtilities
 public:
 	static constexpr int GetCpuTypeCount()
 	{
-		return (int)CpuType::ThreeDs + 1;
+		return (int)CpuType::GenesisZ80 + 1;
 	}
 };

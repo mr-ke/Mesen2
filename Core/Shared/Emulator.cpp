@@ -34,6 +34,7 @@
 #include "Gameboy/Gameboy.h"
 #include "PCE/PceConsole.h"
 #include "SMS/SmsConsole.h"
+#include "Genesis/GenesisConsole.h"
 #include "GBA/GbaConsole.h"
 #include "WS/WsConsole.h"
 #include "NDS/NdsConsole.h"
@@ -579,6 +580,7 @@ void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_pt
 	TryLoadRom<Gameboy>(romFile, result, console, useFileSignature);
 	TryLoadRom<PceConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<SmsConsole>(romFile, result, console, useFileSignature);
+	TryLoadRom<GenesisConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<GbaConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<WsConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<NdsConsole>(romFile, result, console, useFileSignature);
