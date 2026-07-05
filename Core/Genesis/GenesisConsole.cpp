@@ -237,6 +237,7 @@ void GenesisConsole::RunFrame()
 		uint32_t cyclesRun = 0;
 		uint32_t m68kMaxInstr = targetCycles * 4; //safety limit
 		while(cyclesRun < targetCycles && !_m68k->IsStopped() && m68kMaxInstr-- > 0) {
+			_vdp->SetM68kCyclePosition(cyclesRun, targetCycles);
 			cyclesRun += _m68k->ExecuteInstruction();
 			cyclesRun += _vdp->ConsumeBusPenalty();
 		}
@@ -272,6 +273,7 @@ void GenesisConsole::RunFrame()
 		ppuFrame.FrameCount,
 		_controlManager->GetPortStates()
 	);
+
 	bool rewinding = _emu->GetRewindManager()->IsRewinding();
 	_emu->GetVideoDecoder()->UpdateFrame(frame, rewinding, rewinding);
 	_emu->GetNotificationManager()->SendNotification(ConsoleNotificationType::PpuFrameDone);

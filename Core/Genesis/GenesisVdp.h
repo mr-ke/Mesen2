@@ -6,6 +6,33 @@
 class Emulator;
 class GenesisConsole;
 
+// Portable 128-bit unsigned integer for VDP pattern accumulation.
+// ares uses u128 (128-bit) for colors/extras; Mesen2 originally ported these
+// as uint64_t, which caused horizontal scroll artifacts ("shutters") because
+// the shift formula (index + hscroll_fine) * 4 can reach 120, exceeding 64 bits.
+#if defined(__SIZEOF_INT128__) || defined(__GNUC__) || defined(__clang__)
+using uint128_t = __uint128_t;
+#else
+struct uint128_t {
+	uint64_t lo = 0;
+	uint64_t hi = 0;
+	uint128_t() = default;
+	uint128_t(int v) : lo(static_cast<uint64_t>(v)), hi(0) {}
+	uint128_t operator<<(int n) const {
+		if(n == 0) return *this;
+		if(n >= 64) return {0, lo << (n - 64)};
+		return {lo << n, (hi << n) | (lo >> (64 - n))};
+	}
+	uint128_t operator|(uint32_t v) const { return {lo | v, hi}; }
+	uint64_t operator>>(int n) const {
+		if(n >= 128) return 0;
+		if(n >= 64) return hi >> (n - 64);
+		if(n == 0) return lo;
+		return (hi << (64 - n)) | (lo >> n);
+	}
+};
+#endif
+
 // Yamaha YM7101 VDP — native Mesen2 port.
 // Algorithm ported from ares/md/vdp with Mesen2 infrastructure (SV, uint32_t
 // framebuffer). Uses bus callbacks for M68K bus access (DMA load) instead of
@@ -38,7 +65,7 @@ public:
 	void WriteDataPort(uint16_t data);
 	uint16_t ReadControlPort();
 	void WriteControlPort(uint16_t data);
-	void DrainFifo();
+	void DrainFifo(bool forceCram = false);
 
 	//Interrupt outputs — polled by the M68K interrupt controller.
 	bool GetVblankIrq() const;
@@ -56,6 +83,18 @@ public:
 	//a penalty because the 68K must wait for an available external slot.
 	//The M68K cycle loop calls ConsumeBusPenalty() to account for this.
 	uint32_t ConsumeBusPenalty() { uint32_t p = _busPenalty; _busPenalty = 0; return p; }
+
+	//Track M68K cycle position within the current scanline so that
+	//ReadControlPort can compute a virtual hblank state. In Mesen2's
+	//sequential model, the VDP processes a full scanline before the M68K
+	//runs, so _state.hblank is frozen at its end-of-scanline value (1).
+	//This makes the M68K always see hblank=1, breaking polling loops that
+	//expect hblank to toggle. By mapping M68K cycles to hcounter position,
+	//we can compute what hblank SHOULD be at the M68K's current time.
+	void SetM68kCyclePosition(uint32_t cycle, uint32_t total) {
+		_m68kCycleInScanline = cycle;
+		_m68kCyclesPerScanline = total;
+	}
 
 	//Framebuffer access for GenesisConsole::GetPpuFrame.
 	uint32_t* GetFramebuffer() { return _framebuffer.data(); }
@@ -116,6 +155,17 @@ private:
 
 	//Bus throttling penalty accumulator
 	uint32_t _busPenalty = 0;
+
+	//M68K cycle position within the current scanline (set by console)
+	uint32_t _m68kCycleInScanline = 0;
+	uint32_t _m68kCyclesPerScanline = 0;
+
+	//FIFO drain cycle tracking — simulates VDP processing slots between
+	//M68K status register reads. The VDP drains ~18 bytes per scanline
+	//(one per slot). We accumulate M68K cycle credit and drain 1 byte
+	//per ~(_m68kCyclesPerScanline/18) cycles.
+	uint32_t _lastFifoDrainCycle = 0;
+	int32_t  _fifoDrainCredit = 0;
 
 	//--- Command/IO state ---
 	struct Command {
@@ -231,6 +281,14 @@ private:
 		uint8_t  read = 0;
 		uint8_t  enable = 0;
 		uint8_t  preload = 0;
+		//Saved at DMA start — in ares, M68K is blocked during DMA so
+		//command.target/address/increment can't change. In Mesen2's
+		//sequential model, M68K runs before VDP and can modify these
+		//values between DMA setup and VDP execution. We save our own
+		//copy to prevent corruption.
+		uint8_t  target = 0;
+		uint32_t address = 0;
+		uint16_t increment = 0;
 
 		void Synchronize(class GenesisVdp& vdp);
 		void Fetch(class GenesisVdp& vdp);
@@ -274,8 +332,8 @@ private:
 		uint16_t nametableAddress = 0;
 		Attributes attributes = {};
 		Pixel pixels[352] = {};
-		uint64_t colors = 0;
-		uint64_t extras = 0;
+		uint128_t colors = 0;
+		uint128_t extras = 0;
 		uint8_t  windowed[2] = {};
 		LayerMapping mappings[2] = {};
 
@@ -385,6 +443,7 @@ private:
 		template<bool H40> void Output(uint32_t color);
 		void FillLeftBorder(class GenesisVdp& vdp);
 		void FillRightBorder(class GenesisVdp& vdp);
+		void Dot(class GenesisVdp& vdp, uint16_t hpos, uint16_t cramColor);
 		void Power();
 	} _dac;
 
@@ -396,6 +455,16 @@ private:
 	inline bool H32() const { return _latch.displayWidth == 0; }
 	inline bool V28() const { return _io.overscan == 0; }
 	inline bool V30() const { return _io.overscan == 1; }
+
+	//Compute a virtual HV counter value from the M68K's cycle position
+	//within the current scanline. In Mesen2's sequential model, the VDP
+	//has already processed the full scanline, so _state.hcounter is frozen
+	//at its end-of-scanline value. This maps M68K cycles to an hcounter
+	//tick to derive the live HV counter the M68K would see if the VDP
+	//ran concurrently.
+	//H40: 210 ticks/scanline; ticks 0-0xB5 → hcounter=tick, ticks 0xB6-0xD1 → hcounter=tick+0x2E
+	//H32: 171 ticks/scanline; ticks 0-0x93 → hcounter=tick, ticks 0x94-0xAA → hcounter=tick+0x55
+	uint16_t ComputeVirtualHvCounter() const;
 
 	uint32_t FrameHeight() const { return (_region == ConsoleRegion::Pal) ? 313 : 262; }
 

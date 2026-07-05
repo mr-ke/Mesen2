@@ -30,7 +30,6 @@ static inline void m68k_swap(uint32_t& a, uint32_t& b) { uint32_t t = a; a = b; 
 // ============================================================================
 
 void GenesisM68K::Power() {
-	GENESIS_DBG("M68K::Power enter");
 	for(auto& dr : _r.d) dr = 0;
 	for(auto& ar : _r.a) ar = 0;
 	_r.sp = 0;
@@ -52,23 +51,13 @@ void GenesisM68K::Power() {
 	uint16_t v2 = BusRead(1, 1, 2);
 	uint16_t v4 = BusRead(1, 1, 4);
 	uint16_t v6 = BusRead(1, 1, 6);
-	GENESIS_DBG("M68K::Power vector read: [$0]=0x%04X [$2]=0x%04X [$4]=0x%04X [$6]=0x%04X", v0, v2, v4, v6);
 	_r.a[7] = (uint32_t)v0 << 16 | (uint32_t)v2;
 	_r.pc   = (uint32_t)v4 << 16 | (uint32_t)v6;
 	_r.sp   = _r.a[7];
 
-	GENESIS_DBG("M68K::Power before prefetch — SSP=0x%08X PC=0x%08X", _r.a[7], _r.pc);
-
 	//Fill the prefetch pipeline with two prefetches (matching ares)
 	Prefetch();
-	GENESIS_DBG("M68K::Power after prefetch 1 — PC=0x%08X IR=0x%04X IRC=0x%04X", _r.pc, _r.ir, _r.irc);
 	Prefetch();
-	GENESIS_DBG("M68K::Power after prefetch 2 — PC=0x%08X IR=0x%04X IRC=0x%04X", _r.pc, _r.ir, _r.irc);
-
-	//Also dump the first few words from the PC entry point for verification
-	GENESIS_DBG("M68K::Power ROM@PC: [0x%04X]=0x%04X [0x%04X]=0x%04X [0x%04X]=0x%04X [0x%04X]=0x%04X",
-		_r.pc, BusRead(1,1,_r.pc), _r.pc+2, BusRead(1,1,_r.pc+2),
-		_r.pc+4, BusRead(1,1,_r.pc+4), _r.pc+6, BusRead(1,1,_r.pc+6));
 }
 
 bool GenesisM68K::Supervisor() {
@@ -79,19 +68,6 @@ bool GenesisM68K::Supervisor() {
 
 void GenesisM68K::Exception(uint32_t exception, uint32_t vector, uint32_t priority) {
 	_r.stop = false;
-
-	//Log exceptions (limited)
-	static uint32_t dbgExcCount = 0;
-	if(dbgExcCount < 50 || (exception == ExInterrupt && dbgExcCount < 200)) {
-		const char* excName = exception == ExInterrupt ? "IRQ" :
-		                      exception == ExIllegal ? "ILLEGAL" :
-		                      exception == ExUnprivileged ? "UNPRIV" :
-		                      exception == ExDivisionByZero ? "DIV0" :
-		                      exception == ExTrap ? "TRAP" : "OTHER";
-		GENESIS_DBG("M68K::Exception #%u: %s vector=%u pri=%u oldPC=0x%08X oldSR=0x%04X",
-			dbgExcCount, excName, vector, priority, _r.pc - 4, ReadSR());
-		dbgExcCount++;
-	}
 
 	//register setup (+6 cyc)
 	BusIdle(6);
@@ -145,26 +121,6 @@ uint32_t GenesisM68K::ExecuteInstruction() {
 
 	if(!_r.stop) {
 		_r.ird = _r.ir;
-		//Debug: log first 500 instructions with full registers (A0-A7, D0-D1)
-		static uint32_t dbgInstrCount = 0;
-		if(dbgInstrCount < 500) {
-			GENESIS_DBG("M68K #%u: op=0x%04X PC=0x%08X SR=0x%04X D0=0x%08X D1=0x%08X A0=0x%08X A1=0x%08X A2=0x%08X A3=0x%08X A4=0x%08X A5=0x%08X A6=0x%08X A7=0x%08X",
-				dbgInstrCount, _r.ird, _r.pc, ReadSR(),
-				_r.d[0], _r.d[1], _r.a[0], _r.a[1], _r.a[2], _r.a[3], _r.a[4], _r.a[5], _r.a[6], _r.a[7]);
-		} else if(dbgInstrCount < 2000 || (dbgInstrCount < 100000 && (dbgInstrCount % 10000) == 0)) {
-			GENESIS_DBG("M68K #%u: op=0x%04X PC=0x%08X SR=0x%04X A0=0x%08X A2=0x%08X A3=0x%08X A4=0x%08X",
-				dbgInstrCount, _r.ird, _r.pc, ReadSR(),
-				_r.a[0], _r.a[2], _r.a[3], _r.a[4]);
-		}
-		//Log instructions in the game's main loop (0x1E7Cxx) — first 200 only
-		static uint32_t dbgMainLoopCount = 0;
-		if(dbgMainLoopCount < 200 && (_r.pc >= 0x1E7C00 && _r.pc < 0x1E8000)) {
-			GENESIS_DBG("M68K MAINLOOP #%u: opcode=0x%04X PC=0x%08X SR=0x%04X D0=0x%08X A0=0x%08X A1=0x%08X A6=0x%08X",
-				dbgMainLoopCount, _r.ird, _r.pc, ReadSR(),
-				_r.d[0], _r.a[0], _r.a[1], _r.a[6]);
-			dbgMainLoopCount++;
-		}
-		dbgInstrCount++;
 		_instructionTable[_r.ird]();
 	} else {
 		BusWait(1);
@@ -223,15 +179,11 @@ void GenesisM68K::WriteCCR(uint8_t ccr) {
 }
 
 void GenesisM68K::WriteSR(uint16_t sr) {
-	uint8_t oldI = _r.i;
 	WriteCCR(sr);
 	if(_r.s != bit(sr, 13)) m68k_swap(_r.a[7], _r.sp);
 	_r.i = bits(sr, 8, 10);
 	_r.s = bit(sr, 13);
 	_r.t = bit(sr, 15);
-	if(_r.i != oldI) {
-		GENESIS_DBG("M68K::WriteSR SR.i changed: %u->%u (full SR=0x%04X) PC=0x%08X", oldI, _r.i, sr, _r.pc);
-	}
 }
 
 // ============================================================================
@@ -898,8 +850,6 @@ void GenesisM68K::instructionANDI_TO_CCR() {
 void GenesisM68K::instructionANDI_TO_SR() {
 	if(Supervisor()) {
 		auto data = Extension<Word>();
-		GENESIS_DBG("M68K::ANDI_TO_SR: mask=0x%04X oldSR=0x%04X (i=%u) PC=0x%08X",
-			data, ReadSR(), _r.i, _r.pc);
 		WriteSR(ReadSR() & data);
 		BusIdle(8);
 		Read<Word>(_r.pc);
@@ -1235,8 +1185,6 @@ void GenesisM68K::instructionEORI_TO_CCR() {
 void GenesisM68K::instructionEORI_TO_SR() {
 	if(Supervisor()) {
 		auto data = Extension<Word>();
-		GENESIS_DBG("M68K::EORI_TO_SR: mask=0x%04X oldSR=0x%04X (i=%u) PC=0x%08X",
-			data, ReadSR(), _r.i, _r.pc);
 		WriteSR(ReadSR() ^ data);
 		BusIdle(8);
 		Read<Word>(_r.pc);
@@ -1470,8 +1418,6 @@ void GenesisM68K::instructionMOVE_TO_CCR(EffectiveAddress from) {
 void GenesisM68K::instructionMOVE_TO_SR(EffectiveAddress from) {
 	if(Supervisor()) {
 		auto data = Read<Word>(from);
-		GENESIS_DBG("M68K::MOVE_TO_SR: data=0x%04X (i=%u) oldSR=0x%04X (i=%u) PC=0x%08X",
-			data, (data >> 8) & 7, ReadSR(), _r.i, _r.pc);
 		BusIdle(4);
 		WriteSR(data);
 		BusIdle(4);
@@ -1607,8 +1553,6 @@ void GenesisM68K::instructionORI_TO_CCR() {
 void GenesisM68K::instructionORI_TO_SR() {
 	if(Supervisor()) {
 		auto data = Extension<Word>();
-		GENESIS_DBG("M68K::ORI_TO_SR: mask=0x%04X oldSR=0x%04X (i=%u) PC=0x%08X",
-			data, ReadSR(), _r.i, _r.pc);
 		WriteSR(ReadSR() | data);
 		BusIdle(8);
 		Read<Word>(_r.pc);
@@ -1777,8 +1721,6 @@ void GenesisM68K::instructionSCC(uint8_t test, EffectiveAddress to) {
 void GenesisM68K::instructionSTOP() {
 	if(Supervisor()) {
 		auto sr = Extension<Word>();
-		GENESIS_DBG("M68K::STOP: newSR=0x%04X (i=%u) oldSR=0x%04X (i=%u) PC=0x%08X",
-			sr, (sr >> 8) & 7, ReadSR(), _r.i, _r.pc);
 		WriteSR(sr);
 		_r.stop = true;
 		Prefetch();

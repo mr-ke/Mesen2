@@ -6,8 +6,6 @@
 #include "Shared/EmuSettings.h"
 #include "Utilities/Serializer.h"
 
-
-
 // Yamaha YM7101 VDP — native Mesen2 port.
 // Algorithm ported from ares/md/vdp/*.cpp, adapted to Mesen2's explicit
 // clock-advance model (no co-routine scheduler). Each RunScanline() call
@@ -104,7 +102,12 @@ void GenesisVdp::RunScanline()
 
 void GenesisVdp::Htick()
 {
-	_state.hcounter++;
+	//ares uses n8 hcounter (8-bit) which wraps 0xFF→0x00 naturally.
+	//Mesen2 uses uint32_t, so mask with 0xFF to mimic the n8 wrap behavior.
+	//Without this, hcounter goes 0xFF→0x100→0x101→...→0x1D2 and never returns
+	//to 0x00, breaking Vedge()/Hblank()/Vtick() timing and causing off-screen
+	//pixel positions in Direct Color DMA.
+	_state.hcounter = (_state.hcounter + 1) & 0xFF;
 	if(H40()) {
 		if(_state.hcounter == 0x00)  Vedge();
 		else if(_state.hcounter == 0x05) Hblank(0);
@@ -190,31 +193,60 @@ void GenesisVdp::Slot()
 template<bool H40>
 void GenesisVdp::TickAndSlot()
 {
+	//Match ares tick() order exactly (main.cpp lines 28-74):
+	//  dma.run → fullslotStep → htick → cram.bus dot → displayEnable latch
+	//       → fifo.tick → dma.fetch → vram.refreshing=0 → preload--
+	//       → rambusy=1
+	//Then Mesen2-specific Slot() (fifo.run / prefetch.run).
 	_dma.Run(*this);
-	Htick(); Htick();
+	Htick();
+	//Cram bus dot BEFORE _fifo.Tick — ares checks latency > 1 (pre-tick value).
+	if(_cramBusActive) {
+		_dac.Dot(*this, _state.hcounter * 2 + 1, _cramBusData);
+		if((_latch.displayEnable && !_state.vblank) || _fifo.slots[0].empty() || _fifo.slots[0].target != 3)
+			_cramBusActive = false;
+		else {
+			if(_fifo.slots[0].latency > 1 || _vramRefreshing)
+				_cramBusData = _cram[_io.backgroundColor];
+			_dac.Dot(*this, _state.hcounter * 2 + 2, _cramBusData);
+		}
+	}
+	if(_latch.displayEnable > _io.displayEnable || _fifo.empty())
+		_latch.displayEnable = _io.displayEnable;
 	_fifo.Tick();
 	if(_dma.active && !_vramRefreshing) _dma.Fetch(*this);
 	_vramRefreshing = false;
-	//Decrement DMA preload — ares main.cpp line 70:
-	//  if(dma.active && dma.preload > 0) dma.preload--;
-	//Without this, preload stays at 7 forever, FIFO::Run() always
-	//returns false, and DMA Load can never complete.
 	if(_dma.active && _dma.preload > 0) _dma.preload--;
-	if(_latch.displayEnable > _io.displayEnable || _fifo.empty())
-		_latch.displayEnable = _io.displayEnable;
 	_state.rambusy = 1;
-	Slot();
 }
 
 template<bool H40>
 void GenesisVdp::TickAndRefresh()
 {
+	//Match ares tick() refresh slot order (main.cpp lines 28-74 with _refresh=true):
+	//  dma.run → fullslotStep → htick → cram.bus dot → displayEnable latch
+	//       → vram.refreshing=1 → preload=h40?6:4 → rambusy=1
+	//NOTE: ares does NOT call fifo.tick() in refresh slots. Mesen2 previously
+	//called _fifo.Tick() here, which is a bug — FIFO advances during refresh
+	//when it shouldn't, breaking DMA timing.
 	_dma.Run(*this);
-	Htick(); Htick();
+	Htick();
+	if(_cramBusActive) {
+		_dac.Dot(*this, _state.hcounter * 2 + 1, _cramBusData);
+		if((_latch.displayEnable && !_state.vblank) || _fifo.slots[0].empty() || _fifo.slots[0].target != 3)
+			_cramBusActive = false;
+		else {
+			if(_fifo.slots[0].latency > 1 || _vramRefreshing)
+				_cramBusData = _cram[_io.backgroundColor];
+			_dac.Dot(*this, _state.hcounter * 2 + 2, _cramBusData);
+		}
+	}
+	if(_latch.displayEnable > _io.displayEnable || _fifo.empty())
+		_latch.displayEnable = _io.displayEnable;
 	_vramRefreshing = true;
 	if(_dma.active && _dma.preload > 0) _dma.preload = H40 ? 6 : 4;
-	_fifo.Tick();
-	_vramRefreshing = false;
+	//Don't clear _vramRefreshing here — ares leaves vram.refreshing=1 until
+	//the next non-refresh slot checks and clears it (in TickAndSlot).
 	_state.rambusy = 1;
 }
 
@@ -410,6 +442,33 @@ template<bool H40, bool DrawPixels>
 
 //--- Bus interface ---
 
+uint16_t GenesisVdp::ComputeVirtualHvCounter() const
+{
+	uint16_t vc = _state.vcounter;
+	if(_io.interlaceMode & 1) {
+		if(_io.interlaceMode & 2) vc <<= 1;
+		vc = (vc & ~1) | ((_state.vcounter >> 8) & 1);
+	}
+
+	//If no M68K cycle position info, fall back to frozen hcounter.
+	if(_m68kCyclesPerScanline == 0)
+		return (vc << 8) | (_state.hcounter & 0xFF);
+
+	uint32_t totalTicks = H40() ? 210 : 171;
+	uint32_t virtualTick = (uint64_t)_m68kCycleInScanline * totalTicks / _m68kCyclesPerScanline;
+
+	uint8_t hc;
+	if(H40()) {
+		if(virtualTick <= 0xB5) hc = virtualTick & 0xFF;
+		else                    hc = (virtualTick + 0x2E) & 0xFF;
+	} else {
+		if(virtualTick <= 0x93) hc = virtualTick & 0xFF;
+		else                    hc = (virtualTick + 0x55) & 0xFF;
+	}
+
+	return (vc << 8) | hc;
+}
+
 uint16_t GenesisVdp::Read(uint32_t address)
 {
 	uint32_t decode = address & 0x1E;  //bits 1-4
@@ -420,17 +479,19 @@ uint16_t GenesisVdp::Read(uint32_t address)
 		_busPenalty += 16;
 	}
 
+	//Update FIFO drain cycle tracking for non-control-port reads so that
+	//cycles spent on data port / HV counter reads don't accumulate as
+	//FIFO drain credit. ReadControlPort handles its own cycle tracking.
+	if(decode != 0x04 && decode != 0x06) {
+		_lastFifoDrainCycle = _m68kCycleInScanline;
+	}
+
 	switch(decode) {
 	case 0x00: case 0x02: return ReadDataPort();      //0xC00000-0xC00003
 	case 0x04: case 0x06: return ReadControlPort();    //0xC00004-0xC00007
 	case 0x08: case 0x0A: case 0x0C: case 0x0E: {     //0xC00008-0xC0000F
 		if(_io.counterLatch) return _state.counterLatchValue;
-		uint16_t vc = _state.vcounter;
-		if(_io.interlaceMode & 1) {
-			if(_io.interlaceMode & 2) vc <<= 1;
-			vc = (vc & ~1) | ((_state.vcounter >> 8) & 1);
-		}
-		return (vc << 8) | (_state.hcounter & 0xFF);
+		return ComputeVirtualHvCounter();
 	}
 	default: break;
 	}
@@ -454,6 +515,10 @@ void GenesisVdp::Write(uint32_t address, uint16_t data)
 		_busPenalty += 16;
 	}
 
+	//Update FIFO drain cycle tracking — cycles spent on VDP writes don't
+	//accumulate as FIFO drain credit (VRAM bus is busy during writes).
+	_lastFifoDrainCycle = _m68kCycleInScanline;
+
 	switch(decode) {
 	case 0x00: case 0x02: WriteDataPort(data); break;       //0xC00000-0xC00003
 	case 0x04: case 0x06: WriteControlPort(data); break;    //0xC00004-0xC00007
@@ -476,6 +541,25 @@ uint16_t GenesisVdp::ReadDataPort()
 {
 	_command.latch = 0;
 	_command.ready = 0;
+	//When reading CRAM/VSRAM, force-complete any pending CRAM/VSRAM DMA.
+	//DrainFifo normally skips CRAM DMA to preserve Direct Color DMA entries
+	//for scanline processing. But when the M68K reads CRAM/VSRAM, the DMA
+	//must complete first so the read returns the DMA-written data.
+	//Note: read targets are 8 (CRAM) and 4 (VSRAM), but DMA write targets
+	//are 3 (CRAM) and 5 (VSRAM). Check _dma.target for the DMA write target.
+	if(_command.pending && (_dma.target == 3 || _dma.target == 5)) {
+		DrainFifo(true);
+	}
+	//Clear latency on all FIFO entries to allow processing during the prefetch
+	//loop below. In ares's co-routine model, the M68K's readDataPort() yields
+	//via cpu.wait(1), letting the VDP tick latency down and process entries
+	//before the prefetch reads. In Mesen2's sequential model, latency is only
+	//decremented during RunScanline, so without this, FIFO entries would block
+	//in FIFO::Run() with latency>0, leaving VSRAM/CRAM/VRAM reads stale and
+	//fifo.slots[0].data holding unprocessed entry data instead of the correct
+	//stale value from previously-processed entries.
+	for(auto& s : _fifo.slots)
+		if(!s.empty()) s.latency = 0;
 	while(!_prefetch.full()) Slot();
 	_command.address = (_command.address + _command.increment) & 0x1FFFF;
 	_command.ready = 0;
@@ -487,9 +571,90 @@ void GenesisVdp::WriteDataPort(uint16_t data)
 {
 	_command.latch = 0;
 	_command.ready = 1;
-	//Save command address/target before any DrainFifo, because DMA
-	//execution inside DrainFifo modifies _command.address and potentially
-	//_command.target, which would corrupt this write.
+
+	//Simulate VDP progress when DMA Fill is active.
+	//In ares's co-routine model, the M68K and VDP run concurrently: while
+	//the M68K executes a delay loop between the seed write and the update
+	//write, the VDP processes slots — draining the seed FIFO entry and
+	//running several DMA Fill iterations. When the M68K finally writes the
+	//data port, the FIFO seed entry has already been processed (updating
+	//_dma.data via FIFO::Advance) and the DMA Fill has progressed.
+	//In Mesen2's sequential model, the VDP runs a full scanline BEFORE the
+	//M68K, so DMA Fill doesn't progress between M68K writes. Both FIFO
+	//entries (seed + update) are processed at once during status register
+	//polling, causing the DMA Fill to use only the last data value.
+	//Fix: simulate VDP slot progress proportional to M68K cycles elapsed
+	//since the last VDP access. This drains the seed FIFO entry (updating
+	//_dma.data) and runs several DMA Fill iterations before the new write.
+	//Must happen BEFORE saving target/address, so the new FIFO entry is
+	//created at the current DMA Fill position (synced from _dma.address).
+	if(_command.pending && _dma.mode == 2 && _m68kCyclesPerScanline > 0) {
+		//Clear latency and preload so FIFO entries can be processed
+		for(auto& s : _fifo.slots)
+			if(!s.empty()) s.latency = 0;
+		if(_dma.active && _dma.preload > 0) _dma.preload = 0;
+
+		//Accumulate cycle credit for elapsed M68K cycles
+		int32_t cycleDiff = (int32_t)_m68kCycleInScanline - (int32_t)_lastFifoDrainCycle;
+		if(cycleDiff < 0) {
+			_fifoDrainCredit = 0;
+		} else {
+			_fifoDrainCredit += cycleDiff;
+		}
+		_lastFifoDrainCycle = _m68kCycleInScanline;
+
+		//Process slots: each slot is ~(_m68kCyclesPerScanline/18) cycles.
+		//Slot order matches ares: if rambusy, clear it (slot consumed);
+		//else if FIFO has data, run 1 byte (sets rambusy); else if DMA Fill
+		//can run, call Fill (sets rambusy). This rambusy alternation makes
+		//DMA Fill run every OTHER slot (1 fill per ~54 M68K cycles).
+		uint32_t cyclesPerSlot = _m68kCyclesPerScanline / 18;
+		if(cyclesPerSlot == 0) cyclesPerSlot = 1;
+		int safety = 0;
+		while(_fifoDrainCredit >= (int32_t)cyclesPerSlot && safety < 0x40000) {
+			if(_state.rambusy) {
+				_state.rambusy = 0;
+				_fifoDrainCredit -= cyclesPerSlot;
+				safety++;
+				continue;
+			}
+			if(!_fifo.empty()) {
+				if(_fifo.Run(*this)) {
+					_state.rambusy = 1;
+					_fifoDrainCredit -= cyclesPerSlot;
+					safety++;
+					continue;
+				}
+				break;
+			}
+			if(_command.pending && !_dma.wait) {
+				_dma.Fill(*this);
+				_fifoDrainCredit -= cyclesPerSlot;
+				safety++;
+				continue;
+			}
+			break;
+		}
+		_state.rambusy = 0;
+
+		//Sync command.address with DMA address so the new FIFO entry is
+		//created at the current DMA Fill position. In ares, DMA Fill uses
+		//vdp.command.address directly, so this sync is implicit. In Mesen2,
+		//_dma.address is saved at DMA trigger time and incremented by Fill,
+		//while _command.address was only incremented by the seed write.
+		//Only sync when _dma.wait == 0 (DMA Fill has started). When wait == 1
+		//(seed not yet processed), the M68K may have modified _command.address
+		//via partial CP writes between DMA trigger and seed write — syncing
+		//would overwrite those modifications with the stale trigger address.
+		//(TestDMAFillControlPortWrites sub-test 6: partial CP write changes
+		//address from 0x8002 to 0x8008, but sync would revert it to 0x8002.)
+		if(_command.pending && !_dma.wait) {
+			_command.address = _dma.address;
+		}
+	}
+
+	//Save command address/target before any FIFO operation, because DMA
+	//execution modifies _command.address and potentially _command.target.
 	uint8_t  target = _command.target;
 	uint32_t address = _command.address;
 	//On real hardware (ares fifo.cpp write()), when the FIFO is full and
@@ -525,27 +690,65 @@ uint16_t GenesisVdp::ReadControlPort()
 	_command.latch = 0;
 	//In ares, the VDP runs concurrently with the M68K, processing slots
 	//that drain FIFO entries. In our sequential model, the FIFO is frozen
-	//during M68K execution. We must process 1 FIFO byte per ReadControlPort
-	//call to simulate VDP progress. Calling Run() once processes 1 byte:
-	//for VRAM mode 0, this is half a word (lower byte), so 2 reads drain
-	//1 entry — the first read after a wait-write still sees FIFO full=1.
-	//For CRAM/VSRAM, 1 read drains 1 entry.
+	//during M68K execution. We simulate VDP progress by draining FIFO
+	//bytes proportional to M68K cycles elapsed since the last VDP access.
+	//The VDP processes ~18 slots per scanline (one byte per slot), so
+	//1 byte drains per ~(_m68kCyclesPerScanline/18) M68K cycles.
 	for(auto& s : _fifo.slots)
 		if(!s.empty()) s.latency = 0;
 	//Decrement DMA preload to simulate time passing (ares main.cpp line 70)
 	if(_dma.active && _dma.preload > 0) _dma.preload--;
-	if(_fifo.Run(*this)) {
-		_state.rambusy = 0;
-		//If DMA Fill was triggered by Advance() and FIFO is now empty, execute
-		if(_command.pending && !_dma.wait && _dma.mode == 2 && _fifo.empty()) {
-			_dma.Fill(*this);
-			_state.rambusy = 0;
+	//Update display enable latch before building status register.
+	if(_latch.displayEnable > _io.displayEnable || _fifo.empty())
+		_latch.displayEnable = _io.displayEnable;
+	//Cycle-based FIFO drain: accumulate M68K cycle credit and drain bytes
+	//proportional to elapsed time. This prevents the FIFO from draining
+	//too fast (1 byte per status read) which breaks FIFO wait state tests.
+	if(_m68kCyclesPerScanline > 0) {
+		int32_t cycleDiff = (int32_t)_m68kCycleInScanline - (int32_t)_lastFifoDrainCycle;
+		if(cycleDiff < 0) {
+			//New scanline — reset credit (VDP already processed this scanline's slots)
+			_fifoDrainCredit = 0;
+		} else {
+			_fifoDrainCredit += cycleDiff;
 		}
+		_lastFifoDrainCycle = _m68kCycleInScanline;
+		uint32_t cyclesPerByte = _m68kCyclesPerScanline / 18;
+		if(cyclesPerByte > 0) {
+			while(_fifoDrainCredit >= (int32_t)cyclesPerByte && !_fifo.empty()) {
+				if(!_fifo.Run(*this)) { _fifoDrainCredit = 0; break; }
+				_fifoDrainCredit -= cyclesPerByte;
+				_state.rambusy = 0;
+			}
+		}
+	} else {
+		if(_fifo.Run(*this)) _state.rambusy = 0;
+	}
+	//Advance DMA Fill even when FIFO is empty (ongoing Fill iterations).
+	//After Advance() sets _dma.wait=0, subsequent Fill calls must proceed
+	//on each status register read until DMA length reaches 0.
+	if(_command.pending && !_dma.wait && _dma.mode == 2 && _fifo.empty() && !_state.rambusy) {
+		_dma.Fill(*this);
+		_state.rambusy = 0;
 	}
 	uint16_t result = 0;
 	result |= (_region == ConsoleRegion::Pal) ? 1 : 0;
 	result |= (_command.pending & 1) << 1;
-	result |= (_state.hblank & 1) << 2;
+	//Compute virtual hblank from M68K cycle position within the scanline.
+	//In Mesen2's sequential model, the VDP has already processed the full
+	//scanline, so _state.hblank is frozen at its end-of-scanline value (1).
+	//We map the M68K cycle position to an hcounter tick to derive the
+	//correct hblank state the M68K would see if VDP ran concurrently.
+	//H40: 210 ticks/scanline; hblank clears at tick 5, sets at tick 179.
+	//H32: 171 ticks/scanline; hblank clears at tick 5, sets at tick 147.
+	uint8_t virtualHblank = _state.hblank;
+	if(_m68kCyclesPerScanline > 0) {
+		uint32_t totalTicks = H40() ? 210 : 171;
+		uint32_t hblankSetTick = H40() ? 179 : 147;
+		uint32_t virtualTick = (uint64_t)_m68kCycleInScanline * totalTicks / _m68kCyclesPerScanline;
+		virtualHblank = (virtualTick < 5 || virtualTick >= hblankSetTick) ? 1 : 0;
+	}
+	result |= (virtualHblank & 1) << 2;
 	result |= ((_state.vblank || !IsDisplayEnable()) ? 1 : 0) << 3;
 	result |= ((_io.interlaceMode & 1) && _state.field) ? (1 << 4) : 0;
 	result |= (_sprite.collision & 1) << 5;
@@ -566,12 +769,32 @@ void GenesisVdp::WriteControlPort(uint16_t data)
 			//drained by the post-LATCH2 DrainFifo (for DMA trigger) or by
 			//RunScanline (for normal rendering).
 
+		//If a DMA is still pending (e.g., CRAM DMA was skipped by DrainFifo
+		//to preserve Direct Color DMA entries), complete it now before the
+		//new command modifies _command state. In ares, the DMA runs
+		//concurrently and completes before the M68K writes a new command.
+		//Use forceCram=true to ensure CRAM DMA completes.
+		if(_command.pending) {
+			DrainFifo(true);
+		}
+
 		if(_command.latch) {
 		_command.latch = 0;
 		_command.address = (_command.address & 0x3FFF) | ((data & 7) << 14);
 		_command.target = (_command.target & 0x03) | (((data >> 4) & 3) << 2);
 		_command.ready = ((data >> 6) & 1) | (_command.target & 1);
+		uint8_t prevPending = _command.pending;
 		_command.pending |= ((data >> 7) & 1) & _dma.enable;
+		//When DMA is newly triggered, save target/address/increment.
+		//In ares, M68K is blocked during DMA so command.target/address
+		//can't change. In Mesen2's sequential model, M68K runs before
+		//VDP and can modify these values between DMA setup and VDP
+		//execution, corrupting the DMA destination.
+		if(_command.pending && !prevPending) {
+			_dma.target = _command.target;
+			_dma.address = _command.address;
+			_dma.increment = _command.increment;
+		}
 		_prefetch.Read(_command.target, _command.address);
 		if(_command.pending && _dma.mode != 2) {
 			if(_dma.mode < 2) _dma.preload = 7;
@@ -603,7 +826,7 @@ void GenesisVdp::WriteControlPort(uint16_t data)
 	switch(reg) {
 	case 0x00:
 		_io.displayOverlayEnable = data & 1;
-		if(!_io.counterLatch && (data & 2)) _state.counterLatchValue = (_state.vcounter << 8) | (_state.hcounter & 0xFF);
+		if(!_io.counterLatch && (data & 2)) _state.counterLatchValue = ComputeVirtualHvCounter();
 		_io.counterLatch = (data >> 1) & 1;
 		_io.videoMode4 = (data >> 2) & 1;
 		_irq.hblank.enable = (data >> 4) & 1;
@@ -736,8 +959,12 @@ void GenesisVdp::VramWriteByte(uint16_t* vram, uint8_t mode, uint32_t address, u
 //In ares, M68K and VDP run as co-routines: when M68K yields, VDP runs
 //slots that drain FIFO and advance DMA. In our sequential model, we must
 //do this eagerly before each VDP access.
-void GenesisVdp::DrainFifo()
+void GenesisVdp::DrainFifo(bool forceCram)
 {
+	//Track whether DMA was pending at entry — used to sync command
+	//address after DMA completion.
+	bool dmaWasPending = _command.pending;
+
 	//Clear latency on all FIFO entries (they've had time to expire)
 	for(auto& s : _fifo.slots)
 		if(!s.empty()) s.latency = 0;
@@ -750,11 +977,27 @@ void GenesisVdp::DrainFifo()
 	//Run FIFO drain + DMA in a loop until both are idle.
 	//This simulates multiple VDP slots running between M68K accesses.
 	int safety = 0;
-	while(safety < 65536) {
+	while(safety < 0x40000) {
 		bool progress = false;
 
-		//Drain one FIFO entry
-		if(_fifo.Run(*this)) {
+		//Clear latency on all FIFO entries before each Run call.
+		//DMA::Load adds entries with latency=2 (from FIFO::Write),
+		//which blocks FIFO::Run. Since DrainFifo simulates enough
+		//time for all operations to complete, latency is irrelevant.
+		for(auto& s : _fifo.slots)
+			if(!s.empty()) s.latency = 0;
+
+		//Drain one FIFO entry.
+		//Skip CRAM-targeted entries (target==3) unless forceCram is set.
+		//CRAM entries need scanline processing for Direct Color DMA —
+		//each CRAM[0] write must be processed one-at-a-time during
+		//TickAndSlot's dac.dot() calls. DrainFifo processing them all
+		//at once would leave only the last value in _cramBusData.
+		bool skipFifo = false;
+		if(!_fifo.slots[0].empty() && _fifo.slots[0].target == 3 && !forceCram) {
+			skipFifo = true;
+		}
+		if(!skipFifo && _fifo.Run(*this)) {
 			progress = true;
 			_state.rambusy = 0;  //Simulate slot completing
 			continue;  //FIFO had data, drain more first
@@ -766,18 +1009,30 @@ void GenesisVdp::DrainFifo()
 			if(_dma.mode <= 1) {
 				_dma.Synchronize(*this);
 				if(_dma.active) {
-					//Fetch DMA source data if needed
-					if(!_dma.read) {
-						auto address = ((_dma.mode & 1) << 23) | (_dma.source << 1);
-						_dma.data = DmaRead(address);
-						_dma.read = 1;
-					}
-					//Run DMA Load (writes to FIFO)
-					if(!_fifo.full() && _dma.read) {
-						_dma.Load(*this);
-						progress = true;
-						_state.rambusy = 0;
-						continue;
+					//Skip DMA Load for CRAM target (target==3) unless forceCram.
+					//CRAM DMA Load entries must remain in FIFO for scanline
+					//processing — Direct Color DMA mechanism relies on each
+					//CRAM[0] write being processed one-at-a-time during
+					//TickAndSlot's dac.dot() calls. If DrainFifo processes
+					//them all upfront, only the last value survives in
+					//_cramBusData and the bitmap is not displayed.
+					//CRAM/VSRAM reads via ReadDataPort use forceCram=true.
+					if(_dma.target == 3 && !forceCram) {
+						//Don't advance CRAM DMA here — let it flow through FIFO
+					} else {
+						//Fetch DMA source data if needed
+						if(!_dma.read) {
+							auto address = ((_dma.mode & 1) << 23) | (_dma.source << 1);
+							_dma.data = DmaRead(address);
+							_dma.read = 1;
+						}
+						//Run DMA Load (writes to FIFO)
+						if(!_fifo.full() && _dma.read) {
+							_dma.Load(*this);
+							progress = true;
+							_state.rambusy = 0;
+							continue;
+						}
 					}
 				}
 			}
@@ -805,6 +1060,19 @@ void GenesisVdp::DrainFifo()
 		safety++;
 	}
 
+	//If DMA completed during this drain, sync command address with DMA address.
+	//In ares, DMA uses vdp.command.address directly, so after DMA completes,
+	//command.address reflects the final DMA address. In Mesen2, DMA uses a
+	//separate _dma.address (saved at DMA trigger time to prevent M68K from
+	//corrupting it during sequential execution), so we must sync back to
+	//_command.address for subsequent data port writes to go to the correct
+	//address. This is required for TestDMATransferBusLock where M68K issues
+	//interleaved long-word writes (low word to control port triggers DMA,
+	//high word to data port must go to the post-DMA address).
+	if(dmaWasPending && !_command.pending) {
+		_command.address = _dma.address;
+	}
+
 	//Clear rambusy since all pending operations are done
 	_state.rambusy = 0;
 }
@@ -822,6 +1090,26 @@ void GenesisVdp::FIFO::Advance(GenesisVdp& vdp)
 			vdp._dma.data = slots[0].data;
 		else
 			vdp._dma.data = slots[1].data;
+		//Sync DMA state from command state.
+		//In ares, DMA::Fill uses vdp.command.target/address/increment
+		//directly (no saved copies). In Mesen2, we save copies at DMA
+		//trigger time to prevent M68K corruption in the sequential model,
+		//but this breaks cases where the M68K intentionally modifies
+		//registers between DMA trigger and seed write.
+		//
+		//TestDMAFillControlPortWrites sub-tests 3-6 exploit this:
+		//- Sub-test 3: register write $8F02 sets target=2 (invalid, because
+		//  writeControlPort modifies target before the register write path).
+		//  The fill runs without writing (switch falls through), but length
+		//  still decrements. This matches hardware behavior.
+		//- Sub-tests 4/5/6: register write $8F02 sets increment=2. The fill
+		//  must use the new increment value.
+		//
+		//Syncing here (when the seed FIFO entry is processed by Advance)
+		//ensures the DMA fill sees the current command state, matching ares.
+		vdp._dma.address = vdp._command.address;
+		vdp._dma.target = vdp._command.target;
+		vdp._dma.increment = vdp._command.increment;
 		vdp._dma.read = 1;
 		vdp._dma.wait = 0;
 	}
@@ -840,27 +1128,37 @@ bool GenesisVdp::FIFO::Run(GenesisVdp& vdp)
 		if(slots[0].lower) {
 			slots[0].lower = 0;
 			VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address ^ 1, slots[0].data & 0xFF);
+			//ares VRAM::writeByte → VRAM::write → sprite.write — update sprite cache
+			vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 			return true;
 		}
 		if(slots[0].upper) {
 			slots[0].upper = 0;
 			VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address, slots[0].data >> 8);
+			vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 			Advance(vdp);
 			return true;
 		}
 	}
 
 	if(slots[0].target == 3) {
-		uint16_t addr = slots[0].address >> 1;
+		//ares CRAM::write(n6 address, ...) — address is 6-bit, wraps naturally.
+		//Mesen2 must explicitly mask with 0x3F to mimic n6 behavior.
+		//Without this, DMA writes to CRAM addr >= 64 are skipped, so only
+		//the first 128 words (64 pairs) of a 44352-word DMA land in CRAM.
+		uint16_t addr = (slots[0].address >> 1) & 0x3F;
 		uint16_t cramVal = ((slots[0].data >> 1) & 7) | (((slots[0].data >> 5) & 7) << 3) | (((slots[0].data >> 9) & 7) << 6);
-		if(addr < CRAMSize) vdp._cram[addr] = cramVal;
+		vdp._cram[addr] = cramVal;
 		vdp._cramBusData = cramVal;
 		vdp._cramBusActive = true;
 	} else if(slots[0].target == 5) {
-		uint16_t addr = slots[0].address >> 1;
+		//ares VSRAM::write(n6 address, ...) — address is 6-bit, wraps naturally.
+		//Addresses >= 40 are ignored (VSRAM only has 40 entries).
+		uint16_t addr = (slots[0].address >> 1) & 0x3F;
 		if(addr < VSRAMSize) vdp._vsram[addr] = slots[0].data & 0x7FF;
 	} else if(slots[0].target == 1 && vdp._vramMode == 1) {
 		VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address | 1, slots[0].data & 0xFF);
+		vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 	}
 
 	slots[0].lower = 0;
@@ -919,8 +1217,12 @@ bool GenesisVdp::Prefetch::Run(GenesisVdp& vdp)
 
 	if(vdp._command.target == 4) {
 		slot.lower = 1; slot.upper = 1;
-		uint16_t addr = vdp._command.address >> 1;
-		slot.data = (addr < VSRAMSize) ? (vdp._vsram[addr] & 0x7FF) : 0;
+		//ares VSRAM::read(n6 address) — n6 masks to 6 bits (0-63),
+		//then wraps addresses >= 40 to 0. Without this mask, reads at
+		//command addresses >= 0x80 go out of bounds and return 0.
+		uint16_t addr = (vdp._command.address >> 1) & 0x3F;
+		if(addr >= VSRAMSize) addr = 0;
+		slot.data = vdp._vsram[addr] & 0x7FF;
 		slot.data |= vdp._fifo.slots[0].data & 0xF800;
 		vdp._command.ready = 1;
 		return true;
@@ -928,8 +1230,11 @@ bool GenesisVdp::Prefetch::Run(GenesisVdp& vdp)
 
 	if(vdp._command.target == 8) {
 		slot.lower = 1; slot.upper = 1;
-		uint16_t addr = vdp._command.address >> 1;
-		uint16_t cramR = (addr < CRAMSize) ? vdp._cram[addr] : 0;
+		//ares CRAM::read(n6 address) — n6 masks to 6 bits (0-63).
+		//Without this mask, reads at command addresses >= 0x80 go out
+		//of bounds and return 0, mismatching the write path which masks.
+		uint16_t addr = (vdp._command.address >> 1) & 0x3F;
+		uint16_t cramR = vdp._cram[addr];
 		slot.data = ((cramR & 7) << 1) | (((cramR >> 3) & 7) << 5) | (((cramR >> 6) & 7) << 9);
 		slot.data = slot.data & 0x0EEE | vdp._fifo.slots[0].data & ~0x0EEE;
 		vdp._command.ready = 1;
@@ -1002,9 +1307,9 @@ bool GenesisVdp::DMA::Run(GenesisVdp& vdp)
 void GenesisVdp::DMA::Load(GenesisVdp& vdp)
 	{
 		read = 0;
-		vdp._fifo.Write(vdp._command.target, vdp._command.address, data);
+		vdp._fifo.Write(target, address, data);
 		source = (source & 0x3F0000) | ((source + 1) & 0xFFFF);
-		vdp._command.address = (vdp._command.address + vdp._command.increment) & 0x1FFFF;
+		address = (address + increment) & 0x1FFFF;
 		if(--length == 0) {
 			vdp._command.pending = 0; wait = 1; preload = 0;
 			Synchronize(vdp);
@@ -1013,23 +1318,25 @@ void GenesisVdp::DMA::Load(GenesisVdp& vdp)
 
 void GenesisVdp::DMA::Fill(GenesisVdp& vdp)
 	{
-		switch(vdp._command.target) {
-		case 1: VramWriteByte(vdp._vram, vdp._vramMode, vdp._command.address ^ 1, data >> 8); break;
+		switch(target) {
+		case 1: VramWriteByte(vdp._vram, vdp._vramMode, address ^ 1, data >> 8);
+		        vdp._sprite.VramWrite(vdp, address >> 1, VramReadWord(vdp._vram, vdp._vramMode, address >> 1));
+		        break;
 		case 3: {
-			uint16_t addr = vdp._command.address >> 1;
+			uint16_t addr = (address >> 1) & 0x3F;
 			uint16_t cramVal = ((data >> 1) & 7) | (((data >> 5) & 7) << 3) | (((data >> 9) & 7) << 6);
-			if(addr < CRAMSize) vdp._cram[addr] = cramVal;
+			vdp._cram[addr] = cramVal;
 			break;
 		}
 		case 5: {
-			uint16_t addr = vdp._command.address >> 1;
+			uint16_t addr = (address >> 1) & 0x3F;
 			if(addr < VSRAMSize) vdp._vsram[addr] = data & 0x7FF;
 			break;
 		}
 		}
 		vdp._state.rambusy = 1;
 		source = (source & 0x3F0000) | ((source + 1) & 0xFFFF);
-		vdp._command.address = (vdp._command.address + vdp._command.increment) & 0x1FFFF;
+		address = (address + increment) & 0x1FFFF;
 		if(--length == 0) {
 			vdp._command.pending = 0; wait = 1;
 			Synchronize(vdp);
@@ -1045,10 +1352,11 @@ void GenesisVdp::DMA::Copy(GenesisVdp& vdp)
 		return;
 	}
 	read = 0;
-	VramWriteByte(vdp._vram, vdp._vramMode, vdp._command.address ^ 1, data & 0xFF);
+	VramWriteByte(vdp._vram, vdp._vramMode, address ^ 1, data & 0xFF);
+	vdp._sprite.VramWrite(vdp, address >> 1, VramReadWord(vdp._vram, vdp._vramMode, address >> 1));
 	vdp._state.rambusy = 1;
 	source = (source & 0x3F0000) | ((source + 1) & 0xFFFF);
-	vdp._command.address = (vdp._command.address + vdp._command.increment) & 0x1FFFF;
+	address = (address + increment) & 0x1FFFF;
 	if(--length == 0) {
 		vdp._command.pending = 0; wait = 1;
 		Synchronize(vdp);
@@ -1059,6 +1367,7 @@ void GenesisVdp::DMA::Power()
 {
 	active = 0; mode = 0; source = 0; length = 0;
 	data = 0; wait = 1; read = 0; enable = 0; preload = 0;
+	target = 0; address = 0; increment = 0;
 }
 
 //--- Layers ---
@@ -1266,8 +1575,10 @@ void GenesisVdp::Sprite::MappingFetch(GenesisVdp& vdp, uint32_t)
 	if(visibleCount++ < LineObjectLimit(vdp.H40())) return;
 
 	bool interlace = vdp._io.interlaceMode == 3;
-	int32_t y = 129 + (int16_t)(int8_t)(vdp._state.vcounter & 0xFF);
-	if(vdp._state.vcounter & 0x100) y = 129 + (int16_t)(vdp._state.vcounter - 256);
+	//ares: y = 129 + (i9)vcounter()  — 9-bit signed (bit 8 is sign bit)
+	int32_t vc = vdp._state.vcounter;
+	if(vc & 0x100) vc -= 0x200;
+	int32_t y = 129 + vc;
 	if(interlace) y = y << 1 | vdp._state.field;
 
 	if(mappingCount >= 21) return;
@@ -1328,16 +1639,16 @@ void GenesisVdp::Sprite::PatternFetch(GenesisVdp& vdp, uint32_t)
 				uint32_t data = ((uint32_t)hi << 16) | lo;
 				if(object.hflip) data = Hflip(data);
 				for(uint32_t i = 0; i < 8; i++) {
-					int32_t px = object.x + patternSlice * 8 + i - 128;
+					//ares: n9 x = object.x + patternSlice*8 + index - 128
+					//n9 is 9-bit unsigned (0-511), wraps on negative/overflow
+					uint32_t px = (object.x + patternSlice * 8 + i - 128) & 0x1FF;
 					uint8_t color = data >> 28;
 					data <<= 4;
-					if(px >= 0 && px < 512) {
-						if(pixels[px].solid()) {
-							if(color) collision = 1;
-						} else {
-							color |= object.palette << 4;
-							pixels[px] = {color, object.priority};
-						}
+					if(pixels[px].solid()) {
+						if(color) collision = 1;
+					} else {
+						color |= object.palette << 4;
+						pixels[px] = {color, object.priority};
 					}
 				}
 				if(object.x) maskCheck = 1;
@@ -1358,8 +1669,10 @@ void GenesisVdp::Sprite::Scan(GenesisVdp& vdp)
 	if(!vdp.IsDisplayEnable()) return;
 
 	bool interlace = vdp._io.interlaceMode == 3;
-	int32_t y = 129 + (int16_t)(int8_t)(vdp._state.vcounter & 0xFF);
-	if(vdp._state.vcounter & 0x100) y = 129 + (int16_t)(vdp._state.vcounter - 256);
+	//ares: y = 129 + (i9)vcounter()  — 9-bit signed (bit 8 is sign bit)
+	int32_t vc = vdp._state.vcounter;
+	if(vc & 0x100) vc -= 0x200;
+	int32_t y = 129 + vc;
 	if(interlace) y = y << 1 | vdp._state.field;
 
 	for(int index = 0; index < 2; index++) {
@@ -1478,6 +1791,34 @@ void GenesisVdp::DAC::Power()
 	pixels = nullptr; active = nullptr;
 }
 
+void GenesisVdp::DAC::Dot(GenesisVdp& vdp, uint16_t hpos, uint16_t cramColor)
+{
+	//Direct Color DMA: write cram bus data directly to framebuffer at hpos.
+	//Mesen2's framebuffer is 1:1 (320/256 pixels, no duplication, no border).
+	//ares uses a wide framebuffer with 4x/5x duplication and 13-dot left border;
+	//Mesen2's visible area starts at pixel 0, so:
+	//   x = hpos - (hposMin + 13) = hpos - hposStart
+	//H40: hposStart = 0x00d + 13 = 0x01A, width = 320
+	//H32: hposStart = 0x00b + 13 = 0x018, width = 256
+	if(!pixels) return;
+
+	uint32_t x;
+	uint16_t hposStart;
+	uint32_t maxWidth;
+	if(vdp.H40()) {
+		hposStart = 0x01A;
+		maxWidth = 320;
+	} else {
+		hposStart = 0x018;
+		maxWidth = 256;
+	}
+	if(hpos < hposStart) return;
+	x = hpos - hposStart;
+	if(x >= maxWidth) return;
+
+	pixels[x] = Color(cramColor, 1);
+}
+
 //--- Color conversion ---
 
 uint32_t GenesisVdp::Color(uint16_t cramColor, uint8_t mode)
@@ -1547,6 +1888,7 @@ void GenesisVdp::Serialize(Serializer& s)
 
 	SV(_dma.active); SV(_dma.mode); SV(_dma.source); SV(_dma.length);
 	SV(_dma.data); SV(_dma.wait); SV(_dma.read); SV(_dma.enable); SV(_dma.preload);
+	SV(_dma.target); SV(_dma.address); SV(_dma.increment);
 
 	SV(_layers.hscrollMode); SV(_layers.hscrollAddress); SV(_layers.vscrollMode);
 	SV(_layers.nametableWidth); SV(_layers.nametableHeight);

@@ -13,19 +13,6 @@
 #include "Shared/CheatManager.h"
 #include "Utilities/Serializer.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#ifdef IN
-#undef IN
-#endif
-#ifdef OUT
-#undef OUT
-#endif
-#define GENESIS_DBG(fmt, ...) do { char _dbg_buf[512]; snprintf(_dbg_buf, sizeof(_dbg_buf), "[GENESIS] " fmt "\n", ##__VA_ARGS__); OutputDebugStringA(_dbg_buf); } while(0)
-#else
-#define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", ##__VA_ARGS__)
-#endif
-
 GenesisMemoryManager::GenesisMemoryManager()
 {
 	_m68kRam = new uint8_t[M68KRamSize];
@@ -49,9 +36,6 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	uint8_t* sram, uint32_t sramSize,
 	uint32_t sramStart, bool sramWritable)
 {
-	GENESIS_DBG("MemoryManager::Init enter: rom=%p romSize=%u sram=%p sramSize=%u sramStart=0x%06X",
-		(void*)rom, romSize, (void*)sram, sramSize, sramStart);
-
 	_emu = emu;
 	_console = console;
 	_m68k = m68k;
@@ -87,15 +71,7 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	}
 
 	//Wire M68K bus callbacks
-	GENESIS_DBG("  Wiring M68K bus callbacks...");
 	_m68k->BusRead = [this](uint8_t upper, uint8_t lower, uint32_t address) -> uint16_t {
-		static uint32_t dbgBusReadCount = 0;
-		//Log reads from I/O, VDP, Z80 space, and any odd-aligned reads
-		//Increased limit to 2000 to capture main loop reads
-		if(dbgBusReadCount < 2000 && (address >= 0xA00000 || upper == 0 || lower == 0)) {
-			GENESIS_DBG("BusRead: addr=0x%08X upper=%d lower=%d", address, upper, lower);
-			dbgBusReadCount++;
-		}
 		return M68KRead(upper, lower, address);
 	};
 	_m68k->BusWrite = [this](uint8_t upper, uint8_t lower, uint32_t address, uint16_t data) {
@@ -108,23 +84,12 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 		_m68k->AddCycles(cycles);
 	};
 	_m68k->CheckInterrupts = [this]() -> bool {
-		//Fast path: if no VDP interrupts are pending, skip the full check.
-		//This is the common case (most instructions don't coincide with VBlank).
 		if(!_vdp->GetVblankIrq() && !_vdp->GetHblankIrq() && !_vdp->GetExternalIrq())
 			return false;
-		//Debug: log when VDP interrupts are detected as pending
-		static uint32_t dbgIntCheckCount = 0;
-		if(dbgIntCheckCount < 200) {
-			GENESIS_DBG("CheckInterrupts: vblank=%d hblank=%d ext=%d ipl=%u PC=0x%08X SR=0x%04X",
-				_vdp->GetVblankIrq(), _vdp->GetHblankIrq(), _vdp->GetExternalIrq(),
-				_m68k->GetInterruptMask(), _m68k->GetPC(), _m68k->GetSR());
-			dbgIntCheckCount++;
-		}
 		return PollM68KInterruptsBool();
 	};
 
 	//Wire Z80 bus callbacks
-	GENESIS_DBG("  Wiring Z80 bus callbacks...");
 	_z80->BusRead = [this](uint16_t addr) -> uint8_t {
 		return Z80Read(addr);
 	};
@@ -136,12 +101,9 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	};
 
 	//Wire VDP DMA read callback
-	GENESIS_DBG("  Wiring VDP DMA callback...");
 	_vdp->DmaRead = [this](uint32_t address) -> uint16_t {
 		return DmaRead(address);
 	};
-
-	GENESIS_DBG("MemoryManager::Init done");
 }
 
 void GenesisMemoryManager::Reset()
@@ -208,12 +170,6 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 	//0xA10000-0xA1FFFF: I/O region
 	if(address >= 0xA10000 && address <= 0xA1FFFF) {
 		uint16_t result = ReadM68KIO(address, 0xFFFF);
-		static uint32_t dbgIOReadCount = 0;
-		if(dbgIOReadCount < 50) {
-			GENESIS_DBG("M68KRead I/O: addr=0x%08X upper=%d lower=%d result=0x%04X",
-				address, upper, lower, result);
-			dbgIOReadCount++;
-		}
 		return result;
 	}
 
@@ -413,18 +369,13 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 
 	//0xA14000-0xA140FF: TMSS register
 	if(address >= 0xA14000 && address <= 0xA140FF) {
-		if(!_tmssEnable) {
-			GENESIS_DBG("TMSS write (tmss disabled): addr=0x%08X data=0x%04X", address, data);
-			return;
-		}
+		if(!_tmssEnable) return;
 		if(address == 0xA14000) {
 			if(upper && lower) _vdpEnable[0] = (data == 0x5345); //"SE"
 		}
 		if(address == 0xA14002) {
 			if(upper && lower) _vdpEnable[1] = (data == 0x4741); //"GA"
 		}
-		GENESIS_DBG("TMSS write: addr=0x%08X data=0x%04X vdpEnable=[%d,%d]",
-			address, data, _vdpEnable[0], _vdpEnable[1]);
 		return;
 	}
 
@@ -707,19 +658,9 @@ bool GenesisMemoryManager::PollM68KInterruptsBool()
 	//Vblank IRQ (level 6) — highest priority, check first
 	if(_vdp->GetVblankIrq()) {
 		if(6 > ipl) {
-			GENESIS_DBG("PollM68KInterrupts: delivering VBlank IRQ! ipl=%u PC=0x%08X SR=0x%04X",
-				ipl, _m68k->GetPC(), _m68k->GetSR());
 			_vdp->AcknowledgeIrq(6);
 			_m68k->Interrupt(GenesisM68K::VLevel6, 6);
-			return true; //interrupt delivered
-		} else {
-			//VBlank is pending but blocked by SR.i — log once
-			static bool dbgVblankBlocked = true;
-			if(dbgVblankBlocked) {
-				GENESIS_DBG("PollM68KInterrupts: VBlank IRQ BLOCKED by SR.i=%u (need i<6) PC=0x%08X SR=0x%04X",
-					ipl, _m68k->GetPC(), _m68k->GetSR());
-				dbgVblankBlocked = false;
-			}
+			return true;
 		}
 	}
 	//Hblank IRQ (level 4)
