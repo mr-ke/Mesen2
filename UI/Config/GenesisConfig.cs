@@ -40,6 +40,7 @@ public class GenesisConfig : BaseConfig<GenesisConfig>
 			Port2 = Port2.ToInterop(),
 
 			Region = Region,
+			Model = 0,
 			RamPowerOnState = RamPowerOnState,
 
 			DisableSprites = DisableSprites,
@@ -67,6 +68,7 @@ public struct InteropGenesisConfig
 	public InteropControllerConfig Port2;
 
 	public ConsoleRegion Region;
+	public UInt32 Model;
 	public RamState RamPowerOnState;
 
 	[MarshalAs(UnmanagedType.I1)] public bool DisableSprites;

@@ -16,6 +16,11 @@
 #define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", ##__VA_ARGS__)
 #endif
 
+//Z80 instruction trace — logs a limited number of instructions to diagnose stuck loops
+static uint32_t s_z80TraceCount = 0;
+#define Z80_TRACE_LIMIT 200
+#define Z80_TRACE_ENABLE
+
 // Genesis Z80 (APU) — native Mesen2 port.
 // Algorithm ported from ares/component/processor/z80, Genesis bus mapping from
 // ares/md/apu. NMOS mode only. Uses bus callbacks for memory access.
@@ -46,6 +51,7 @@ void GenesisZ80::Reset()
 	_r.ei = false; _r.halt = false;
 	_r.iff1 = false; _r.iff2 = false; _r.im = 0;
 	_nmiLine = false; _intLine = false; _nmiEdge = false;
+	s_z80TraceCount = 0; //reset trace counter so we trace post-reset execution
 }
 
 uint32_t GenesisZ80::ExecuteInstruction()
@@ -85,8 +91,26 @@ uint32_t GenesisZ80::ExecuteInstruction()
 		return _cycleAccum;
 	}
 
+#ifdef Z80_TRACE_ENABLE
+	TraceInstruction();
+#endif
 	Instruction();
 	return _cycleAccum;
+}
+
+void GenesisZ80::TraceInstruction()
+{
+	if(s_z80TraceCount >= Z80_TRACE_LIMIT) return;
+	//Only trace when PC is in Z80 RAM range (driver code lives there)
+	if(_r.pc >= 0x2000) return;
+	s_z80TraceCount++;
+	uint8_t op = BusRead(_r.pc);
+	uint8_t a = (_r.pc + 1 < 0x2000) ? BusRead(_r.pc + 1) : 0;
+	uint8_t b = (_r.pc + 2 < 0x2000) ? BusRead(_r.pc + 2) : 0;
+	GENESIS_DBG("Z80 TRACE [%u] PC=0x%04X op=%02X %02X %02X A=%02X F=%02X BC=%04X DE=%04X HL=%04X IX=%04X IY=%04X SP=%04X",
+		s_z80TraceCount, _r.pc, op, a, b, _r.a, _r.flags,
+		(_r.b << 8) | _r.c, (_r.d << 8) | _r.e,
+		(_r.h << 8) | _r.l, _r.ix, _r.iy, _r.sp);
 }
 
 void GenesisZ80::SetIrq(bool line) { _intLine = line; }

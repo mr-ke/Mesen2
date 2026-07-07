@@ -2,19 +2,6 @@
 #include "GenesisM68K.h"
 #include "Utilities/Serializer.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#ifdef IN
-#undef IN
-#endif
-#ifdef OUT
-#undef OUT
-#endif
-#define GENESIS_DBG(fmt, ...) do { char _dbg_buf[512]; snprintf(_dbg_buf, sizeof(_dbg_buf), "[GENESIS] " fmt "\n", ##__VA_ARGS__); OutputDebugStringA(_dbg_buf); } while(0)
-#else
-#define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", ##__VA_ARGS__)
-#endif
-
 // ============================================================================
 // GenesisM68K - Native Mesen2 port of ares M68000 interpreter.
 // All algorithms ported verbatim from ares/component/processor/m68000.
@@ -91,11 +78,6 @@ void GenesisM68K::Exception(uint32_t exception, uint32_t vector, uint32_t priori
 
 	//read vector address (+8 cyc)
 	_r.pc = Read<Long>(vector << 2);
-
-	if(exception == ExInterrupt) {
-		GENESIS_DBG("M68K::IRQ delivered: vector=%u pri=%u newPC=0x%08X newSR.i=%u",
-			vector, priority, _r.pc, _r.i);
-	}
 
 	//prefetch (+8 cyc)
 	Prefetch();

@@ -141,7 +141,10 @@ void GenesisVdp::Vtick()
 	VblankCheck();
 }
 
-void GenesisVdp::Hblank(bool line) { _state.hblank = line; }
+void GenesisVdp::Hblank(bool line) {
+	_state.hblank = line;
+	if(line) _state.hblankOccurred = 1;
+}
 
 void GenesisVdp::Vblank(bool line)
 {
@@ -733,22 +736,8 @@ uint16_t GenesisVdp::ReadControlPort()
 	}
 	uint16_t result = 0;
 	result |= (_region == ConsoleRegion::Pal) ? 1 : 0;
-	result |= (_command.pending & 1) << 1;
-	//Compute virtual hblank from M68K cycle position within the scanline.
-	//In Mesen2's sequential model, the VDP has already processed the full
-	//scanline, so _state.hblank is frozen at its end-of-scanline value (1).
-	//We map the M68K cycle position to an hcounter tick to derive the
-	//correct hblank state the M68K would see if VDP ran concurrently.
-	//H40: 210 ticks/scanline; hblank clears at tick 5, sets at tick 179.
-	//H32: 171 ticks/scanline; hblank clears at tick 5, sets at tick 147.
-	uint8_t virtualHblank = _state.hblank;
-	if(_m68kCyclesPerScanline > 0) {
-		uint32_t totalTicks = H40() ? 210 : 171;
-		uint32_t hblankSetTick = H40() ? 179 : 147;
-		uint32_t virtualTick = (uint64_t)_m68kCycleInScanline * totalTicks / _m68kCyclesPerScanline;
-		virtualHblank = (virtualTick < 5 || virtualTick >= hblankSetTick) ? 1 : 0;
-	}
-	result |= (virtualHblank & 1) << 2;
+	result |= (_state.hblankOccurred & 1) << 1;
+	result |= (_dma.active & 1) << 2;
 	result |= ((_state.vblank || !IsDisplayEnable()) ? 1 : 0) << 3;
 	result |= ((_io.interlaceMode & 1) && _state.field) ? (1 << 4) : 0;
 	result |= (_sprite.collision & 1) << 5;
@@ -756,6 +745,7 @@ uint16_t GenesisVdp::ReadControlPort()
 	result |= (_irq.vblank.pending & 1) << 7;
 	result |= (_fifo.full() ? 1 : 0) << 8;
 	result |= (_fifo.empty() ? 1 : 0) << 9;
+	_state.hblankOccurred = 0;
 	_sprite.collision = 0;
 	_sprite.overflow = 0;
 	return result;
@@ -1869,7 +1859,7 @@ void GenesisVdp::Serialize(Serializer& s)
 	SV(_latch.clockSelect); SV(_latch.displayEnable);
 
 	SV(_state.counterLatchValue); SV(_state.hcounter); SV(_state.vcounter);
-	SV(_state.field); SV(_state.hblank); SV(_state.vblank);
+	SV(_state.field); SV(_state.hblank); SV(_state.hblankOccurred); SV(_state.vblank);
 	SV(_state.rambusy); SV(_state.edclkPos); SV(_state.topline); SV(_state.bottomline);
 
 	SV(_irq.external.enable); SV(_irq.external.pending);

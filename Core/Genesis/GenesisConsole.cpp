@@ -257,9 +257,10 @@ void GenesisConsole::RunFrame()
 		_ym2612->Run();
 	}
 
-	//Flush accumulated audio samples to the sound mixer
+	//Flush accumulated PSG audio samples to the sound mixer. YM2612 audio is
+	//mixed into this buffer via IAudioProvider::MixAudio() (registered in
+	//GenesisYm2612 constructor), so no separate PlayAudioBuffer call is needed.
 	_psg->PlayQueuedAudio();
-	_ym2612->PlayQueuedAudio();
 
 	_frameCount++;
 

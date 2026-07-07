@@ -5,7 +5,6 @@
 #include "Shared/EmuSettings.h"
 #include "Shared/Audio/SoundMixer.h"
 #include "Utilities/Serializer.h"
-#include "Utilities/Audio/blip_buf.h"
 
 #include <cmath>
 
@@ -58,7 +57,10 @@ const GenesisYm2612::EnvelopeRate GenesisYm2612::_envelopeRates[16] = {
 // Timers (ares timer.cpp - verbatim)
 // ============================================================================
 void GenesisYm2612::TimerA::Run() {
-  if(!++counter)
+  //ares uses n10 for counter, masking to 10 bits so it wraps at 0x400.
+  //With uint16_t the counter runs to 0xFFFF before triggering, 64x too slow.
+  counter = (counter + 1) & 0x3FF;
+  if(!counter)
     line |= irq & enableLatch;
   if(enableLatch < enable || !counter)
     counter = period;
@@ -66,8 +68,14 @@ void GenesisYm2612::TimerA::Run() {
 }
 
 void GenesisYm2612::TimerB::Run() {
-  if(!++divider && !++counter)
-    line |= irq & enableLatch;
+  //ares uses n4 for divider, masking to 4 bits so it wraps at 0x10.
+  //With uint8_t the divider runs to 0xFF before bumping counter, 16x too slow.
+  divider = (divider + 1) & 0x0F;
+  if(!divider) {
+    counter = (counter + 1) & 0xFF;
+    if(!counter)
+      line |= irq & enableLatch;
+  }
   if(enableLatch < enable || (!counter && !divider))
     counter = period; //do not reset divider on reenable
   enableLatch = enable;
@@ -90,7 +98,10 @@ void GenesisYm2612::Operator::UpdateKeyState(GenesisYm2612& ym, Channel& channel
     envelope.state = Release;
     UpdateEnvelope(ym);
     if(ssg.enable && ssg.attack != ssg.invert) {
-      envelope.value = 0x200 - envelope.value;
+      //ares uses n10 for envelope.value, so 0x200 - envelope.value auto-masks
+      //to 10 bits. Without the mask, values > 0x200 produce a large uint16 that
+      //corrupts SSG-EG attenuation levels (heard as noise).
+      envelope.value = (0x200 - envelope.value) & 0x3FF;
     }
   }
   UpdateLevel(ym, channel);
@@ -114,7 +125,11 @@ void GenesisYm2612::Operator::RunEnvelope(GenesisYm2612& ym, Channel& channel) {
   uint32_t step = envelope.steps >> ((~value & 7) << 2) & 0xf;
 
   if(envelope.state == Attack) {
-    if(envelope.rate < 62) envelope.value += (~((uint16_t)(envelope.value))) * step >> 4;
+    //ares uses n10 for envelope.value, masking to 10 bits after the add.
+    //Without the mask, the ~u16(value)*step>>4 term makes value grow past
+    //0x3FF instead of wrapping back, so the attack runs the wrong direction
+    //(value increases instead of decreasing toward 0).
+    if(envelope.rate < 62) envelope.value = (envelope.value + (~((uint16_t)(envelope.value))) * step >> 4) & 0x3FF;
   }
   if(envelope.state != Attack) {
     if(ssg.enable) step = envelope.value < 0x200 ? step << 2 : 0;
@@ -126,7 +141,11 @@ void GenesisYm2612::Operator::RunEnvelope(GenesisYm2612& ym, Channel& channel) {
 
 void GenesisYm2612::Operator::RunPhase(GenesisYm2612& ym, Channel& channel) {
   UpdateKeyState(ym, channel);
-  phase.value += phase.delta;
+  //ares uses n20 for phase.value, auto-masking to 20 bits on every increment.
+  //Without the mask, phase.value grows without bound; the upper bits are ignored
+  //by the wave() lookup's & 0x3ff, but the unbounded growth can overflow int32_t
+  //in the x = modulation/2 + phase.value>>10 addition (UB) and diverge from ares.
+  phase.value = (phase.value + phase.delta) & 0xFFFFF;
   if(!(ssg.enable && envelope.value >= 0x200)) return;
 
   if(!ssg.hold && !ssg.alternate) phase.value = 0;
@@ -188,7 +207,10 @@ void GenesisYm2612::Operator::UpdateLevel(GenesisYm2612& ym, Channel& channel) {
   uint32_t depth = _tremolos[tremoloEnable * channel.tremolo];
 
   bool invert = ssg.attack != ssg.invert && envelope.state != Release;
-  uint16_t value = ssg.enable && invert ? 0x200 - envelope.value : 0 + envelope.value;
+  //ares uses n10 for the local value, auto-masking the SSG inversion to 10 bits.
+  //Without the mask, 0x200 - envelope.value (when value > 0x200) wraps to a large
+  //uint16, producing wrong output levels (noise/harshness).
+  uint16_t value = ssg.enable && invert ? (0x200 - envelope.value) & 0x3FF : 0 + envelope.value;
 
   outputLevel = ((totalLevel << 3) + value + (lfo << 1 >> depth)) << 3;
 }
@@ -297,7 +319,11 @@ void GenesisYm2612::ClockOnce() {
 
   if(++_envelope.divider == 3) {
     _envelope.divider = 0;
-    if(!++_envelope.clock) ++_envelope.clock; //12-bit counter: 1..4095 - zero skipped
+    //ares uses n12 for envelope.clock, masking to 12 bits so the counter
+    //cycles 1..4095 (zero skipped). With uint16_t the counter reaches 65535
+    //before wrapping, making every envelope rate 16x too slow.
+    _envelope.clock = (_envelope.clock + 1) & 0xFFF;
+    if(!_envelope.clock) _envelope.clock = 1; //12-bit counter: 1..4095 - zero skipped
   }
 
   if(_lfo.enable && ++_lfo.divider >= _lfoDividers[_lfo.rate]) {
@@ -414,16 +440,21 @@ void GenesisYm2612::ClockOnce() {
   int16_t leftOut = (int16_t)(left  > 32767 ? 32767 : left  < -32768 ? -32768 : left);
   int16_t rightOut = (int16_t)(right > 32767 ? 32767 : right < -32768 ? -32768 : right);
 
-  //Feed to blip_buf (one sample per 1008 master clocks).
-  _clockCounter += MasterClocksPerSample;
-  if(_prevLeft != leftOut) {
-    blip_add_delta(_leftChannel, _clockCounter, leftOut - _prevLeft);
-    _prevLeft = leftOut;
-  }
-  if(_prevRight != rightOut) {
-    blip_add_delta(_rightChannel, _clockCounter, rightOut - _prevRight);
-    _prevRight = rightOut;
-  }
+  //Analog output stage (ares OPN2 stream): normalize to [-1,1], apply 20 Hz HPF
+  //(removes DC offset / low-frequency rumble) then 2840 Hz LPF (smooths FM
+  //aliasing and quantization noise), then back to int16. Without these the
+  //emulation sounds harsher/noisier than real hardware.
+  double ld = leftOut  / 32768.0;
+  double rd = rightOut / 32768.0;
+  ld = _lpfLeft.Process (_hpfLeft.Process (ld));
+  rd = _lpfRight.Process(_hpfRight.Process(rd));
+  leftOut  = (int16_t)(ld * 32768.0);
+  rightOut = (int16_t)(rd * 32768.0);
+
+  //Accumulate raw samples; consumed by MixAudio() when the primary audio
+  //source (PSG) flushes its buffer.
+  _samplesToPlay.push_back(leftOut);
+  _samplesToPlay.push_back(rightOut);
 }
 
 // ============================================================================
@@ -497,7 +528,10 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   if((_io.address & 0x003) == 3) return;
   uint32_t voice = ((_io.address >> 8) & 1) * 3 + (_io.address & 0x3);
   uint32_t bits2_3 = (_io.address >> 2) & 0x3;
-  uint32_t index = (bits2_3 >> 1) | (bits2_3 << 1); //0,1,2,3 => 0,2,1,3
+  //Bit-swap of 2-bit value (0,1,2,3 => 0,2,1,3). ares relies on n2 masking;
+  //without & 0x3, bits2_3=2 yields index 5 and bits2_3=3 yields index 7,
+  //both out of bounds for the 4-element operators[] array.
+  uint32_t index = ((bits2_3 >> 1) | (bits2_3 << 1)) & 0x3;
 
   auto& channel = _channels[voice];
   auto& op = channel.operators[index];
@@ -566,8 +600,12 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   }
   //pitch (high)
   case 0x0a4: {
-    channel.operators[3].pitch.latch = data << 8;
-    channel.operators[3].octave.latch = data >> 3;
+    //ares uses n11 for pitch.latch and n3 for octave.latch, masking the
+    //data<<8 / data>>3 results. Without the masks, bits above 11/3 survive
+    //and corrupt the frequency, and octave can cause a negative shift
+    //(undefined behavior) in updatePhase's >> (7 - octave.value).
+    channel.operators[3].pitch.latch = (data << 8) & 0x7FF;
+    channel.operators[3].octave.latch = (data >> 3) & 0x7;
     break;
   }
   //per-operator pitch (low)
@@ -587,8 +625,8 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
     if(_io.address == 0x0ad) idx = 0;
     else if(_io.address == 0x0ae) idx = 1;
     else idx = 2; //0x0ac
-    _channels[2].operators[idx].pitch.latch = data << 8;
-    _channels[2].operators[idx].octave.latch = data >> 3;
+    _channels[2].operators[idx].pitch.latch = (data << 8) & 0x7FF;
+    _channels[2].operators[idx].octave.latch = (data >> 3) & 0x7;
     break;
   }
   //algorithm, feedback
@@ -666,9 +704,13 @@ void GenesisYm2612::Serialize(Serializer& s) {
   if(s.IsSaving()) {
     Run();
   } else {
-    _clockCounter = 0;
-    blip_clear(_leftChannel);
-    blip_clear(_rightChannel);
+    //Clear pending samples on load; they are a transient output buffer and
+    //shouldn't be restored.
+    _samplesToPlay.clear();
+    _prevMasterClock = _console->GetMasterClock();
+    //Recompute filter coefficients (a0/b1) on load; z1 is set to 0 here but
+    //will be overwritten by SV(_hpfLeft.z1) etc. below.
+    ResetOutputFilters();
   }
 
   SV(_io.address);
@@ -699,16 +741,47 @@ void GenesisYm2612::Serialize(Serializer& s) {
   }
 
   if(s.GetFormat() != SerializeFormat::Map) {
-    SV(_masterClock);
-    SV(_clockCounter);
-    SV(_prevLeft);
-    SV(_prevRight);
+    SV(_prevMasterClock);
+    //Filter state (z1) — coefficients are recomputed in ResetOutputFilters()
+    //above (on load), only the transient state needs saving.
+    SV(_hpfLeft.z1);
+    SV(_hpfRight.z1);
+    SV(_lpfLeft.z1);
+    SV(_lpfRight.z1);
   }
 }
 
 // ============================================================================
-// Mesen2 integration: constructor, Run, PlayQueuedAudio, SetRegion
+// Mesen2 integration: constructor, Run, MixAudio, SetRegion
 // ============================================================================
+
+//ares OPN2 analog output stage: first-order OnePole IIR filters (nall/dsp/iir/one-pole.hpp).
+//addHighPassFilter(20.0, 1) + addLowPassFilter(2840.0, 1) are applied per-sample
+//before the resampler. Without these, FM aliasing/quantization noise passes through
+//unchanged, and the output sounds harsher than real hardware.
+void GenesisYm2612::OnePoleFilter::Reset(bool hp, double cutoffFrequency, double samplingFrequency) {
+  highPass = hp;
+  z1 = 0.0;
+  double x = cos(2.0 * 3.14159265358979323846 * cutoffFrequency / samplingFrequency);
+  if(!hp) { //LowPass
+    b1 = +2.0 - x - sqrt((+2.0 - x) * (+2.0 - x) - 1.0);
+    a0 = 1.0 - b1;
+  } else { //HighPass
+    b1 = -2.0 - x + sqrt((-2.0 - x) * (-2.0 - x) - 1.0);
+    a0 = 1.0 + b1;
+  }
+}
+
+void GenesisYm2612::ResetOutputFilters() {
+  //YM2612 native sample rate = master / 1008 (~53267 Hz NTSC, ~52781 Hz PAL).
+  //ares uses system.frequency() / 7.0 / 144.0 which is identical (7*144 = 1008).
+  double nativeRate = (double)_console->GetMasterClockRate() / (double)MasterClocksPerSample;
+  _hpfLeft.Reset (true,  20.0, nativeRate);
+  _hpfRight.Reset(true,  20.0, nativeRate);
+  _lpfLeft.Reset (false, 2840.0, nativeRate);
+  _lpfRight.Reset(false, 2840.0, nativeRate);
+}
+
 GenesisYm2612::GenesisYm2612(Emulator* emu, GenesisConsole* console)
 {
   _emu = emu;
@@ -716,57 +789,61 @@ GenesisYm2612::GenesisYm2612(Emulator* emu, GenesisConsole* console)
   _soundMixer = emu->GetSoundMixer();
   _settings = emu->GetSettings();
 
-  _soundBuffer = new int16_t[GenesisYm2612::MaxSamples * 2];
-  memset(_soundBuffer, 0, GenesisYm2612::MaxSamples * 2 * sizeof(int16_t));
+  //Register as an audio provider so MixAudio() is called when PSG (the
+  //primary audio source) flushes its buffer. This mixes YM2612 output into
+  //PSG's buffer rather than sending a separate PlayAudioBuffer call, which
+  //caused the audio device to play PSG and YM2612 buffers sequentially
+  //instead of mixed (heard as noise/static).
+  _soundMixer->RegisterAudioProvider(this);
 
-  _leftChannel = blip_new(GenesisYm2612::MaxSamples);
-  _rightChannel = blip_new(GenesisYm2612::MaxSamples);
-  blip_clear(_leftChannel);
-  blip_clear(_rightChannel);
-  blip_set_rates(_leftChannel, _console->GetMasterClockRate(), GenesisYm2612::SampleRate);
-  blip_set_rates(_rightChannel, _console->GetMasterClockRate(), GenesisYm2612::SampleRate);
+  //Sync to the console's current master clock so the first Run() call doesn't
+  //try to catch up from 0 (which would produce a burst of stale samples).
+  _prevMasterClock = _console->GetMasterClock();
+
+  //Reserve capacity for ~1 frame of stereo samples (~887 YM2612 samples/frame).
+  _samplesToPlay.reserve(2000 * 2);
+
+  ResetOutputFilters();
 
   Power();
 }
 
 GenesisYm2612::~GenesisYm2612()
 {
-  delete[] _soundBuffer;
-  if(_leftChannel) blip_delete(_leftChannel);
-  if(_rightChannel) blip_delete(_rightChannel);
+  _soundMixer->UnregisterAudioProvider(this);
 }
 
 void GenesisYm2612::SetRegion(ConsoleRegion region)
 {
-  blip_clear(_leftChannel);
-  blip_clear(_rightChannel);
-  blip_set_rates(_leftChannel, _console->GetMasterClockRate(), GenesisYm2612::SampleRate);
-  blip_set_rates(_rightChannel, _console->GetMasterClockRate(), GenesisYm2612::SampleRate);
+  //Recompute filter coefficients since the native sample rate changed with region.
+  ResetOutputFilters();
 }
 
 void GenesisYm2612::Run()
 {
+  //Advance from _prevMasterClock to the console's current master clock,
+  //producing one YM2612 sample per 1008 master clocks.
   uint64_t runTo = _console->GetMasterClock();
-
-  //Each YM2612 sample = 1008 master clocks (master/7 OPN2 clock, 144 cycles/sample).
-  while(_masterClock + MasterClocksPerSample < runTo) {
-    _masterClock += MasterClocksPerSample;
+  while(_prevMasterClock + MasterClocksPerSample <= runTo) {
+    _prevMasterClock += MasterClocksPerSample;
     ClockOnce();
-  }
-
-  if(_clockCounter >= 20000) {
-    PlayQueuedAudio();
   }
 }
 
-void GenesisYm2612::PlayQueuedAudio()
+void GenesisYm2612::MixAudio(int16_t* out, uint32_t sampleCount, uint32_t sampleRate)
 {
-  blip_end_frame(_leftChannel, _clockCounter);
-  blip_end_frame(_rightChannel, _clockCounter);
+  //Flush any pending samples (in case Run() wasn't called recently enough).
+  Run();
 
-  uint32_t sampleCount = (uint32_t)blip_read_samples(_leftChannel, _soundBuffer, GenesisYm2612::MaxSamples, 1);
-  blip_read_samples(_rightChannel, _soundBuffer + 1, GenesisYm2612::MaxSamples, 1);
+  //Resample YM2612 native samples (master/1008) to the target sample rate
+  //and mix (add) into the output buffer. The `true` template parameter
+  //enables add mode so YM2612 output is mixed with PSG output rather than
+  //overwriting it.
+  double nativeRate = (double)_console->GetMasterClockRate() / (double)MasterClocksPerSample;
+  _resampler.SetVolume(_settings->GetGenesisConfig().Ym2612Volume / 100.0);
+  _resampler.SetSampleRates(nativeRate, sampleRate);
 
-  _soundMixer->PlayAudioBuffer(_soundBuffer, sampleCount, GenesisYm2612::SampleRate);
-  _clockCounter = 0;
+  _resampler.Resample<true>(_samplesToPlay.data(), (uint32_t)_samplesToPlay.size() / 2, out, sampleCount, true);
+
+  _samplesToPlay.clear();
 }

@@ -143,26 +143,23 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 
 	//0xA00000-0xA0FFFF: Z80 bus window
 	if(address >= 0xA00000 && address <= 0xA0FFFF) {
-		if(!_busreqAck && !_resetLine) {
-			//Z80 bus not granted to M68K and Z80 not in reset — return open bus
-			return 0xFFFF;
-		}
-		//Access Z80 RAM at 0xA00000-0xA01FFF (8KB mirrored)
+		//Z80 RAM (0xA00000-0xA01FFF) is ALWAYS accessible by M68K regardless
+		//of bus state — on real hardware, M68K can read/write Z80 RAM at any
+		//time. SGDK's XGM driver polls z80ram[0] without requesting the bus.
 		if(address <= 0xA01FFF) {
 			uint32_t offset = address & 0x1FFF;
-			uint16_t data;
-			if(upper) data = _z80Ram[offset] << 8;
-			else data = 0xFF00;
-			if(lower) data = (_z80Ram[offset] & 0xFF) | (data & 0xFF00);
-			else data |= 0x00FF;
-			return data;
+			uint8_t byte = _z80Ram[upper ? offset : (offset | 1)];
+			return ((uint16_t)byte << 8) | byte;
+		}
+		//Non-RAM accesses (YM2612, bank register) require bus ownership.
+		//Return open bus when Z80 is running AND bus not granted to M68K.
+		if(!_busreqAck && _resetLine) {
+			return 0xFFFF;
 		}
 		//0xA04000-0xA040FF: YM2612
 		if(address >= 0xA04000 && address <= 0xA040FF) {
-			//YM2612 status read — only lower byte valid
 			uint8_t status = _ym2612->ReadStatus();
-			uint16_t data = 0xFF00 | status;
-			return data;
+			return ((uint16_t)status << 8) | status;
 		}
 		return 0xFFFF;
 	}
@@ -221,33 +218,27 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 
 	//0xA00000-0xA0FFFF: Z80 bus window
 	if(address >= 0xA00000 && address <= 0xA0FFFF) {
-		if(!_busreqAck && !_resetLine) return;
-		//Z80 RAM write
+		//Z80 RAM (0xA00000-0xA01FFF) is ALWAYS accessible by M68K regardless
+		//of bus state — on real hardware, M68K can read/write Z80 RAM at any
+		//time. SGDK's XGM driver writes command bytes without requesting the bus.
 		if(address <= 0xA01FFF) {
 			uint32_t offset = address & 0x1FFF;
-			//M68K writes to Z80 RAM are byte-accessible
-			if(lower) _z80Ram[offset] = data & 0xFF;
 			if(upper) _z80Ram[offset] = (data >> 8) & 0xFF;
+			else _z80Ram[offset | 1] = data & 0xFF;
+			return;
 		}
+		//Non-RAM accesses (YM2612, bank register) require bus ownership.
+		//Ignore the write when Z80 is running AND bus not granted to M68K.
+		if(!_busreqAck && _resetLine) return;
 		//0xA04000-0xA040FF: YM2612
+		//YM2612 is 8-bit peripheral: register select = (address & 2) | (upper ? 0 : 1)
+		//  bit 1 = port (0/1), bit 0 = address (0) vs data (1)
 		if(address >= 0xA04000 && address <= 0xA040FF) {
-			if(address <= 0xA04003) {
-				//Port 0 address/data
-				if(address == 0xA04000 || address == 0xA04001) {
-					//Address port 0
-					_ym2612->WriteAddress(0, data & 0xFF);
-				} else {
-					//Data port 0
-					_ym2612->WriteData(0, data & 0xFF);
-				}
-			} else if(address <= 0xA04007) {
-				//Port 1 address/data
-				if(address == 0xA04004 || address == 0xA04005) {
-					_ym2612->WriteAddress(1, data & 0xFF);
-				} else {
-					_ym2612->WriteData(1, data & 0xFF);
-				}
-			}
+			uint8_t reg = (address & 2) | (upper ? 0 : 1);
+			uint8_t byte = upper ? ((data >> 8) & 0xFF) : (data & 0xFF);
+			uint8_t port = (reg >> 1) & 1;
+			if(!(reg & 1)) _ym2612->WriteAddress(port, byte);
+			else _ym2612->WriteData(port, byte);
 		}
 		return;
 	}
@@ -595,12 +586,11 @@ void GenesisMemoryManager::SetBusreq(bool line)
 
 void GenesisMemoryManager::SetReset(bool line)
 {
+	//line=true: Z80 released from reset (running); line=false: Z80 held in reset
 	_resetLine = line;
 	_z80->SetReset(line);
-	if(line) {
-		//Z80 is held in reset — bus is granted to M68K
-		_busreqAck = true;
-	}
+	//When Z80 is in reset, M68K has bus access via the access condition check
+	//(if(!_busreqAck && _resetLine)) — no need to force _busreqAck here.
 }
 
 bool GenesisMemoryManager::IsBusGranted() const

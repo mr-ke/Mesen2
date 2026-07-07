@@ -2,24 +2,33 @@
 #include "pch.h"
 #include "Shared/SettingTypes.h"
 #include "Utilities/ISerializable.h"
+#include "Shared/Interfaces/IAudioProvider.h"
+#include "Utilities/Audio/HermiteResampler.h"
 
 class Emulator;
 class SoundMixer;
 class EmuSettings;
 class GenesisConsole;
-struct blip_t;
 
 // Yamaha YM2612 (OPN2) - FM synthesis chip for the Sega Mega Drive / Genesis.
 //
 // This is a faithful native port of ares's YM2612 (ares/component/audio/ym2612/,
 // author Talarubi), converted to standard C++ types and Mesen2's serialization
-// (SV()) / audio (blip_buf + SoundMixer) infrastructure. The algorithm itself
-// (envelope, phase, SSG-EG, algorithm routing, DAC) is preserved verbatim.
+// (SV()) / audio (HermiteResampler + IAudioProvider) infrastructure. The
+// algorithm itself (envelope, phase, SSG-EG, algorithm routing, DAC) is
+// preserved verbatim.
+//
+// Audio routing: YM2612 registers as an IAudioProvider and its MixAudio() is
+// called by SoundMixer when PSG (the primary audio source) calls
+// PlayAudioBuffer. This mixes YM2612 output into PSG's buffer — sending two
+// separate PlayAudioBuffer calls per frame (one from PSG, one from YM2612)
+// causes the audio device to play them sequentially instead of mixed, which
+// sounds like noise/static.
 //
 // Clocking: the YM2612 internal clock runs at master/7 (M68K bus clock).
 // Each YM2612::clock() call produces one stereo sample and represents 144
 // internal cycles = 1008 master clocks. Sample rate ~ master/1008 (~53kHz NTSC).
-class GenesisYm2612 final : public ISerializable
+class GenesisYm2612 final : public ISerializable, public IAudioProvider
 {
 public:
 	GenesisYm2612(Emulator* emu, GenesisConsole* console);
@@ -29,8 +38,14 @@ public:
 
 	//Advance emulation by master-clock delta, producing samples as needed.
 	void Run();
-	//Flush queued samples to SoundMixer.
-	void PlayQueuedAudio();
+
+	//IAudioProvider: mix YM2612 output into the primary audio source's buffer.
+	//Called by SoundMixer when PSG (primary) calls PlayAudioBuffer. YM2612
+	//samples are resampled from native rate (~53kHz) to the target rate and
+	//added (mixed) into `out`. This replaces the old direct PlayAudioBuffer
+	//call which sent a separate buffer to the audio device, causing the PSG
+	//and YM2612 buffers to play sequentially instead of mixed (heard as noise).
+	void MixAudio(int16_t* out, uint32_t sampleCount, uint32_t sampleRate) override;
 
 	//Register interface (ports 0/1 = address, 0/1 = data, as on the M68K bus).
 	uint8_t ReadStatus();
@@ -181,17 +196,32 @@ private:
 	EmuSettings*      _settings = nullptr;
 	GenesisConsole*   _console = nullptr;
 
-	static constexpr int SampleRate = 96000;
-	static constexpr int MaxSamples = 4000;
+	//Raw stereo samples produced by ClockOnce (interleaved L,R,L,R,...).
+	//Accumulated during Run() and consumed by MixAudio() when the primary
+	//audio source (PSG) flushes its buffer.
+	vector<int16_t> _samplesToPlay;
+	HermiteResampler _resampler;
 
-	int16_t* _soundBuffer = nullptr;
-	blip_t*  _leftChannel = nullptr;
-	blip_t*  _rightChannel = nullptr;
+	//Master clock at which YM2612 was last advanced. Run() advances from
+	//_prevMasterClock to _console->GetMasterClock(), producing one sample per
+	//1008 master clocks.
+	uint64_t _prevMasterClock = 0;
 
-	uint64_t _masterClock = 0;      //master clocks consumed so far
-	uint64_t _clockCounter = 0;     //samples produced this frame (blip time)
-	int16_t  _prevLeft = 0;
-	int16_t  _prevRight = 0;
+	//Analog output filters matching ares OPN2 stream (opn2.cpp):
+	//  addHighPassFilter(20.0, 1)  -> first-order HPF at 20 Hz (removes DC offset)
+	//  addLowPassFilter(2840.0, 1) -> first-order LPF at 2840 Hz (smooths FM aliasing)
+	//Uses the same OnePole IIR algorithm as nall/dsp/iir/one-pole.hpp.
+	struct OnePoleFilter {
+		bool   highPass = false;
+		double a0 = 0.0;
+		double b1 = 0.0;
+		double z1 = 0.0;  //previous output (state)
+		void Reset(bool hp, double cutoffFrequency, double samplingFrequency);
+		inline double Process(double in) { return z1 = in * a0 + z1 * b1; }
+	};
+	OnePoleFilter _hpfLeft, _hpfRight;  //20 Hz high-pass (per channel)
+	OnePoleFilter _lpfLeft, _lpfRight;  //2840 Hz low-pass (per channel)
+	void ResetOutputFilters();
 
 	//Every 1008 master clocks = 1 YM2612 sample.
 	static constexpr uint32_t MasterClocksPerSample = 1008;

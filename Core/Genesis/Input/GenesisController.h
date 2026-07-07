@@ -100,8 +100,13 @@ public:
 		//Genesis controller data read (active-low, 6 bits)
 		//Per ares ControlPad::readData():
 		//  select=0: bit0=up, bit1=down, bit2-3=11 (inactive), bit4=C, bit5=Start
-		//  select=1: bit0=up, bit1=down, bit2=left, bit3=right, bit4=B, bit5=A
-		uint8_t data = 0x3F; //all bits active-low (1=released)
+		//  select=1: bit0=up, bit1=down,bit2=left, bit3=right, bit4=B, bit5=A
+		//Bit 6 (TH) is NOT driven by the controller — it is an input to the
+		//controller. Return 1 for bit 6 so that when the IOPort merges device
+		//data with TH-as-input, the TH line reads as pulled-high (1), matching
+		//real hardware. The IOPort overrides bit 6 from the data latch when TH
+		//is configured as output.
+		uint8_t data = 0x7F; //bits 0-5 active-low (1=released), bit 6=1 (TH not driven)
 
 		if(!_select) {
 			//TH = 0 (select low)

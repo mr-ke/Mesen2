@@ -28,6 +28,8 @@ public:
 	//Returns cycles consumed.
 	uint32_t ExecuteInstruction();
 
+	void TraceInstruction(); //debug: log instruction trace
+
 	void AddCycles(uint32_t cycles) { _cycleAccum += cycles; }
 
 	//Interrupt lines

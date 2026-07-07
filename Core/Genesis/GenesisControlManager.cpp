@@ -86,7 +86,6 @@ void GenesisControlManager::WritePort(uint8_t port, uint8_t data)
 {
 	if(port >= 3) return;
 	PortState& ps = _ports[port];
-	uint8_t prevData = ps.dataLatch;
 	ps.dataLatch = data & 0x7F;
 
 	//Forward TH line to connected controller device (bit 6)
