@@ -99,8 +99,9 @@ public:
 	{
 		//Genesis controller data read (active-low, 6 bits)
 		//Per ares ControlPad::readData():
-		//  select=0: bit0=up, bit1=down, bit2-3=11 (inactive), bit4=C, bit5=Start
-		//  select=1: bit0=up, bit1=down,bit2=left, bit3=right, bit4=B, bit5=A
+		//  select=0: bit0=up, bit1=down, bit2-3=0 (grounded), bit4=a, bit5=start
+		//  select=1: bit0=up, bit1=down, bit2=left, bit3=right, bit4=b, bit5=c
+		//After ~data (active-low): 0=released, 1=not pressed.
 		//Bit 6 (TH) is NOT driven by the controller — it is an input to the
 		//controller. Return 1 for bit 6 so that when the IOPort merges device
 		//data with TH-as-input, the TH line reads as pulled-high (1), matching
@@ -112,8 +113,8 @@ public:
 			//TH = 0 (select low)
 			if(_upLatch)    data &= ~0x01;
 			if(_downLatch)  data &= ~0x02;
-			//bits 2-3 always 1 (unused)
-			if(IsPressed(Buttons::C))     data &= ~0x10;
+			data &= ~0x0C; //bits 2-3 grounded (0) per ares
+			if(IsPressed(Buttons::A))     data &= ~0x10;
 			if(IsPressed(Buttons::Start)) data &= ~0x20;
 		} else {
 			//TH = 1 (select high)
@@ -122,7 +123,7 @@ public:
 			if(_leftLatch)   data &= ~0x04;
 			if(_rightLatch)  data &= ~0x08;
 			if(IsPressed(Buttons::B)) data &= ~0x10;
-			if(IsPressed(Buttons::A)) data &= ~0x20;
+			if(IsPressed(Buttons::C)) data &= ~0x20;
 		}
 
 		return data;

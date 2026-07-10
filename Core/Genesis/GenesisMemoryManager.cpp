@@ -148,8 +148,9 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 		//time. SGDK's XGM driver polls z80ram[0] without requesting the bus.
 		if(address <= 0xA01FFF) {
 			uint32_t offset = address & 0x1FFF;
-			uint8_t byte = _z80Ram[upper ? offset : (offset | 1)];
-			return ((uint16_t)byte << 8) | byte;
+			uint8_t hi = upper ? _z80Ram[offset] : 0xFF;
+			uint8_t lo = lower ? _z80Ram[offset | 1] : 0xFF;
+			return ((uint16_t)hi << 8) | lo;
 		}
 		//Non-RAM accesses (YM2612, bank register) require bus ownership.
 		//Return open bus when Z80 is running AND bus not granted to M68K.
@@ -223,8 +224,11 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 		//time. SGDK's XGM driver writes command bytes without requesting the bus.
 		if(address <= 0xA01FFF) {
 			uint32_t offset = address & 0x1FFF;
+			//Word writes (upper=1 && lower=1) must write BOTH bytes.
+			//The old if/else only wrote the upper byte for word writes,
+			//silently dropping the lower byte.
 			if(upper) _z80Ram[offset] = (data >> 8) & 0xFF;
-			else _z80Ram[offset | 1] = data & 0xFF;
+			if(lower) _z80Ram[offset | 1] = data & 0xFF;
 			return;
 		}
 		//Non-RAM accesses (YM2612, bank register) require bus ownership.
@@ -468,7 +472,8 @@ void GenesisMemoryManager::Z80Write(uint16_t address, uint8_t data)
 {
 	//0x0000-0x3FFF: Z80 RAM
 	if(address <= 0x3FFF) {
-		_z80Ram[address & 0x1FFF] = data;
+		uint16_t off = address & 0x1FFF;
+		_z80Ram[off] = data;
 		return;
 	}
 
@@ -562,16 +567,26 @@ void GenesisMemoryManager::SetBusreq(bool line)
 {
 	_busreqLine = line;
 	if(!line) {
-		//Bus request released — Z80 gets bus back after a short delay
 		_busreqAck = false;
 	}
-	//Z80 will acknowledge bus request when it reaches a suitable point
 	_z80->SetBusreq(line);
-	//Immediately acknowledge for simplicity (ares waits for Z80 to reach
-	//a bus cycle boundary, but in our explicit-clock model the Z80 doesn't
-	//actually race the M68K — it's always in sync)
 	if(line) {
 		_busreqAck = true;
+	} else if(_resetLine) {
+		//Bus released and Z80 is running — give it execution time.
+		//On real hardware the Z80 runs concurrently with the M68K.
+		//In our scanline scheduler (Z80 runs BEFORE M68K per scanline),
+		//a tight M68K polling loop (SETBUSREQ(1)→read→SETBUSREQ(0)→loop)
+		//starves the Z80: the bus is always held at the start of each
+		//scanline, so the Z80 never executes. Without this burst the Z80
+		//can never clear the busy flag ($1FFD) that the M68K is polling,
+		//causing a deadlock.
+		const uint32_t burstCycles = 200;
+		uint32_t run = 0;
+		uint32_t maxInstr = burstCycles * 4;
+		while(run < burstCycles && maxInstr-- > 0) {
+			run += _z80->ExecuteInstruction();
+		}
 	}
 }
 
@@ -580,8 +595,6 @@ void GenesisMemoryManager::SetReset(bool line)
 	//line=true: Z80 released from reset (running); line=false: Z80 held in reset
 	_resetLine = line;
 	_z80->SetReset(line);
-	//When Z80 is in reset, M68K has bus access via the access condition check
-	//(if(!_busreqAck && _resetLine)) — no need to force _busreqAck here.
 }
 
 bool GenesisMemoryManager::IsBusGranted() const
