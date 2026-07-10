@@ -830,8 +830,6 @@ void GenesisVdp::WriteControlPort(uint16_t data)
 		_io.leftColumnBlank = (data >> 5) & 1;
 		break;
 	case 0x01: {
-		uint8_t prevDisplayEnable = _io.displayEnable;
-		uint8_t prevVblankEnable = _irq.vblank.enable;
 		_io.videoMode5 = (data >> 2) & 1;
 		_io.overscan = (data >> 3) & 1;
 		_dma.enable = (data >> 4) & 1;

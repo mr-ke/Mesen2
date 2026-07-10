@@ -18,7 +18,7 @@
 
 //Z80 instruction trace — logs a limited number of instructions to diagnose stuck loops
 static uint32_t s_z80TraceCount = 0;
-#define Z80_TRACE_LIMIT 200
+#define Z80_TRACE_LIMIT 1000
 #define Z80_TRACE_ENABLE
 
 // Genesis Z80 (APU) — native Mesen2 port.
@@ -146,6 +146,46 @@ uint16_t& GenesisZ80::HL() {
 	case Registers::IX: return _r.ix;
 	case Registers::IY: return _r.iy;
 	default: _trueHL = (_r.h << 8) | _r.l; return _trueHL;
+	}
+}
+
+void GenesisZ80::setHL(uint16_t v) {
+	switch(_r.prefix) {
+	case Registers::IX: _r.ix = v; break;
+	case Registers::IY: _r.iy = v; break;
+	default: _r.h = v >> 8; _r.l = v & 0xFF; _trueHL = v; break;
+	}
+}
+
+uint8_t GenesisZ80::readH() {
+	switch(_r.prefix) {
+	case Registers::IX: return _r.ix >> 8;
+	case Registers::IY: return _r.iy >> 8;
+	default: return _r.h;
+	}
+}
+
+uint8_t GenesisZ80::readL() {
+	switch(_r.prefix) {
+	case Registers::IX: return _r.ix & 0xFF;
+	case Registers::IY: return _r.iy & 0xFF;
+	default: return _r.l;
+	}
+}
+
+void GenesisZ80::writeH(uint8_t v) {
+	switch(_r.prefix) {
+	case Registers::IX: _r.ix = (_r.ix & 0x00FF) | ((uint16_t)v << 8); break;
+	case Registers::IY: _r.iy = (_r.iy & 0x00FF) | ((uint16_t)v << 8); break;
+	default: _r.h = v; break;
+	}
+}
+
+void GenesisZ80::writeL(uint8_t v) {
+	switch(_r.prefix) {
+	case Registers::IX: _r.ix = (_r.ix & 0xFF00) | v; break;
+	case Registers::IY: _r.iy = (_r.iy & 0xFF00) | v; break;
+	default: _r.l = v; break;
 	}
 }
 
@@ -398,7 +438,8 @@ void GenesisZ80::Instruction() {
 	}
 
 	if(code == 0xCB && _r.prefix != Registers::HL) {
-		_r.wz = TrueHL() + (int8_t)Operand();
+		uint16_t base = (_r.prefix == Registers::IX) ? _r.ix : _r.iy;
+		_r.wz = base + (int8_t)Operand();
 		uint8_t opcd = Operand(); Wait(2);
 		InstructionCBd(_r.wz, opcd);
 	} else if(code == 0xCB) {
@@ -472,16 +513,18 @@ void GenesisZ80::Instruction(uint8_t code) {
 	case 0x20: instJR_c_e(!(F&FlagZ)); break; //JR NZ
 	case 0x21: { uint16_t v=Operands(); if(_r.prefix==Registers::IX) _r.ix=v; else if(_r.prefix==Registers::IY) _r.iy=v; else setPair(HH,LL,v); break; } //LD HL/IX/IY,nn
 	case 0x22: { uint16_t a=Operands(); Write(a,hlVal&0xFF); Write(a+1,hlVal>>8); _r.wz=a+1; } break; //LD (nn),HL
-	case 0x23: Wait(2); hlRef=hlVal+1; break; //INC HL
-	op(0x24, INC_r, HH) op(0x25, DEC_r, HH)
-	case 0x26: HH=Operand(); break;
+	case 0x23: Wait(2); setHL(hlVal+1); break; //INC HL
+	case 0x24: { _r.q=1; writeH(INC(readH())); } break; //INC H/IXH/IYH
+	case 0x25: { _r.q=1; writeH(DEC(readH())); } break; //DEC H/IXH/IYH
+	case 0x26: writeH(Operand()); break; //LD H/IXH/IYH,n
 	case 0x27: instDAA(); break;
 	case 0x28: instJR_c_e(F&FlagZ); break; //JR Z
 	case 0x29: instADD_hl_rr(hlVal); break;
-	case 0x2A: { uint16_t a=Operands(); uint8_t lo=Read(a); uint8_t hi=Read(a+1); hlRef=(hi<<8)|lo; _r.wz=a+1; } break; //LD HL,(nn)
-	case 0x2B: Wait(2); hlRef=hlVal-1; break;
-	op(0x2C, INC_r, LL) op(0x2D, DEC_r, LL)
-	case 0x2E: LL=Operand(); break;
+	case 0x2A: { uint16_t a=Operands(); uint8_t lo=Read(a); uint8_t hi=Read(a+1); setHL((hi<<8)|lo); _r.wz=a+1; } break; //LD HL,(nn)
+	case 0x2B: Wait(2); setHL(hlVal-1); break;
+	case 0x2C: { _r.q=1; writeL(INC(readL())); } break; //INC L/IXL/IYL
+	case 0x2D: { _r.q=1; writeL(DEC(readL())); } break; //DEC L/IXL/IYL
+	case 0x2E: writeL(Operand()); break; //LD L/IXL/IYL,n
 	case 0x2F: instCPL(); break;
 	case 0x30: instJR_c_e(!(F&FlagC)); break; //JR NC
 	case 0x31: SP=Operands(); break;
@@ -505,20 +548,28 @@ void GenesisZ80::Instruction(uint8_t code) {
 		if(code >= 0x40 && code <= 0x7F) {
 			//LD r,r'
 			uint8_t dst=(code>>3)&7, src=code&7;
-			auto getReg=[&](uint8_t r)->uint8_t& {
-				switch(r){ case 0:return B; case 1:return C; case 2:return D; case 3:return E; case 4:return HH; case 5:return LL; case 7:return A; default:{static uint8_t dum;return dum;} }
+			//When one operand is (HL) [src==6 or dst==6], the DD/FD prefix only
+			//affects the memory address: (HL)→(IX+d)/(IY+d). The H/L register
+			//operand refers to the regular H/L, NOT IXH/IXL.
+			//For register-to-register ops (neither is 6), H/L→IXH/IXL is correct.
+			bool memOp = (src==6 || dst==6);
+			auto readReg=[&](uint8_t r)->uint8_t {
+				switch(r){ case 0:return B; case 1:return C; case 2:return D; case 3:return E; case 4:return memOp?HH:readH(); case 5:return memOp?LL:readL(); case 7:return A; default:return 0; }
 			};
-			if(src==6) { uint8_t v=Read(Displace(hlRef)); if(dst!=6) getReg(dst)=v; }
-			else if(dst==6) { Write(Displace(hlRef), getReg(src)); }
-			else { getReg(dst)=getReg(src); }
+			auto writeReg=[&](uint8_t r, uint8_t v) {
+				switch(r){ case 0:B=v; break; case 1:C=v; break; case 2:D=v; break; case 3:E=v; break; case 4:if(memOp)HH=v;else writeH(v); break; case 5:if(memOp)LL=v;else writeL(v); break; case 7:A=v; break; default:break; }
+			};
+			if(src==6) { uint8_t v=Read(Displace(hlRef)); if(dst!=6) writeReg(dst,v); }
+			else if(dst==6) { Write(Displace(hlRef), readReg(src)); }
+			else { writeReg(dst, readReg(src)); }
 		}
 		else if(code >= 0x80 && code <= 0xBF) {
 			//ALU A,r
 			uint8_t op=(code>>3)&7, src=code&7;
-			auto getReg=[&](uint8_t r)->uint8_t {
-				switch(r){ case 0:return B; case 1:return C; case 2:return D; case 3:return E; case 4:return HH; case 5:return LL; case 7:return A; default:return 0; }
+			auto readReg=[&](uint8_t r)->uint8_t {
+				switch(r){ case 0:return B; case 1:return C; case 2:return D; case 3:return E; case 4:return readH(); case 5:return readL(); case 7:return A; default:return 0; }
 			};
-			uint8_t val = (src==6) ? Read(Displace(hlRef)) : getReg(src);
+			uint8_t val = (src==6) ? Read(Displace(hlRef)) : readReg(src);
 			_r.q=1;
 			switch(op) {
 			case 0: A=ADD(A,val); break;
@@ -568,10 +619,10 @@ void GenesisZ80::Instruction(uint8_t code) {
 			case 0xE1: { uint16_t v=Pop(); if(_r.prefix==Registers::IX)_r.ix=v; else if(_r.prefix==Registers::IY)_r.iy=v; else setPair(HH,LL,v); } break; //POP HL/IX/IY
 			case 0xE2: { uint16_t a=Operands(); _r.wz=a; if(!(F&FlagP))_r.pc=a; } break;
 			case 0xE3: { //EX (SP),HL
-				uint8_t lo=Read(SP), hi=Read(SP+1); Wait(1);
-				uint16_t hv=hlRef; Write(SP,hv&0xFF); Write(SP+1,hv>>8); Wait(2);
-				hlRef=(hi<<8)|lo; _r.wz=hlRef;
-			} break;
+			uint8_t lo=Read(SP), hi=Read(SP+1); Wait(1);
+			uint16_t hv=hlRef; Write(SP,hv&0xFF); Write(SP+1,hv>>8); Wait(2);
+			uint16_t newHL=(hi<<8)|lo; setHL(newHL); _r.wz=newHL;
+		} break;
 			case 0xE4: { uint16_t a=Operands(); _r.wz=a; if(!(F&FlagP)){Wait(1);Push(_r.pc);_r.pc=a;} } break;
 			case 0xE5: Wait(1); Push(hlRef); break; //PUSH HL/IX/IY
 			case 0xE6: _r.q=1; A=AND(A,Operand()); break;
@@ -622,7 +673,7 @@ void GenesisZ80::instADD_hl_rr(uint16_t rr) {
 	Wait(4);
 	auto hi = ADD((uint8_t)(hl >> 8), (uint8_t)(rr >> 8), _r.flags & FlagC);
 	uint16_t result = (hi << 8) | lo;
-	HL() = result;
+	setHL(result);
 	if(saveVF) _r.flags |= FlagP; else _r.flags &= ~FlagP;
 	if(saveZF) _r.flags |= FlagZ; else _r.flags &= ~FlagZ;
 	if(saveSF) _r.flags |= FlagS; else _r.flags &= ~FlagS;
@@ -821,20 +872,28 @@ void GenesisZ80::InstructionCBd(uint16_t addr, uint8_t code) {
 //--- ED prefix ---
 
 void GenesisZ80::InstructionED(uint8_t code) {
-	uint16_t& bc = *reinterpret_cast<uint16_t*>(&_r.b); // relies on memory layout
-	//Safer: reconstruct
 	uint16_t bcVal = (_r.b << 8) | _r.c;
 	uint16_t deVal = (_r.d << 8) | _r.e;
-	uint16_t hlVal = (_r.h << 8) | _r.l;
+	uint16_t hlVal = HL(); //respects DD/FD prefix (IX/IY)
 
 	auto setBC = [&](uint16_t v) { _r.b = v >> 8; _r.c = v & 0xFF; };
 	auto setDE = [&](uint16_t v) { _r.d = v >> 8; _r.e = v & 0xFF; };
-	auto setHL = [&](uint16_t v) { _r.h = v >> 8; _r.l = v & 0xFF; };
+	//setHL respects DD/FD prefix for consistency with hlVal
+	auto setHL = [&](uint16_t v) {
+		switch(_r.prefix) {
+		case Registers::IX: _r.ix = v; break;
+		case Registers::IY: _r.iy = v; break;
+		default: _r.h = v >> 8; _r.l = v & 0xFF; break;
+		}
+	};
 
 	//Most ED opcodes are NOP; only specific ranges are defined.
 	if(code >= 0x40 && code <= 0x7F) {
-		uint8_t reg = code & 7;
-		uint8_t op = (code >> 3) & 7;
+		//Z80 ED opcode layout for 0x40-0x7F:
+		//  bits [2:0] = opType (operation): 0=IN, 1=OUT, 2=SBC/ADC, 3=LD, 4=NEG, 5=RETN, 6=IM, 7=misc
+		//  bits [5:3] = regSel (register selector)
+		uint8_t opType = code & 7;
+		uint8_t regSel = (code >> 3) & 7;
 
 		auto getReg = [&](uint8_t r) -> uint8_t& {
 			static uint8_t dummy;
@@ -845,20 +904,113 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			}
 		};
 
-		switch(op) {
+		//opType 4-7: NEG, RETN/RETI, IM, and LD I,A / LD R,A / LD A,I / LD A,R / RRD / RLD
+		if(opType >= 4) {
+			switch(opType) {
+			case 4: { //NEG
+				_r.q = 1;
+				A = SUB(0, A);
+				break;
+			}
+			case 5: { //RETN / RETI (0x4D = RETI, all others RETN; functionally identical)
+				_r.wz = Pop();
+				_r.pc = _r.wz;
+				_r.iff1 = _r.iff2;
+				break;
+			}
+			case 6: { //IM mode — mode depends on regSel
+				static const uint8_t modes[] = {0, 0, 1, 2, 0, 0, 1, 2};
+				_r.im = modes[regSel];
+				break;
+			}
+			case 7: { //LD I,A / LD R,A / LD A,I / LD A,R / RRD / RLD
+				switch(regSel) {
+				case 0: //LD I,A
+					_r.i = A;
+					break;
+				case 1: //LD R,A
+					_r.r = A;
+					break;
+				case 2: { //LD A,I
+					Wait(1);
+					_r.q = 1;
+					A = _r.i;
+					_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
+					if(_r.iff2) _r.flags |= FlagP;
+					if(A & 0x08) _r.flags |= FlagX;
+					if(A & 0x20) _r.flags |= FlagY;
+					if(A == 0) _r.flags |= FlagZ;
+					if(A & 0x80) _r.flags |= FlagS;
+					_r.p = true; //NMOS: clear PF on interrupt during LD A,I
+					break;
+				}
+				case 3: { //LD A,R
+					Wait(1);
+					_r.q = 1;
+					uint8_t r = (_r.r & 0x7F) | (_r.r & 0x80);
+					_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
+					if(_r.iff2) _r.flags |= FlagP;
+					if(r & 0x08) _r.flags |= FlagX;
+					if(r & 0x20) _r.flags |= FlagY;
+					if(r == 0) _r.flags |= FlagZ;
+					if(r & 0x80) _r.flags |= FlagS;
+					A = r;
+					_r.p = true;
+					break;
+				}
+				case 4: { //RRD
+					_r.q = 1;
+					uint8_t data = Read(hlVal);
+					Wait(4);
+					Write(hlVal, (data >> 4) | (A << 4));
+					A = (A & 0xF0) | (data & 0x0F);
+					_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
+					if(Parity(A)) _r.flags |= FlagP;
+					if(A & 0x08) _r.flags |= FlagX;
+					if(A & 0x20) _r.flags |= FlagY;
+					if(A == 0) _r.flags |= FlagZ;
+					if(A & 0x80) _r.flags |= FlagS;
+					_r.wz = hlVal + 1;
+					break;
+				}
+				case 5: { //RLD
+					_r.q = 1;
+					uint8_t data = Read(hlVal);
+					Wait(4);
+					Write(hlVal, (data << 4) | (A & 0x0F));
+					A = (A & 0xF0) | (data >> 4);
+					_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
+					if(Parity(A)) _r.flags |= FlagP;
+					if(A & 0x08) _r.flags |= FlagX;
+					if(A & 0x20) _r.flags |= FlagY;
+					if(A == 0) _r.flags |= FlagZ;
+					if(A & 0x80) _r.flags |= FlagS;
+					_r.wz = hlVal + 1;
+					break;
+				}
+				default: break; //undocumented NOPs for regSel=6,7
+				}
+				break;
+			}
+			}
+			return;
+		}
+
+		//opType 0-3: IN, OUT, SBC/ADC, LD — determined by opType
+		switch(opType) {
 		case 0: { //IN r,(C) / IN (C)
 			uint8_t data = In((_r.b << 8) | _r.c);
 			_r.wz = ((_r.b << 8) | _r.c) + 1;
 			_r.q = 1;
 			data = IN(data);
-			if(reg != 6) getReg(reg) = data;
+			if(regSel != 6) getReg(regSel) = data;
 			break;
 		}
 		case 1: { //OUT (C),r / OUT (C),0
-			if(reg == 6) {
+			if(regSel == 6) {
 				Out((_r.b << 8) | _r.c, 0x00); //NMOS: 0x00
 			} else {
-				Out((_r.b << 8) | _r.c, getReg(reg));
+				Out((_r.b << 8) | _r.c, getReg(regSel));
 			}
 			_r.wz = ((_r.b << 8) | _r.c) + 1;
 			break;
@@ -867,7 +1019,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			bool isSbc = !(code & 0x10);
 			_r.q = 1;
 			uint16_t rr;
-			switch(reg) {
+			switch(regSel >> 1) {
 			case 0: rr = bcVal; break;
 			case 1: rr = deVal; break;
 			case 2: rr = hlVal; break;
@@ -897,7 +1049,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			uint16_t addr = Operands();
 			bool isStore = !(code & 0x10);
 			uint16_t rr;
-			switch(reg) {
+			switch(regSel >> 1) {
 			case 0: rr = bcVal; break;
 			case 1: rr = deVal; break;
 			case 2: rr = hlVal; break;
@@ -911,7 +1063,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 				uint8_t lo = Read(addr);
 				uint8_t hi = Read(addr + 1);
 				rr = (hi << 8) | lo;
-				switch(reg) {
+				switch(regSel >> 1) {
 				case 0: setBC(rr); break;
 				case 1: setDE(rr); break;
 				case 2: setHL(rr); break;
@@ -921,84 +1073,15 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			_r.wz = addr + 1;
 			break;
 		}
-		case 4: { //NEG
-			_r.q = 1;
-			A = SUB(0, A);
-			break;
-		}
-		case 5: { //RETN / RETI
-			_r.wz = Pop();
-			_r.pc = _r.wz;
-			_r.iff1 = _r.iff2;
-			break;
-		}
-		case 6: { //IM mode
-			uint8_t modes[] = {0, 0, 1, 2, 0, 0, 1, 2};
-			_r.im = modes[reg];
-			break;
-		}
-		case 7: { //LD I,A / LD R,A / LD A,I / LD A,R / RRD / RLD
-			if(reg == 0) { //LD I,A
-				_r.i = A;
-			} else if(reg == 1) { //LD R,A
-				_r.r = A;
-			} else if(reg == 4) { //LD A,I
-				Wait(1);
-				_r.q = 1;
-				_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
-				if(_r.iff2) _r.flags |= FlagP;
-				if(A & 0x08) _r.flags |= FlagX;
-				if(A & 0x20) _r.flags |= FlagY;
-				if(A == 0) _r.flags |= FlagZ;
-				if(A & 0x80) _r.flags |= FlagS;
-				_r.p = true; //NMOS: clear PF on interrupt during LD A,I
-			} else if(reg == 5) { //LD A,R
-				Wait(1);
-				_r.q = 1;
-				uint8_t r = (_r.r & 0x7F) | (_r.r & 0x80);
-				_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
-				if(_r.iff2) _r.flags |= FlagP;
-				if(r & 0x08) _r.flags |= FlagX;
-				if(r & 0x20) _r.flags |= FlagY;
-				if(r == 0) _r.flags |= FlagZ;
-				if(r & 0x80) _r.flags |= FlagS;
-				A = r;
-				_r.p = true;
-			} else if(reg == 6) { //RRD
-				_r.q = 1;
-				uint8_t data = Read(hlVal);
-				Wait(4);
-				Write((_r.h << 8) | _r.l, (data >> 4) | (A << 4));
-				A = (A & 0xF0) | (data & 0x0F);
-				_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
-				if(Parity(A)) _r.flags |= FlagP;
-				if(A & 0x08) _r.flags |= FlagX;
-				if(A & 0x20) _r.flags |= FlagY;
-				if(A == 0) _r.flags |= FlagZ;
-				if(A & 0x80) _r.flags |= FlagS;
-				_r.wz = hlVal + 1;
-			} else if(reg == 7) { //RLD
-				_r.q = 1;
-				uint8_t data = Read(hlVal);
-				Wait(4);
-				Write((_r.h << 8) | _r.l, (data << 4) | (A & 0x0F));
-				A = (A & 0xF0) | (data >> 4);
-				_r.flags &= ~(FlagN | FlagP | FlagH | FlagZ | FlagS);
-				if(Parity(A)) _r.flags |= FlagP;
-				if(A & 0x08) _r.flags |= FlagX;
-				if(A & 0x20) _r.flags |= FlagY;
-				if(A == 0) _r.flags |= FlagZ;
-				if(A & 0x80) _r.flags |= FlagS;
-				_r.wz = hlVal + 1;
-			}
-			break;
-		}
 		}
 	}
 	else if(code >= 0xA0) {
-		//Block instructions
+		//Block instructions — Z80 opcode map:
+		//  bits [2:0] = operation: 000=LD, 001=CP, 010=IN, 011=OUT
+		//  bit 3      = direction: 0=increment, 1=decrement
+		//  bit 4      = repeat: 0=no, 1=yes
 		switch(code) {
-		case 0xA0: case 0xA1: { //LDI
+		case 0xA0: { //LDI
 			uint8_t data = Read(hlVal++);
 			Write(deVal++, data);
 			Wait(2);
@@ -1011,48 +1094,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			_r.q = 1;
 			break;
 		}
-		case 0xA2: case 0xA3: { //LDIR
-			uint8_t data = Read(hlVal++);
-			Write(deVal++, data);
-			Wait(2);
-			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
-			bcVal--;
-			if(bcVal) _r.flags |= FlagP;
-			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
-			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
-			setBC(bcVal); setDE(deVal); setHL(hlVal);
-			_r.q = 1;
-			if(bcVal) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
-			break;
-		}
-		case 0xA8: case 0xA9: { //LDD
-			uint8_t data = Read(hlVal--);
-			Write(deVal--, data);
-			Wait(2);
-			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
-			bcVal--;
-			if(bcVal) _r.flags |= FlagP;
-			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
-			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
-			setBC(bcVal); setDE(deVal); setHL(hlVal);
-			_r.q = 1;
-			break;
-		}
-		case 0xAA: case 0xAB: { //LDDR
-			uint8_t data = Read(hlVal--);
-			Write(deVal--, data);
-			Wait(2);
-			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
-			bcVal--;
-			if(bcVal) _r.flags |= FlagP;
-			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
-			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
-			setBC(bcVal); setDE(deVal); setHL(hlVal);
-			_r.q = 1;
-			if(bcVal) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
-			break;
-		}
-		case 0xA4: case 0xA5: { //CPI
+		case 0xA1: { //CPI
 			_r.wz++;
 			uint8_t data = Read(hlVal++);
 			Wait(5);
@@ -1071,7 +1113,127 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			_r.q = 1;
 			break;
 		}
-		case 0xA6: case 0xA7: { //CPIR
+		case 0xA2: { //INI
+			_r.wz = bcVal + 1;
+			Wait(1);
+			uint8_t data = In(bcVal);
+			_r.b--;
+			Write(hlVal++, data);
+			uint16_t cf = (uint16_t)((uint8_t)(_r.c + 1) + data);
+			_r.flags = FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity(((_r.c + 1 + data) & 7) ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xA3: { //OUTI
+			_r.wz = bcVal + 1;
+			Wait(1);
+			uint8_t data = Read(hlVal++);
+			_r.b--;
+			Out(bcVal, data);
+			uint16_t cf = (uint16_t)(_r.l + data);
+			_r.flags = FlagN;
+			if(data & 0x80) _r.flags |= FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xA8: { //LDD
+			uint8_t data = Read(hlVal--);
+			Write(deVal--, data);
+			Wait(2);
+			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
+			bcVal--;
+			if(bcVal) _r.flags |= FlagP;
+			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
+			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
+			setBC(bcVal); setDE(deVal); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xA9: { //CPD
+			_r.wz--;
+			uint8_t data = Read(hlVal--);
+			Wait(5);
+			uint8_t n = _r.a - data;
+			_r.flags &= ~(FlagN|FlagZ|FlagP|FlagH|FlagX|FlagY|FlagS);
+			_r.flags |= FlagN;
+			bcVal--;
+			if(bcVal) _r.flags |= FlagP;
+			if((_r.a ^ data ^ n) & 0x10) _r.flags |= FlagH;
+			uint8_t n2 = n - ((_r.flags & FlagH) ? 1 : 0);
+			if(n2 & 0x08) _r.flags |= FlagX;
+			if(n2 & 0x02) _r.flags |= FlagY;
+			if(n == 0) _r.flags |= FlagZ;
+			if(n & 0x80) _r.flags |= FlagS;
+			setBC(bcVal); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xAA: { //IND
+			_r.wz = bcVal - 1;
+			Wait(1);
+			uint8_t data = In(bcVal);
+			_r.b--;
+			Write(hlVal--, data);
+			uint16_t cf = (uint16_t)((uint8_t)(_r.c - 1) + data);
+			_r.flags = FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity(((_r.c - 1 + data) & 7) ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xAB: { //OUTD
+			_r.wz = bcVal - 1;
+			Wait(1);
+			uint8_t data = Read(hlVal--);
+			_r.b--;
+			Out(bcVal, data);
+			uint16_t cf = (uint16_t)(_r.l + data);
+			_r.flags = FlagN;
+			if(data & 0x80) _r.flags |= FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
+			_r.q = 1;
+			break;
+		}
+		case 0xB0: { //LDIR
+			uint8_t data = Read(hlVal++);
+			Write(deVal++, data);
+			Wait(2);
+			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
+			bcVal--;
+			if(bcVal) _r.flags |= FlagP;
+			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
+			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
+			setBC(bcVal); setDE(deVal); setHL(hlVal);
+			_r.q = 1;
+			if(bcVal) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
+			break;
+		}
+		case 0xB1: { //CPIR
 			_r.wz++;
 			uint8_t data = Read(hlVal++);
 			Wait(5);
@@ -1091,26 +1253,60 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			if(bcVal && n) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
 			break;
 		}
-		case 0xAC: case 0xAD: { //CPD
-			_r.wz--;
-			uint8_t data = Read(hlVal--);
-			Wait(5);
-			uint8_t n = _r.a - data;
-			_r.flags &= ~(FlagN|FlagZ|FlagP|FlagH|FlagX|FlagY|FlagS);
-			_r.flags |= FlagN;
-			bcVal--;
-			if(bcVal) _r.flags |= FlagP;
-			if((_r.a ^ data ^ n) & 0x10) _r.flags |= FlagH;
-			uint8_t n2 = n - ((_r.flags & FlagH) ? 1 : 0);
-			if(n2 & 0x08) _r.flags |= FlagX;
-			if(n2 & 0x02) _r.flags |= FlagY;
-			if(n == 0) _r.flags |= FlagZ;
-			if(n & 0x80) _r.flags |= FlagS;
-			setBC(bcVal); setHL(hlVal);
+		case 0xB2: { //INIR
+			_r.wz = bcVal + 1;
+			Wait(1);
+			uint8_t data = In(bcVal);
+			_r.b--;
+			Write(hlVal++, data);
+			uint16_t cf = (uint16_t)((uint8_t)(_r.c + 1) + data);
+			_r.flags = FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity(((_r.c + 1 + data) & 7) ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
 			_r.q = 1;
+			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
 			break;
 		}
-		case 0xAE: case 0xAF: { //CPDR
+		case 0xB3: { //OTIR
+			_r.wz = bcVal + 1;
+			Wait(1);
+			uint8_t data = Read(hlVal++);
+			_r.b--;
+			Out(bcVal, data);
+			uint16_t cf = (uint16_t)(_r.l + data);
+			_r.flags = FlagN;
+			if(data & 0x80) _r.flags |= FlagN;
+			if(cf & 0x100) _r.flags |= FlagC | FlagH;
+			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
+			if(_r.b & 0x08) _r.flags |= FlagX;
+			if(_r.b & 0x20) _r.flags |= FlagY;
+			if(_r.b == 0) _r.flags |= FlagZ;
+			if(_r.b & 0x80) _r.flags |= FlagS;
+			setBC((_r.b << 8) | _r.c); setHL(hlVal);
+			_r.q = 1;
+			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
+			break;
+		}
+		case 0xB8: { //LDDR
+			uint8_t data = Read(hlVal--);
+			Write(deVal--, data);
+			Wait(2);
+			_r.flags &= ~(FlagN | FlagP | FlagH | FlagX | FlagY);
+			bcVal--;
+			if(bcVal) _r.flags |= FlagP;
+			if((uint8_t)(_r.a + data) & 0x08) _r.flags |= FlagX;
+			if((uint8_t)(_r.a + data) & 0x02) _r.flags |= FlagY;
+			setBC(bcVal); setDE(deVal); setHL(hlVal);
+			_r.q = 1;
+			if(bcVal) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
+			break;
+		}
+		case 0xB9: { //CPDR
 			_r.wz--;
 			uint8_t data = Read(hlVal--);
 			Wait(5);
@@ -1130,44 +1326,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			if(bcVal && n) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
 			break;
 		}
-		case 0xB0: case 0xB1: { //INI
-			_r.wz = bcVal + 1;
-			Wait(1);
-			uint8_t data = In(bcVal);
-			_r.b--;
-			Write(hlVal++, data);
-			uint16_t cf = (uint16_t)((uint8_t)(_r.c + 1) + data);
-			_r.flags = FlagN;
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.c + 1 + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			break;
-		}
-		case 0xB2: case 0xB3: { //INIR
-			_r.wz = bcVal + 1;
-			Wait(1);
-			uint8_t data = In(bcVal);
-			_r.b--;
-			Write(hlVal++, data);
-			uint16_t cf = (uint16_t)((uint8_t)(_r.c + 1) + data);
-			_r.flags = FlagN;
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.c + 1 + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
-			break;
-		}
-		case 0xB8: case 0xB9: { //IND
+		case 0xBA: { //INDR
 			_r.wz = bcVal - 1;
 			Wait(1);
 			uint8_t data = In(bcVal);
@@ -1176,25 +1335,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			uint16_t cf = (uint16_t)((uint8_t)(_r.c - 1) + data);
 			_r.flags = FlagN;
 			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.c - 1 + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			break;
-		}
-		case 0xBA: case 0xBB: { //INDR
-			_r.wz = bcVal - 1;
-			Wait(1);
-			uint8_t data = In(bcVal);
-			_r.b--;
-			Write(hlVal--, data);
-			uint16_t cf = (uint16_t)((uint8_t)(_r.c - 1) + data);
-			_r.flags = FlagN;
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.c - 1 + data) & 7 ^ _r.b)) _r.flags |= FlagP;
+			if(Parity(((_r.c - 1 + data) & 7) ^ _r.b)) _r.flags |= FlagP;
 			if(_r.b & 0x08) _r.flags |= FlagX;
 			if(_r.b & 0x20) _r.flags |= FlagY;
 			if(_r.b == 0) _r.flags |= FlagZ;
@@ -1204,65 +1345,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
 			break;
 		}
-		case 0xB4: case 0xB5: { //OUTI
-			_r.wz = bcVal + 1;
-			Wait(1);
-			uint8_t data = Read(hlVal++);
-			_r.b--;
-			Out(bcVal, data);
-			uint16_t cf = (uint16_t)(_r.l + data);
-			_r.flags = FlagN;
-			if(data & 0x80) _r.flags |= FlagN; //NF
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			break;
-		}
-		case 0xB6: case 0xB7: { //OTIR
-			_r.wz = bcVal + 1;
-			Wait(1);
-			uint8_t data = Read(hlVal++);
-			_r.b--;
-			Out(bcVal, data);
-			uint16_t cf = (uint16_t)(_r.l + data);
-			_r.flags = FlagN;
-			if(data & 0x80) _r.flags |= FlagN;
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
-			break;
-		}
-		case 0xBC: case 0xBD: { //OUTD
-			_r.wz = bcVal - 1;
-			Wait(1);
-			uint8_t data = Read(hlVal--);
-			_r.b--;
-			Out(bcVal, data);
-			uint16_t cf = (uint16_t)(_r.l + data);
-			_r.flags = FlagN;
-			if(data & 0x80) _r.flags |= FlagN;
-			if(cf & 0x100) _r.flags |= FlagC | FlagH;
-			if(Parity((_r.l + data) & 7 ^ _r.b)) _r.flags |= FlagP;
-			if(_r.b & 0x08) _r.flags |= FlagX;
-			if(_r.b & 0x20) _r.flags |= FlagY;
-			if(_r.b == 0) _r.flags |= FlagZ;
-			if(_r.b & 0x80) _r.flags |= FlagS;
-			setBC((_r.b << 8) | _r.c); setHL(hlVal);
-			_r.q = 1;
-			break;
-		}
-		case 0xBE: case 0xBF: { //OTDR
+		case 0xBB: { //OTDR
 			_r.wz = bcVal - 1;
 			Wait(1);
 			uint8_t data = Read(hlVal--);
@@ -1282,7 +1365,7 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			if(_r.b) { Wait(5); _r.pc -= 2; _r.wz = _r.pc + 1; }
 			break;
 		}
-		default: break;
+		default: break; //undocumented NOPs for all other 0xA0-0xBF opcodes
 		}
 	}
 	//All other ED opcodes are NOP

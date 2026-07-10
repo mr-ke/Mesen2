@@ -461,18 +461,21 @@ void GenesisYm2612::ClockOnce() {
 // IO (ares io.cpp - verbatim register decode, port-aware address mapping)
 // ============================================================================
 uint8_t GenesisYm2612::ReadStatus() {
+  //ares uses bit 0 for Timer A and bit 1 for Timer B.
+  //The Batman & Robin driver tests bit 1 (BIT 1,(IX+0)) for Timer B overflow.
   return (_timerA.line << 0) | (_timerB.line << 1);
 }
 
 void GenesisYm2612::WriteAddress(uint8_t port, uint8_t data) {
-  //Port 0 = registers 0x000-0x0FF; port 1 = registers 0x100-0x1FF (channel 3).
-  _io.address = (port ? 0x100 : 0x000) | data;
+  //Port 0 = registers 0x000-0x0FF; port 1 = registers 0x100-0x1FF.
+  //Each port has its own address latch on real hardware.
+  _io.address[port] = (port ? 0x100 : 0x000) | data;
 }
 
 void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
-  (void)port; //address already set by WriteAddress
+  uint16_t addr = _io.address[port];
 
-  switch(_io.address) {
+  switch(addr) {
   //LFO
   case 0x022: {
     _lfo.rate = data & 0x07;
@@ -525,9 +528,9 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   case 0x2b: { _dac.enable = (data >> 7) & 1; break; }
   }
 
-  if((_io.address & 0x003) == 3) return;
-  uint32_t voice = ((_io.address >> 8) & 1) * 3 + (_io.address & 0x3);
-  uint32_t bits2_3 = (_io.address >> 2) & 0x3;
+  if((addr & 0x003) == 3) return;
+  uint32_t voice = ((addr >> 8) & 1) * 3 + (addr & 0x3);
+  uint32_t bits2_3 = (addr >> 2) & 0x3;
   //Bit-swap of 2-bit value (0,1,2,3 => 0,2,1,3). ares relies on n2 masking;
   //without & 0x3, bits2_3=2 yields index 5 and bits2_3=3 yields index 7,
   //both out of bounds for the 4-element operators[] array.
@@ -536,7 +539,7 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   auto& channel = _channels[voice];
   auto& op = channel.operators[index];
 
-  switch(_io.address & 0x0f0) {
+  switch(addr & 0x0f0) {
   //detune, multiple
   case 0x030: {
     op.multiple = data & 0x0F;
@@ -590,7 +593,7 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   }
   }
 
-  switch(_io.address & 0x0fc) {
+  switch(addr & 0x0fc) {
   //pitch (low)
   case 0x0a0: {
     channel.operators[3].pitch.reload = channel.operators[3].pitch.latch | data;
@@ -611,8 +614,8 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   //per-operator pitch (low)
   case 0x0a8: {
     uint32_t idx;
-    if(_io.address == 0x0a9) idx = 0;
-    else if(_io.address == 0x0aa) idx = 1;
+    if(addr == 0x0a9) idx = 0;
+    else if(addr == 0x0aa) idx = 1;
     else idx = 2; //0x0a8
     _channels[2].operators[idx].pitch.reload = _channels[2].operators[idx].pitch.latch | data;
     _channels[2].operators[idx].octave.reload = _channels[2].operators[idx].octave.latch;
@@ -622,8 +625,8 @@ void GenesisYm2612::WriteData(uint8_t port, uint8_t data) {
   //per-operator pitch (high)
   case 0x0ac: {
     uint32_t idx;
-    if(_io.address == 0x0ad) idx = 0;
-    else if(_io.address == 0x0ae) idx = 1;
+    if(addr == 0x0ad) idx = 0;
+    else if(addr == 0x0ae) idx = 1;
     else idx = 2; //0x0ac
     _channels[2].operators[idx].pitch.latch = (data << 8) & 0x7FF;
     _channels[2].operators[idx].octave.latch = (data >> 3) & 0x7;
@@ -713,7 +716,8 @@ void GenesisYm2612::Serialize(Serializer& s) {
     ResetOutputFilters();
   }
 
-  SV(_io.address);
+  SV(_io.address[0]);
+  SV(_io.address[1]);
   SV(_lfo.enable);
   SV(_lfo.rate);
   SV(_lfo.clock);

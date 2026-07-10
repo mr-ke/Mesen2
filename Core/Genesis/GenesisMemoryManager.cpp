@@ -435,18 +435,9 @@ uint8_t GenesisMemoryManager::Z80Read(uint16_t address)
 		return _z80Ram[address & 0x1FFF];
 	}
 
-	//0x4000-0x5FFF: YM2612
+	//0x4000-0x5FFF: YM2612 — reading any address returns the status byte
 	if(address >= 0x4000 && address <= 0x5FFF) {
-		uint16_t reg = 0x4000 | (address & 3);
-		switch(reg) {
-		case 0x4000: //YM2612 port 0 address
-		case 0x4002: //YM2612 port 1 address
-			return 0xFF; //write-only
-		case 0x4001: //YM2612 port 0 data (status)
-		case 0x4003: //YM2612 port 1 data (status)
-			return _ym2612->ReadStatus();
-		}
-		return 0xFF;
+		return _ym2612->ReadStatus();
 	}
 
 	//0x6000-0x60FF: Bank register

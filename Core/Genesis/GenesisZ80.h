@@ -159,6 +159,13 @@ private:
 	//--- Register access helpers ---
 	//Get HL/IX/IY based on current prefix
 	uint16_t& HL();
+	//Set HL/IX/IY based on current prefix — propagates to _r.h/_r.l
+	void setHL(uint16_t v);
+	//Read/write H or L respecting DD/FD prefix (IXH/IXL, IYH/IYL)
+	uint8_t readH();
+	uint8_t readL();
+	void writeH(uint8_t v);
+	void writeL(uint8_t v);
 	uint8_t& H();
 	uint8_t& L();
 	//True HL (ignoring prefix)

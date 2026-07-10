@@ -63,7 +63,7 @@ private:
 	struct Channel;
 
 	struct IO {
-		uint16_t address = 0;   //n9
+		uint16_t address[2] = {0, 0};   //separate latches for port 0 and port 1
 	} _io;
 
 	struct LFO {

@@ -222,27 +222,19 @@ void GenesisConsole::RunFrame()
 		//Run VDP for one scanline (renders pixels, generates Hblank/Vblank)
 		_vdp->RunScanline();
 
-		//Wire VDP Hblank interrupt to Z80 IRQ line for audio driver sync
+		//Wire VDP VBlank + HBlank interrupt to Z80 IRQ line.
+		//Uses IsVblank() (raw VBlank state) instead of GetVblankIrq()
+		//(which is gated by enable+pending and gets cleared when M68K
+		//acknowledges the interrupt, so the Z80 would never see it).
 		if(_z80) {
-			_z80->SetIrq(_vdp->GetHblankIrq());
+			_z80->SetIrq(_vdp->IsVblank() || _vdp->GetHblankIrq());
 		}
 
-		//Note: M68K interrupt polling is now done per-instruction inside
-		//ExecuteInstruction (via CheckInterrupts callback), matching ares's
-		//behavior where the CPU checks for pending interrupts before each
-		//instruction. This is critical for VBlank delivery timing.
-
-		//Run M68K for approximately one scanline's worth of M68K cycles
-		uint32_t targetCycles = m68kCyclesPerScanline;
-		uint32_t cyclesRun = 0;
-		uint32_t m68kMaxInstr = targetCycles * 4; //safety limit
-		while(cyclesRun < targetCycles && !_m68k->IsStopped() && m68kMaxInstr-- > 0) {
-			_vdp->SetM68kCyclePosition(cyclesRun, targetCycles);
-			cyclesRun += _m68k->ExecuteInstruction();
-			cyclesRun += _vdp->ConsumeBusPenalty();
-		}
-
-		//Run Z80 for its share of cycles
+		//Run Z80 BEFORE M68K so it can process its VBlank interrupt
+		//before the M68K grabs the Z80 bus. On real hardware both CPUs
+		//run concurrently; in the sequential model, running Z80 first
+		//ensures it sees the VBlank signal before M68K acknowledgement
+		//clears it.
 		if(_z80) {
 			uint32_t z80Target = z80CyclesPerScanline;
 			uint32_t z80Run = 0;
@@ -250,6 +242,20 @@ void GenesisConsole::RunFrame()
 			while(z80Run < z80Target && z80MaxInstr-- > 0) {
 				z80Run += _z80->ExecuteInstruction();
 			}
+		}
+
+		//Run M68K for approximately one scanline's worth of M68K cycles.
+		//Note: M68K interrupt polling is done per-instruction inside
+		//ExecuteInstruction (via CheckInterrupts callback), matching ares's
+		//behavior where the CPU checks for pending interrupts before each
+		//instruction. This is critical for VBlank delivery timing.
+		uint32_t targetCycles = m68kCyclesPerScanline;
+		uint32_t cyclesRun = 0;
+		uint32_t m68kMaxInstr = targetCycles * 4; //safety limit
+		while(cyclesRun < targetCycles && !_m68k->IsStopped() && m68kMaxInstr-- > 0) {
+			_vdp->SetM68kCyclePosition(cyclesRun, targetCycles);
+			cyclesRun += _m68k->ExecuteInstruction();
+			cyclesRun += _vdp->ConsumeBusPenalty();
 		}
 
 		//Run audio chips per-scanline for accurate sample timing
