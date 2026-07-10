@@ -2,6 +2,7 @@
 #include "Genesis/GenesisVdp.h"
 #include "Genesis/GenesisM68K.h"
 #include "Genesis/GenesisConsole.h"
+#include "Genesis/GenesisPsg.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
 #include "Utilities/Serializer.h"
@@ -526,7 +527,12 @@ void GenesisVdp::Write(uint32_t address, uint16_t data)
 	case 0x00: case 0x02: WriteDataPort(data); break;       //0xC00000-0xC00003
 	case 0x04: case 0x06: WriteControlPort(data); break;    //0xC00004-0xC00007
 	//0x08-0x0E: HV counter (read-only, ignore writes)
-	case 0x10: case 0x12: case 0x14: case 0x16: break; //PSG writes handled by console
+	case 0x10: case 0x12: case 0x14: case 0x16: {
+			//PSG: ares forwards to psg.write(data.byte(0)) for word writes.
+			//Only the low byte of the word is used.
+			_console->GetPsg()->Write(data & 0xFF);
+			break;
+		}
 	case 0x18: case 0x1A: _testAddress = data & 0xF; break;
 	case 0x1C: case 0x1E: {
 		switch(_testAddress) {
