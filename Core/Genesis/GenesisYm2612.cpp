@@ -129,7 +129,7 @@ void GenesisYm2612::Operator::RunEnvelope(GenesisYm2612& ym, Channel& channel) {
     //Without the mask, the ~u16(value)*step>>4 term makes value grow past
     //0x3FF instead of wrapping back, so the attack runs the wrong direction
     //(value increases instead of decreasing toward 0).
-    if(envelope.rate < 62) envelope.value = (envelope.value + (~((uint16_t)(envelope.value))) * step >> 4) & 0x3FF;
+    if(envelope.rate < 62) envelope.value = (envelope.value + ((~((uint16_t)(envelope.value))) * step >> 4)) & 0x3FF;
   }
   if(envelope.state != Attack) {
     if(ssg.enable) step = envelope.value < 0x200 ? step << 2 : 0;

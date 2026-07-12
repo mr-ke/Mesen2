@@ -17,6 +17,7 @@
 #include "Utilities/Serializer.h"
 #include "Utilities/VirtualFile.h"
 #include "Utilities/CRC32.h"
+#include "Utilities/StringUtilities.h"
 #include <cmath>
 
 GenesisConsole::GenesisConsole(Emulator* emu)
@@ -421,20 +422,44 @@ void GenesisConsole::UpdateRegion()
 {
 	GenesisConfig& cfg = _emu->GetSettings()->GetGenesisConfig();
 	switch(cfg.Region) {
-		case ConsoleRegion::Auto:
+		case ConsoleRegion::Auto: {
 			//Parse ROM header region string at offset $1F0.
-			//If 'E' is present but 'U' and 'J' are not, select PAL.
-			//Otherwise default to NTSC.
+			//Characters: J=Japan, U=USA, E=Europe, K=Korea, etc.
+			//Priority:
+			//  - Europe-only ('E' without 'J' or 'U') → PAL
+			//  - Japan-only ('J' without 'U' or 'E') → NTSC-J (domestic)
+			//  - Otherwise (US-only or multi-region) → NTSC-U (export)
+			//This is critical because the version register at $A10001 returns
+			//bit 7 = 0 (domestic/Japan) only when region == NtscJapan.
+			//Japan-only games check this bit and show a region lockout
+			//("DEVELOPED FOR USE ONLY WITH NTSC MEGA DRIVE SYSTEMS")
+			//if they detect an export console.
+			ConsoleRegion region = ConsoleRegion::Ntsc;
 			if(_romRegion.find('E') != string::npos &&
 			   _romRegion.find('U') == string::npos &&
 			   _romRegion.find('J') == string::npos) {
-				_region = ConsoleRegion::Pal;
-				_genesisRegion = GenesisRegion::Pal;
-			} else {
-				_region = ConsoleRegion::Ntsc;
-				_genesisRegion = GenesisRegion::Ntsc;
+				region = ConsoleRegion::Pal;
+			} else if(_romRegion.find('J') != string::npos &&
+			          _romRegion.find('U') == string::npos &&
+			          _romRegion.find('E') == string::npos) {
+				region = ConsoleRegion::NtscJapan;
 			}
+			//Fall back to filename tags when the ROM header region string
+			//is empty or doesn't contain any of J/U/E.
+			if(_romRegion.find_first_of("JUEjue") == string::npos) {
+				string filename = StringUtilities::ToLower(_filename);
+				if(filename.find("(europe)") != string::npos || filename.find("(e)") != string::npos) {
+					region = ConsoleRegion::Pal;
+				} else if(filename.find("(japan)") != string::npos || filename.find("(j)") != string::npos) {
+					region = ConsoleRegion::NtscJapan;
+				} else {
+					region = ConsoleRegion::Ntsc;
+				}
+			}
+			_region = region;
+			_genesisRegion = (region == ConsoleRegion::Pal) ? GenesisRegion::Pal : GenesisRegion::Ntsc;
 			break;
+		}
 		case ConsoleRegion::Ntsc:
 			_region = ConsoleRegion::Ntsc;
 			_genesisRegion = GenesisRegion::Ntsc;
