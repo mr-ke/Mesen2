@@ -46,6 +46,7 @@ public:
 	void SetSR(uint16_t sr);
 	uint8_t GetInterruptMask() const { return _r.i; }
 	bool IsStopped() const { return _r.stop; }
+	uint16_t GetIrc() const { return _r.irc; }
 
 	//ISerializable
 	void Serialize(Serializer& s) override;

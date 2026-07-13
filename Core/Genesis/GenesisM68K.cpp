@@ -2,6 +2,21 @@
 #include "GenesisM68K.h"
 #include "Utilities/Serializer.h"
 
+
+#ifdef _WIN32
+#include <windows.h>
+// windows.h defines IN/OUT as macros which conflict with Z80 method names
+#ifdef IN
+#undef IN
+#endif
+#ifdef OUT
+#undef OUT
+#endif
+#define GENESIS_DBG(fmt, ...) do { char _dbg_buf[512]; snprintf(_dbg_buf, sizeof(_dbg_buf), "[GENESIS] " fmt "\n", ##__VA_ARGS__); OutputDebugStringA(_dbg_buf); } while(0)
+#else
+#define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", ##__VA_ARGS__)
+#endif
+
 // ============================================================================
 // GenesisM68K - Native Mesen2 port of ares M68000 interpreter.
 // All algorithms ported verbatim from ares/component/processor/m68000.

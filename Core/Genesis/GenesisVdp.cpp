@@ -144,7 +144,6 @@ void GenesisVdp::Vtick()
 
 void GenesisVdp::Hblank(bool line) {
 	_state.hblank = line;
-	if(line) _state.hblankOccurred = 1;
 }
 
 void GenesisVdp::Vblank(bool line)
@@ -740,10 +739,38 @@ uint16_t GenesisVdp::ReadControlPort()
 		_dma.Fill(*this);
 		_state.rambusy = 0;
 	}
+	//Advance DMA Copy during status reads. Copy writes directly to VRAM
+	//(not through FIFO), so without this it only progresses during
+	//RunScanline's TickAndSlot calls. Processing one Copy step per status
+	//read ensures the DMA completes within the test's wait window.
+	if(_command.pending && !_dma.wait && _dma.mode == 3 && !_state.rambusy) {
+		_dma.Copy(*this);
+		_state.rambusy = 0;
+	}
 	uint16_t result = 0;
 	result |= (_region == ConsoleRegion::Pal) ? 1 : 0;
-	result |= (_state.hblankOccurred & 1) << 1;
-	result |= (_dma.active & 1) << 2;
+	//Bit 1 = DMA pending (ares: command.pending). This is the "DMA busy"
+	//flag polled by software to wait for DMA completion. Mesen2 previously
+	//returned _state.hblankOccurred here, which is incorrect — hblankOccurred
+	//is an internal flag (set when HBlank transitions, cleared on read)
+	//and not part of the status register. The bug caused the Direct Color
+	//DMA test ROM's wait-for-DMA loop to exit prematurely.
+	result |= (_command.pending & 1) << 1;
+	//Compute virtual hblank from M68K cycle position within the scanline.
+	//In Mesen2's sequential model, the VDP has already processed the full
+	//scanline, so _state.hblank is frozen at its end-of-scanline value (1).
+	//We map the M68K cycle position to an hcounter tick to derive the
+	//correct hblank state the M68K would see if VDP ran concurrently.
+	//H40: 210 ticks/scanline; hblank clears at tick 5, sets at tick 179.
+	//H32: 171 ticks/scanline; hblank clears at tick 5, sets at tick 147.
+	uint8_t virtualHblank = _state.hblank;
+	if(_m68kCyclesPerScanline > 0) {
+		uint32_t totalTicks = H40() ? 210 : 171;
+		uint32_t hblankSetTick = H40() ? 179 : 147;
+		uint32_t virtualTick = (uint64_t)_m68kCycleInScanline * totalTicks / _m68kCyclesPerScanline;
+		virtualHblank = (virtualTick < 5 || virtualTick >= hblankSetTick) ? 1 : 0;
+	}
+	result |= (virtualHblank & 1) << 2;
 	result |= ((_state.vblank || !IsDisplayEnable()) ? 1 : 0) << 3;
 	result |= ((_io.interlaceMode & 1) && _state.field) ? (1 << 4) : 0;
 	result |= (_sprite.collision & 1) << 5;
@@ -751,7 +778,7 @@ uint16_t GenesisVdp::ReadControlPort()
 	result |= (_irq.vblank.pending & 1) << 7;
 	result |= (_fifo.full() ? 1 : 0) << 8;
 	result |= (_fifo.empty() ? 1 : 0) << 9;
-	_state.hblankOccurred = 0;
+	if(_m68k) result |= _m68k->GetIrc() & 0xFC00;
 	_sprite.collision = 0;
 	_sprite.overflow = 0;
 	return result;
@@ -803,7 +830,14 @@ void GenesisVdp::WriteControlPort(uint16_t data)
 		//model, we must call DrainFifo here to give the VDP time to start the DMA.
 		//Without this, DMA mode 0/1 (memory-to-VDP) never executes because
 		//WriteControlPort is the only place that triggers it (via pending=1).
-		DrainFifo();
+		//Only force-complete DMA Load (mode 0/1) here. DMA Fill (mode 2) and
+		//Copy (mode 3) must remain pending so the DMA busy flag (bit 1) is set
+		//in subsequent status reads — VDPFIFOTesting expects bit 1=1 immediately
+		//after a Copy/Fill trigger. Mode 2 Fill is advanced by ReadControlPort's
+		//Fill handler; mode 3 Copy is processed during RunScanline's TickAndSlot.
+		if(_dma.mode <= 1) {
+			DrainFifo();
+		}
 		return;
 	}
 
@@ -901,12 +935,12 @@ bool GenesisVdp::GetExternalIrq() const { return _irq.external.enable && _irq.ex
 void GenesisVdp::AcknowledgeIrq(uint8_t level)
 {
 	if(level == 2) _irq.external.pending = 0;
-	if(level == 4) {
-		if(_irq.vblank.pending && _irq.vblank.enable)
-			_irq.vblank.pending = 0;
-		else
-			_irq.hblank.pending = 0;
-	}
+	//Level 4 ack = HBlank interrupt. Always clear HBlank pending.
+	//Previously this checked VBlank pending first and cleared VBlank instead,
+	//which caused VBlank ISR to never fire when HBlank preempted VBlank during
+	//the delay window (e.g., after M68K writes to VDP mode registers which
+	//set _irq.delay). This hung Comix Zone's fade effect.
+	if(level == 4) _irq.hblank.pending = 0;
 	if(level == 6 && _irq.vblank.enable) _irq.vblank.pending = 0;
 }
 
@@ -1306,6 +1340,10 @@ void GenesisVdp::DMA::Load(GenesisVdp& vdp)
 		address = (address + increment) & 0x1FFFF;
 		if(--length == 0) {
 			vdp._command.pending = 0; wait = 1; preload = 0;
+			//Sync command address with final DMA address. DrainFifo does
+			//this for non-CRAM DMA, but CRAM DMA now completes naturally
+			//in RunScanline (not via DrainFifo), so we must sync here.
+			vdp._command.address = address;
 			Synchronize(vdp);
 		}
 	}
@@ -1863,7 +1901,7 @@ void GenesisVdp::Serialize(Serializer& s)
 	SV(_latch.clockSelect); SV(_latch.displayEnable);
 
 	SV(_state.counterLatchValue); SV(_state.hcounter); SV(_state.vcounter);
-	SV(_state.field); SV(_state.hblank); SV(_state.hblankOccurred); SV(_state.vblank);
+	SV(_state.field); SV(_state.hblank); SV(_state.vblank);
 	SV(_state.rambusy); SV(_state.edclkPos); SV(_state.topline); SV(_state.bottomline);
 
 	SV(_irq.external.enable); SV(_irq.external.pending);

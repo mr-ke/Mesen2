@@ -215,6 +215,18 @@ void GenesisConsole::RunFrame()
 	uint32_t z80CyclesPerScanline = (uint32_t)(GetMasterClockRate() / 15.0 / GetFps() / scanlinesPerFrame);
 	uint64_t masterClockPerScanline = (uint64_t)(GetMasterClockRate() / GetFps() / scanlinesPerFrame);
 
+	//In real hardware, Z80 INT is connected to VDP VBlank and is
+	//level-sensitive. However, the ares reference uses a timing hack
+	//(apu.setINT(0) in the HBlank handler) that clears Z80 INT shortly
+	//after VBlank sets it, ensuring only one interrupt per frame.
+	//Without this, the Z80 would take multiple interrupts per VBlank
+	//period (IsVblank() stays true for ~30 scanlines), because after
+	//the SMPS interrupt handler does EI, INT is still asserted and
+	//another interrupt is taken immediately.
+	//Match ares behavior by asserting Z80 IRQ only on the rising edge
+	//of VBlank (0→1 transition), for exactly one scanline.
+	bool prevVblank = false;
+
 	for(uint32_t line = 0; line < scanlinesPerFrame; line++) {
 		//Advance master clock for this scanline so audio chips can generate
 		//samples at the correct rate.
@@ -223,27 +235,32 @@ void GenesisConsole::RunFrame()
 		//Run VDP for one scanline (renders pixels, generates Hblank/Vblank)
 		_vdp->RunScanline();
 
-		//Wire VDP VBlank + HBlank interrupt to Z80 IRQ line.
-		//Uses IsVblank() (raw VBlank state) instead of GetVblankIrq()
-		//(which is gated by enable+pending and gets cleared when M68K
-		//acknowledges the interrupt, so the Z80 would never see it).
+		//Assert Z80 IRQ only on the rising edge of VBlank (one scanline).
+		//This matches the ares timing hack where apu.setINT(0) is called
+		//in the HBlank handler, clearing INT shortly after VBlank sets it.
 		if(_z80) {
-			_z80->SetIrq(_vdp->IsVblank() || _vdp->GetHblankIrq());
+			bool vblank = _vdp->IsVblank();
+			bool irqEdge = vblank && !prevVblank;
+			_z80->SetIrq(irqEdge);
+
+			prevVblank = vblank;
 		}
 
 		//Run Z80 BEFORE M68K so it can process its VBlank interrupt
-		//before the M68K grabs the Z80 bus. On real hardware both CPUs
-		//run concurrently; in the sequential model, running Z80 first
-		//ensures it sees the VBlank signal before M68K acknowledgement
-		//clears it.
-		if(_z80) {
-			uint32_t z80Target = z80CyclesPerScanline;
-			uint32_t z80Run = 0;
-			uint32_t z80MaxInstr = z80Target * 4; //safety limit
-			while(z80Run < z80Target && z80MaxInstr-- > 0) {
-				z80Run += _z80->ExecuteInstruction();
-			}
+	//before the M68K grabs the Z80 bus. On real hardware both CPUs
+	//run concurrently; in the sequential model, running Z80 first
+	//ensures it sees the VBlank signal before M68K acknowledgement
+	//clears it.
+	if(_z80) {
+		uint32_t z80Target = z80CyclesPerScanline;
+		uint32_t z80Run = 0;
+		uint32_t z80MaxInstr = z80Target * 4; //safety limit
+
+		while(z80Run < z80Target && z80MaxInstr-- > 0) {
+			uint32_t cyc = _z80->ExecuteInstruction();
+			z80Run += cyc;
 		}
+	}
 
 		//Run M68K for approximately one scanline's worth of M68K cycles.
 		//Note: M68K interrupt polling is done per-instruction inside
@@ -262,6 +279,15 @@ void GenesisConsole::RunFrame()
 		//Run audio chips per-scanline for accurate sample timing
 		_psg->Run();
 		_ym2612->Run();
+
+		//NOTE: YM2612 Timer IRQ is NOT connected to Z80 NMI.
+		//The ares reference implementation never calls apu.setNMI() — the
+		//YM2612 timer IRQ pin is simply not wired to the Z80 in the Genesis.
+		//Games that need timer-driven audio use one of:
+		//  1. Polling the YM2612 status register (e.g. Batman & Robin)
+		//  2. VDP VBlank IRQ → Z80 IRQ (level-sensitive, via apu.setINT)
+		//Connecting YM2612 timer edges to Z80 NMI causes spurious NMIs that
+		//corrupt the stack of drivers that don't have an NMI handler at 0x0066.
 	}
 
 	//Flush accumulated PSG audio samples to the sound mixer. YM2612 audio is

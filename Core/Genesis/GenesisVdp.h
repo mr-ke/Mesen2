@@ -216,7 +216,6 @@ private:
 		uint32_t vcounter = 0;
 		uint8_t  field = 0;
 		uint8_t  hblank = 0;
-		uint8_t  hblankOccurred = 0;
 		uint8_t  vblank = 0;
 		uint8_t  rambusy = 0;
 		uint32_t edclkPos = 0;

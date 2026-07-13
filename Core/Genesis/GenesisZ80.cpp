@@ -995,7 +995,9 @@ void GenesisZ80::InstructionED(uint8_t code) {
 			break;
 		}
 		case 2: { //SBC HL,rr / ADC HL,rr
-			bool isSbc = !(code & 0x10);
+			//Bit 3 (0x08) distinguishes SBC (0) from ADC (1).
+			//Register pair is selected by bits [5:4] of the opcode.
+			bool isSbc = !(code & 0x08);
 			_r.q = 1;
 			uint16_t rr;
 			switch(regSel >> 1) {
@@ -1026,7 +1028,10 @@ void GenesisZ80::InstructionED(uint8_t code) {
 		}
 		case 3: { //LD (nn),rr / LD rr,(nn)
 			uint16_t addr = Operands();
-			bool isStore = !(code & 0x10);
+			//Bit 3 (0x08) distinguishes store (LD (nn),rr, bit3=0)
+			//from load (LD rr,(nn), bit3=1). Register pair is selected
+			//by bits [5:4] of the opcode.
+			bool isStore = !(code & 0x08);
 			uint16_t rr;
 			switch(regSel >> 1) {
 			case 0: rr = bcVal; break;

@@ -463,7 +463,8 @@ void GenesisYm2612::ClockOnce() {
 uint8_t GenesisYm2612::ReadStatus() {
   //ares uses bit 0 for Timer A and bit 1 for Timer B.
   //The Batman & Robin driver tests bit 1 (BIT 1,(IX+0)) for Timer B overflow.
-  return (_timerA.line << 0) | (_timerB.line << 1);
+  uint8_t status = (_timerA.line << 0) | (_timerB.line << 1);
+  return status;
 }
 
 void GenesisYm2612::WriteAddress(uint8_t port, uint8_t data) {
