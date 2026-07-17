@@ -7,12 +7,15 @@
 //bus interface adapted to Mesen2 infrastructure.
 
 class GenesisMemoryManager;
+class Emulator;
 
 class GenesisM68K final : public ISerializable
 {
 public:
 	GenesisM68K();
 	~GenesisM68K() = default;
+
+	void SetEmulator(Emulator* emu) { _emu = emu; }
 
 	void Power();
 	uint32_t ExecuteInstruction();   //run one instruction; returns cycles consumed
@@ -111,6 +114,7 @@ private:
 
 	std::function<void()> _instructionTable[65536];
 	uint32_t _cycleAccum = 0;  //cycles consumed by current instruction
+	Emulator* _emu = nullptr;
 
 	//--- Helper: bit manipulation ---
 	static inline bool bit(uint32_t v, uint32_t b) { return (v >> b) & 1; }

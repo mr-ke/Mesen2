@@ -76,6 +76,8 @@ LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
 	_vdp = unique_ptr<GenesisVdp>(new GenesisVdp(_emu, this));
 	_m68k = unique_ptr<GenesisM68K>(new GenesisM68K());
 	_z80 = unique_ptr<GenesisZ80>(new GenesisZ80());
+	_m68k->SetEmulator(_emu);
+	_z80->SetEmulator(_emu);
 	_memoryManager = unique_ptr<GenesisMemoryManager>(new GenesisMemoryManager());
 
 	//Initialize memory manager (wires bus callbacks to M68K and Z80)

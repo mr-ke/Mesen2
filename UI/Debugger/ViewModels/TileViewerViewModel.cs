@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -276,6 +276,8 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Sms => new Enum[] { TileFormat.SmsBpp4, TileFormat.SmsSgBpp1 },
 				CpuType.Gba => new Enum[] { TileFormat.GbaBpp4, TileFormat.GbaBpp8 },
 				CpuType.Ws => new Enum[] { TileFormat.Bpp2, TileFormat.SmsBpp4, TileFormat.WsBpp4Packed },
+				CpuType.GenesisM68K => new Enum[] { TileFormat.SmsBpp4 },
+				CpuType.GenesisZ80 => new Enum[] { TileFormat.SmsBpp4 },
 				_ => throw new Exception("Unsupported CPU type")
 			};
 
@@ -821,6 +823,13 @@ namespace Mesen.Debugger.ViewModels
 						CreatePreset(1, "Bank 1", () => ApplyBgPreset(1)),
 					};
 
+				case CpuType.GenesisM68K:
+				case CpuType.GenesisZ80:
+					return new() {
+						CreatePreset(0, "VRAM", () => ApplyPpuPreset()),
+						CreatePreset(0, "ROM", () => ApplyPrgPreset()),
+					};
+
 				default:
 					throw new Exception("Unsupported CPU type");
 			}
@@ -934,6 +943,17 @@ namespace Mesen.Debugger.ViewModels
 					preset.RowCount = 128;
 					preset.Layout = TileLayout.Normal;
 					preset.Format = ppu.Mode.ToTileFormat();
+					break;
+				}
+
+				case CpuType.GenesisM68K:
+				case CpuType.GenesisZ80: {
+					preset.Source = MemoryType.GenesisVdpVram;
+					preset.StartAddress = 0;
+					preset.ColumnCount = 16;
+					preset.RowCount = 128;
+					preset.Layout = TileLayout.Normal;
+					preset.Format = TileFormat.SmsBpp4;
 					break;
 				}
 			}

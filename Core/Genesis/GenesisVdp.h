@@ -105,6 +105,11 @@ public:
 	uint16_t GetVCounter() const { return _state.vcounter; }
 	uint16_t GetHCounter() const { return _state.hcounter; }
 	uint16_t DebugReadCRAM(uint32_t index) const { return index < CRAMSize ? _cram[index] : 0; }
+	uint16_t DebugReadVRAM(uint32_t index) const { return index < VRAMSize ? _vram[index] : 0; }
+	uint16_t DebugReadVSRAM(uint32_t index) const { return index < VSRAMSize ? _vsram[index] : 0; }
+	void DebugWriteVRAM(uint32_t index, uint16_t data) { if(index < VRAMSize) _vram[index] = data; }
+	void DebugWriteVSRAM(uint32_t index, uint16_t data) { if(index < VSRAMSize) _vsram[index] = data & 0x7FF; }
+	void DebugWriteCRAM(uint32_t index, uint16_t data) { if(index < CRAMSize) _cram[index] = data & 0x1FF; }
 	uint8_t GetBackgroundColor() const { return _io.backgroundColor; }
 
 	//Clock helpers. The VDP clock is the master clock; we track cycle counts

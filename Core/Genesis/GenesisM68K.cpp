@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "GenesisM68K.h"
 #include "Utilities/Serializer.h"
+#include "Shared/Emulator.h"
 
 
 #ifdef _WIN32
@@ -101,11 +102,15 @@ void GenesisM68K::Exception(uint32_t exception, uint32_t vector, uint32_t priori
 }
 
 void GenesisM68K::Interrupt(uint32_t vector, uint32_t priority) {
-	return Exception(ExInterrupt, vector, priority);
+	uint32_t oldPc = _r.pc - 4;
+	Exception(ExInterrupt, vector, priority);
+	if(_emu) _emu->ProcessInterrupt<CpuType::GenesisM68K>(oldPc, _r.pc, false);
 }
 
 uint32_t GenesisM68K::ExecuteInstruction() {
 	_cycleAccum = 0;
+
+	if(_emu) _emu->ProcessInstruction<CpuType::GenesisM68K>();
 
 	//In ares, CPU::main() checks for pending interrupts before every instruction.
 	//We replicate this by calling CheckInterrupts() here. This is critical for
@@ -120,6 +125,7 @@ uint32_t GenesisM68K::ExecuteInstruction() {
 		_r.ird = _r.ir;
 		_instructionTable[_r.ird]();
 	} else {
+		if(_emu) _emu->ProcessHaltedCpu<CpuType::GenesisM68K>();
 		BusWait(1);
 	}
 	return _cycleAccum;

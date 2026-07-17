@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Genesis/GenesisZ80.h"
 #include "Utilities/Serializer.h"
+#include "Shared/Emulator.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -54,9 +55,11 @@ void GenesisZ80::Reset()
 uint32_t GenesisZ80::ExecuteInstruction()
 {
 	_cycleAccum = 0;
+	if(_emu) _emu->ProcessInstruction<CpuType::GenesisZ80>();
 	if(!_resetLine || _busreqLatch) { Wait(1); return _cycleAccum; }
 
 	if(_nmiEdge) {
+		uint16_t oldPc = _r.pc;
 		_nmiEdge = false;
 		_r.halt = false;
 		IncrementR();
@@ -65,10 +68,12 @@ uint32_t GenesisZ80::ExecuteInstruction()
 		_r.pc = _r.wz;
 		_r.iff1 = false;
 		_r.p = false; _r.q = false;
+		if(_emu) _emu->ProcessInterrupt<CpuType::GenesisZ80>(oldPc, _r.pc, true);
 		return _cycleAccum;
 	}
 
 	if(_intLine && _r.iff1 && !_r.ei) {
+		uint16_t oldPc = _r.pc;
 		IncrementR();
 		_r.halt = false;
 		switch(_r.im) {
@@ -85,6 +90,13 @@ uint32_t GenesisZ80::ExecuteInstruction()
 		_r.iff1 = false; _r.iff2 = false;
 		if(_r.p) _r.flags &= ~FlagP;
 		_r.p = false; _r.q = false;
+		if(_emu) _emu->ProcessInterrupt<CpuType::GenesisZ80>(oldPc, _r.pc, false);
+		return _cycleAccum;
+	}
+
+	if(_r.halt) {
+		if(_emu) _emu->ProcessHaltedCpu<CpuType::GenesisZ80>();
+		Wait(1);
 		return _cycleAccum;
 	}
 

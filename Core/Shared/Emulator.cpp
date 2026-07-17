@@ -37,6 +37,7 @@
 #include "Genesis/GenesisConsole.h"
 #include "GBA/GbaConsole.h"
 #include "WS/WsConsole.h"
+
 #include "NDS/NdsConsole.h"
 #include "3DS/ThreeDsConsole.h"
 #include "Debugger/Debugger.h"

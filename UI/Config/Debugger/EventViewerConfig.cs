@@ -1,4 +1,4 @@
-﻿using ReactiveUI.Fody.Helpers;
+using ReactiveUI.Fody.Helpers;
 using System.Collections.Generic;
 
 namespace Mesen.Config
@@ -27,5 +27,6 @@ namespace Mesen.Config
 		[Reactive] public PceEventViewerConfig PceConfig { get; set; } = new PceEventViewerConfig();
 		[Reactive] public SmsEventViewerConfig SmsConfig { get; set; } = new SmsEventViewerConfig();
 		[Reactive] public WsEventViewerConfig WsConfig { get; set; } = new WsEventViewerConfig();
+		[Reactive] public GenesisEventViewerConfig GenesisConfig { get; set; } = new GenesisEventViewerConfig();
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,29 +34,33 @@ namespace Mesen.Config
 		[Reactive] public TraceLoggerCpuConfig SmsConfig { get; set; } = new();
 		[Reactive] public TraceLoggerCpuConfig GbaConfig { get; set; } = new();
 		[Reactive] public TraceLoggerCpuConfig WsConfig { get; set; } = new();
+			[Reactive] public TraceLoggerCpuConfig GenesisM68KConfig { get; set; } = new();
+			[Reactive] public TraceLoggerCpuConfig GenesisZ80Config { get; set; } = new();
 
-		public TraceLoggerConfig()
-		{
-		}
+			public TraceLoggerConfig()
+			{
+			}
 
-		public TraceLoggerCpuConfig GetCpuConfig(CpuType type)
-		{
-			return type switch {
-				CpuType.Snes => SnesConfig,
-				CpuType.Spc => SpcConfig,
-				CpuType.NecDsp => NecDspConfig,
-				CpuType.Sa1 => Sa1Config,
-				CpuType.Gsu => GsuConfig,
-				CpuType.Cx4 => Cx4Config,
-				CpuType.St018 => St018Config,
-				CpuType.Gameboy => GbConfig,
-				CpuType.Nes => NesConfig,
-				CpuType.Pce => PceConfig,
-				CpuType.Sms => SmsConfig,
-				CpuType.Gba => GbaConfig,
-				CpuType.Ws => WsConfig,
-				_ => throw new NotImplementedException("Unsupport cpu type")
-			};
-		}
+			public TraceLoggerCpuConfig GetCpuConfig(CpuType type)
+			{
+				return type switch {
+					CpuType.Snes => SnesConfig,
+					CpuType.Spc => SpcConfig,
+					CpuType.NecDsp => NecDspConfig,
+					CpuType.Sa1 => Sa1Config,
+					CpuType.Gsu => GsuConfig,
+					CpuType.Cx4 => Cx4Config,
+					CpuType.St018 => St018Config,
+					CpuType.Gameboy => GbConfig,
+					CpuType.Nes => NesConfig,
+					CpuType.Pce => PceConfig,
+					CpuType.Sms => SmsConfig,
+					CpuType.Gba => GbaConfig,
+					CpuType.Ws => WsConfig,
+					CpuType.GenesisM68K => GenesisM68KConfig,
+					CpuType.GenesisZ80 => GenesisZ80Config,
+					_ => throw new NotImplementedException("Unsupport cpu type")
+				};
+			}
 	}
 }

@@ -3,6 +3,7 @@
 #include "Debugger/Disassembler.h"
 #include "Debugger/DisassemblyInfo.h"
 #include "Debugger/CdlManager.h"
+
 #include "Debugger/Debugger.h"
 #include "Debugger/LabelManager.h"
 #include "Debugger/MemoryDumper.h"
@@ -21,6 +22,7 @@
 #include "PCE/PceTypes.h"
 #include "SMS/SmsTypes.h"
 #include "WS/WsTypes.h"
+#include "Genesis/GenesisTypes.h"
 #include "WS/Debugger/WsDisUtils.h"
 #include "Shared/EmuSettings.h"
 #include "Utilities/FastString.h"
@@ -36,7 +38,9 @@ Disassembler::Disassembler(IConsole* console, Debugger* debugger)
 	_memoryDumper = _debugger->GetMemoryDumper();
 
 	for(int i = (int)MemoryType::SnesPrgRom; i < DebugUtilities::GetMemoryTypeCount(); i++) {
-		InitSource((MemoryType)i);
+		MemoryType mt = (MemoryType)i;
+		uint32_t size = _memoryDumper->GetMemorySize(mt);
+		_sources[(int)mt] = { vector<DisassemblyInfo>(size), size };
 	}
 }
 
@@ -93,6 +97,7 @@ void Disassembler::ResetPrgCache()
 	InitSource(MemoryType::SmsPrgRom);
 	InitSource(MemoryType::GbaPrgRom);
 	InitSource(MemoryType::WsPrgRom);
+	InitSource(MemoryType::GenesisCartridgeRom);
 }
 
 void Disassembler::InvalidateCache(AddressInfo addrInfo, CpuType type)
@@ -603,6 +608,46 @@ void Disassembler::GetLineData(DisassemblyResult& row, CpuType type, MemoryType 
 					CodeDataLogger* cdl = cdlManager->GetCodeDataLogger(row.Address.Type);
 					if(!disInfo.IsInitialized()) {
 						disInfo = DisassemblyInfo(row.Address.Address, 0, CpuType::Ws, row.Address.Type, _memoryDumper);
+					} else {
+						data.Flags |= (!cdl || cdl->IsCode(data.AbsoluteAddress.Address)) ? LineFlags::VerifiedCode : LineFlags::UnexecutedCode;
+					}
+
+					data.OpSize = disInfo.GetOpSize();
+					data.EffectiveAddress = disInfo.GetEffectiveAddress(_debugger, &state, lineCpuType);
+					if(showMemoryValues && data.EffectiveAddress.ValueSize >= 0) {
+						data.Value = disInfo.GetMemoryValue(data.EffectiveAddress, _memoryDumper, memType);
+					}
+					break;
+				}
+
+				case CpuType::GenesisM68K:
+				{
+					GenesisM68KState state = (GenesisM68KState&)_debugger->GetCpuStateRef(lineCpuType);
+					state.PC = row.CpuAddress;
+
+					CodeDataLogger* cdl = cdlManager->GetCodeDataLogger(row.Address.Type);
+					if(!disInfo.IsInitialized()) {
+						disInfo = DisassemblyInfo(row.Address.Address, 0, CpuType::GenesisM68K, row.Address.Type, _memoryDumper);
+					} else {
+						data.Flags |= (!cdl || cdl->IsCode(data.AbsoluteAddress.Address)) ? LineFlags::VerifiedCode : LineFlags::UnexecutedCode;
+					}
+
+					data.OpSize = disInfo.GetOpSize();
+					data.EffectiveAddress = disInfo.GetEffectiveAddress(_debugger, &state, lineCpuType);
+					if(showMemoryValues && data.EffectiveAddress.ValueSize >= 0) {
+						data.Value = disInfo.GetMemoryValue(data.EffectiveAddress, _memoryDumper, memType);
+					}
+					break;
+				}
+
+				case CpuType::GenesisZ80:
+				{
+					GenesisZ80State state = (GenesisZ80State&)_debugger->GetCpuStateRef(lineCpuType);
+					state.PC = (uint16_t)row.CpuAddress;
+
+					CodeDataLogger* cdl = cdlManager->GetCodeDataLogger(row.Address.Type);
+					if(!disInfo.IsInitialized()) {
+						disInfo = DisassemblyInfo(row.Address.Address, 0, CpuType::GenesisZ80, row.Address.Type, _memoryDumper);
 					} else {
 						data.Flags |= (!cdl || cdl->IsCode(data.AbsoluteAddress.Address)) ? LineFlags::VerifiedCode : LineFlags::UnexecutedCode;
 					}

@@ -26,7 +26,7 @@ public:
 			case CpuType::Nds: return MemoryType::NdsMemory;
 			case CpuType::ThreeDs: return MemoryType::ThreeDsMemory;
 			case CpuType::GenesisM68K: return MemoryType::GenesisMemory;
-			case CpuType::GenesisZ80: return MemoryType::GenesisMemory;
+			case CpuType::GenesisZ80: return MemoryType::GenesisZ80Bus;
 		}
 
 		throw std::runtime_error("Invalid CPU type");

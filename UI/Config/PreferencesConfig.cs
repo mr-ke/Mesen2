@@ -1,4 +1,4 @@
-﻿using Mesen.Localization;
+using Mesen.Localization;
 using Mesen.Config.Shortcuts;
 using System;
 using System.Collections.Generic;
@@ -48,6 +48,7 @@ namespace Mesen.Config
 		[Reactive] public bool AssociateSgRomFiles { get; set; } = false;
 		[Reactive] public bool AssociateCvRomFiles { get; set; } = false;
 		[Reactive] public bool AssociateWsRomFiles { get; set; } = false;
+		[Reactive] public bool AssociateGenesisRomFiles { get; set; } = false;
 
 		[Reactive] public bool EnableAutoSaveState { get; set; } = true;
 		[Reactive] public UInt32 AutoSaveStateDelay { get; set; } = 5;

@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -374,6 +374,15 @@ namespace Mesen.Debugger.ViewModels
 					Tabs = new() {
 						new() { Title = "BG0", Layer = 0 },
 						new() { Title = "BG1", Layer = 1 }
+					};
+					break;
+
+				case CpuType.GenesisM68K:
+				case CpuType.GenesisZ80:
+					Tabs = new List<TilemapViewerTab>() {
+						new() { Title = "Plane A", Layer = 0 },
+						new() { Title = "Plane B", Layer = 1 },
+						new() { Title = "Window", Layer = 2 },
 					};
 					break;
 

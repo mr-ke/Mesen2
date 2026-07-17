@@ -15,11 +15,15 @@
 //   - Bus callbacks (std::function) instead of virtual Bus base class.
 //   - NMOS mode only (Genesis uses NMOS Z80).
 
+class Emulator;
+
 class GenesisZ80 final : public ISerializable
 {
 public:
 	GenesisZ80();
 	~GenesisZ80() = default;
+
+	void SetEmulator(Emulator* emu) { _emu = emu; }
 
 	void Power();
 	void Reset();
@@ -136,6 +140,7 @@ private:
 	bool _resetLine = false;
 	bool _nmiEdge = false; //edge detect for NMI
 	uint32_t _cycleAccum = 0;
+	Emulator* _emu = nullptr;
 
 	//--- Memory helpers ---
 	void Wait(uint32_t clocks = 1);

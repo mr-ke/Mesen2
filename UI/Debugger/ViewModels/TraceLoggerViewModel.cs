@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -622,6 +622,26 @@ namespace Mesen.Debugger.ViewModels
 						StatusFlagFormat.Text or _ => "F:[F,10] "
 					});
 					break;
+
+				case CpuType.GenesisM68K:
+					addTag(cfg.ShowRegisters, "D0:[D0,8h] D1:[D1,8h] D2:[D2,8h] D3:[D3,8h] D4:[D4,8h] D5:[D5,8h] D6:[D6,8h] D7:[D7,8h] A0:[A0,8h] A1:[A1,8h] A2:[A2,8h] A3:[A3,8h] A4:[A4,8h] A5:[A5,8h] A6:[A6,8h] A7:[A7,8h] ");
+					addTag(cfg.ShowRegisters, "PC:[PC,8h] ");
+					addTag(cfg.ShowStatusFlags, cfg.StatusFormat switch {
+						StatusFlagFormat.Hexadecimal => "SR:[SR,4h] ",
+						StatusFlagFormat.CompactText => "SR:[SR] ",
+						StatusFlagFormat.Text or _ => "SR:[SR,16] "
+					});
+					break;
+
+				case CpuType.GenesisZ80:
+					addTag(cfg.ShowRegisters, "A:[A,2h] B:[B,2h] C:[C,2h] D:[D,2h] E:[E,2h] ");
+					addTag(cfg.ShowStatusFlags, cfg.StatusFormat switch {
+						StatusFlagFormat.Hexadecimal => "F:[PS,h] ",
+						StatusFlagFormat.CompactText => "F:[PS] ",
+						StatusFlagFormat.Text or _ => "F:[PS,8] "
+					});
+					addTag(cfg.ShowRegisters, "HL:[H,2h][L,2h] IX:[IX,4h] IY:[IY,4h] S:[SP,4h] ");
+					break;
 			}
 
 			addTag(cfg.ShowFramePosition, "V:[Scanline,3] H:[Cycle,3] ");
@@ -675,6 +695,8 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Sms => new string[] { "A", "B", "C", "D", "E", "F", "H", "L", "IX", "IY", "A'", "B'", "C'", "D'", "E'", "F'", "H'", "L'", "I", "R", "PS", "SP" },
 				CpuType.Gba or CpuType.St018  => new string[] { "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15", "CPSR" },
 				CpuType.Ws => new string[] { "AX", "BX", "CX", "DX", "CS", "IP", "SS", "SP", "BP", "DS", "ES", "SI", "DI", "F" },
+				CpuType.GenesisM68K => new string[] { "PC", "SP", "SR", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7" },
+				CpuType.GenesisZ80 => new string[] { "A", "B", "C", "D", "E", "F", "H", "L", "I", "R", "IX", "IY", "PC", "SP", "PS" },
 				_ => throw new Exception("unsupported cpu type")
 			};
 

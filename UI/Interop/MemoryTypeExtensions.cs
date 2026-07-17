@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Mesen.Interop
 {
@@ -123,6 +123,22 @@ namespace Mesen.Interop
 				case MemoryType.WsPort:
 					return CpuType.Ws;
 
+				case MemoryType.GenesisMemory:
+				case MemoryType.GenesisM68KRam:
+				case MemoryType.GenesisCartridgeRom:
+				case MemoryType.GenesisCartridgeRam:
+					return CpuType.GenesisM68K;
+
+				case MemoryType.GenesisZ80Ram:
+				case MemoryType.GenesisZ80Bus:
+					return CpuType.GenesisZ80;
+
+				case MemoryType.GenesisVdpVram:
+				case MemoryType.GenesisVdpVsram:
+				case MemoryType.GenesisVdpCram:
+				case MemoryType.GenesisPort:
+					return CpuType.GenesisM68K;
+
 				default:
 					throw new NotImplementedException("Unsupported cpu type");
 			}
@@ -154,6 +170,10 @@ namespace Mesen.Interop
 				
 				case MemoryType.SmsVideoRam:
 				case MemoryType.SmsPaletteRam:
+
+				case MemoryType.GenesisVdpVram:
+				case MemoryType.GenesisVdpVsram:
+				case MemoryType.GenesisVdpCram:
 					return true;
 
 				case MemoryType.GbaVideoRam:
@@ -231,6 +251,7 @@ namespace Mesen.Interop
 				case MemoryType.SmsMemory:
 				case MemoryType.GbaMemory:
 				case MemoryType.WsMemory:
+				case MemoryType.GenesisMemory:
 					return true;
 			}
 			return false;
@@ -257,6 +278,7 @@ namespace Mesen.Interop
 				case MemoryType.GbaPrgRom:
 				case MemoryType.GbaBootRom:
 				case MemoryType.WsPrgRom:
+				case MemoryType.GenesisCartridgeRom:
 					return true;
 			}
 			return false;
@@ -539,6 +561,17 @@ namespace Mesen.Interop
 				MemoryType.WsBootRom => "BOOT",
 				MemoryType.WsInternalEeprom => "IEEPROM",
 				MemoryType.WsPort => "PORT",
+
+				MemoryType.GenesisMemory => "MEM",
+				MemoryType.GenesisM68KRam => "M68KRAM",
+				MemoryType.GenesisZ80Ram => "Z80RAM",
+				MemoryType.GenesisZ80Bus => "Z80BUS",
+				MemoryType.GenesisVdpVram => "VRAM",
+				MemoryType.GenesisVdpVsram => "VSRAM",
+				MemoryType.GenesisVdpCram => "CRAM",
+				MemoryType.GenesisCartridgeRom => "ROM",
+				MemoryType.GenesisCartridgeRam => "SRAM",
+				MemoryType.GenesisPort => "PORT",
 
 				MemoryType.None => "n/a",
 

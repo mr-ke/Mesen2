@@ -25,6 +25,9 @@
 #include "GBA/GbaMemoryManager.h"
 #include "WS/WsConsole.h"
 #include "WS/WsMemoryManager.h"
+#include "Genesis/GenesisConsole.h"
+#include "Genesis/GenesisMemoryManager.h"
+#include "Genesis/GenesisVdp.h"
 #include "Shared/Video/VideoDecoder.h"
 #include "Debugger/DebugTypes.h"
 #include "Debugger/DebugBreakHelper.h"
@@ -56,12 +59,16 @@ MemoryDumper::MemoryDumper(Debugger* debugger)
 		_gbaConsole = gba;
 	} else if(WsConsole* ws = dynamic_cast<WsConsole*>(console)) {
 		_wsConsole = ws;
+	} else if(GenesisConsole* genesis = dynamic_cast<GenesisConsole*>(console)) {
+		_genesisConsole = genesis;
 	}
 
 	for(int i = 0; i < DebugUtilities::GetMemoryTypeCount(); i++) {
 		MemoryType memType = (MemoryType)i;
 		if(memType != MemoryType::None) {
-			_isMemorySupported[i] = _emu->GetMemory(memType).Memory != nullptr || _debugger->HasCpuType(DebugUtilities::ToCpuType(memType));
+			auto mem = _emu->GetMemory(memType);
+			bool hasCpu = _debugger->HasCpuType(DebugUtilities::ToCpuType(memType));
+			_isMemorySupported[i] = mem.Memory != nullptr || hasCpu;
 		}
 	}
 }
@@ -107,6 +114,14 @@ uint32_t MemoryDumper::GetMemorySize(MemoryType type)
 		case MemoryType::SnesRegister: return 0x10000;
 		case MemoryType::SmsPort: return 0x100;
 		case MemoryType::WsPort: return 0x10000;
+		case MemoryType::GenesisMemory: return 0x1000000;
+		case MemoryType::GenesisM68KRam: return 0x10000;
+		case MemoryType::GenesisZ80Ram: return 0x2000;
+		case MemoryType::GenesisZ80Bus: return 0x10000;
+		case MemoryType::GenesisVdpVram: return 0x10000;
+		case MemoryType::GenesisVdpVsram: return 0x50;
+		case MemoryType::GenesisVdpCram: return 0x80;
+		case MemoryType::GenesisPort: return 0x100;
 		default: return _emu->GetMemory(type).Size;
 	}
 }
@@ -234,7 +249,63 @@ void MemoryDumper::GetMemoryState(MemoryType type, uint8_t *buffer)
 			break;
 		}
 
-		default: 
+		case MemoryType::GenesisMemory: {
+			if(_genesisConsole) {
+				GenesisMemoryManager* memManager = _genesisConsole->GetMemoryManager();
+				for(uint32_t i = 0; i < 0x1000000; i += 0x1000) {
+					memManager->M68KPeekBlock(i, buffer + i);
+				}
+			}
+			break;
+		}
+
+		case MemoryType::GenesisZ80Bus: {
+			if(_genesisConsole) {
+				GenesisMemoryManager* memManager = _genesisConsole->GetMemoryManager();
+				for(uint32_t i = 0; i < 0x10000; i++) {
+					buffer[i] = memManager->Z80DebugRead((uint16_t)i);
+				}
+			}
+			break;
+		}
+
+		case MemoryType::GenesisVdpVram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				for(uint32_t i = 0; i < 0x10000; i += 2) {
+					uint16_t v = vdp->DebugReadVRAM(i / 2);
+					buffer[i] = v >> 8;
+					buffer[i+1] = v & 0xFF;
+				}
+			}
+			break;
+		}
+
+		case MemoryType::GenesisVdpCram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				for(uint32_t i = 0; i < 64; i++) {
+					uint16_t v = vdp->DebugReadCRAM(i);
+					buffer[i*2] = v >> 8;
+					buffer[i*2+1] = v & 0xFF;
+				}
+			}
+			break;
+		}
+
+		case MemoryType::GenesisVdpVsram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				for(uint32_t i = 0; i < 40; i++) {
+					uint16_t v = vdp->DebugReadVSRAM(i);
+					buffer[i*2] = v >> 8;
+					buffer[i*2+1] = v & 0xFF;
+				}
+			}
+			break;
+		}
+
+		default:
 			uint8_t* src = GetMemoryBuffer(type);
 			if(src) {
 				memcpy(buffer, src, GetMemorySize(type));
@@ -286,6 +357,38 @@ void MemoryDumper::InternalSetMemoryValues(MemoryType originalMemoryType, uint32
 			case MemoryType::SmsMemory: _smsConsole->GetMemoryManager()->DebugWrite(address, value); break;
 			case MemoryType::GbaMemory: _gbaConsole->GetMemoryManager()->DebugWrite(address, value); break;
 			case MemoryType::WsMemory: _wsConsole->GetMemoryManager()->DebugWrite(address, value); break;
+			case MemoryType::GenesisMemory: if(_genesisConsole) _genesisConsole->GetMemoryManager()->M68KDebugWrite(address, value); break;
+			case MemoryType::GenesisZ80Bus: if(_genesisConsole) _genesisConsole->GetMemoryManager()->Z80DebugWrite((uint16_t)address, value); break;
+			case MemoryType::GenesisVdpVram: {
+				if(_genesisConsole) {
+					GenesisVdp* vdp = _genesisConsole->GetVdp();
+					uint16_t v = vdp->DebugReadVRAM(address / 2);
+					if(address & 1) v = (v & 0xFF00) | value;
+					else v = (v & 0x00FF) | (value << 8);
+					vdp->DebugWriteVRAM(address / 2, v);
+				}
+				break;
+			}
+			case MemoryType::GenesisVdpCram: {
+				if(_genesisConsole) {
+					GenesisVdp* vdp = _genesisConsole->GetVdp();
+					uint16_t v = vdp->DebugReadCRAM(address / 2);
+					if(address & 1) v = (v & 0xFF00) | value;
+					else v = (v & 0x00FF) | (value << 8);
+					vdp->DebugWriteCRAM(address / 2, v);
+				}
+				break;
+			}
+			case MemoryType::GenesisVdpVsram: {
+				if(_genesisConsole) {
+					GenesisVdp* vdp = _genesisConsole->GetVdp();
+					uint16_t v = vdp->DebugReadVSRAM(address / 2);
+					if(address & 1) v = (v & 0xFF00) | value;
+					else v = (v & 0x00FF) | (value << 8);
+					vdp->DebugWriteVSRAM(address / 2, v);
+				}
+				break;
+			}
 			case MemoryType::SpcDspRegisters: _spc->DebugWriteDspReg(address, value); break;
 
 			default:
@@ -387,6 +490,33 @@ uint8_t MemoryDumper::InternalGetMemoryValue(MemoryType memoryType, uint32_t add
 		case MemoryType::GbaMemory: return _gbaConsole->GetMemoryManager()->DebugRead(address);
 		case MemoryType::WsMemory: return _wsConsole->GetMemoryManager()->DebugRead(address);
 		case MemoryType::WsPort: return _wsConsole->GetMemoryManager()->DebugReadPort<uint8_t>(address);
+
+		case MemoryType::GenesisMemory: return _genesisConsole ? _genesisConsole->GetMemoryManager()->M68KDebugRead(address) : 0;
+		case MemoryType::GenesisZ80Bus: return _genesisConsole ? _genesisConsole->GetMemoryManager()->Z80DebugRead((uint16_t)address) : 0;
+		case MemoryType::GenesisVdpVram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				uint16_t v = vdp->DebugReadVRAM(address / 2);
+				return (address & 1) ? (v & 0xFF) : (v >> 8);
+			}
+			return 0;
+		}
+		case MemoryType::GenesisVdpCram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				uint16_t v = vdp->DebugReadCRAM(address / 2);
+				return (address & 1) ? (v & 0xFF) : (v >> 8);
+			}
+			return 0;
+		}
+		case MemoryType::GenesisVdpVsram: {
+			if(_genesisConsole) {
+				GenesisVdp* vdp = _genesisConsole->GetVdp();
+				uint16_t v = vdp->DebugReadVSRAM(address / 2);
+				return (address & 1) ? (v & 0xFF) : (v >> 8);
+			}
+			return 0;
+		}
 
 		default:
 			uint8_t* src = GetMemoryBuffer(memoryType);

@@ -16,6 +16,7 @@ namespace Mesen.Interop
 				ConsoleType.Ws => CpuType.Ws,
 				ConsoleType.Nds => throw new NotSupportedException("NDS debugging is not supported"),
 				ConsoleType.ThreeDs => throw new NotSupportedException("3DS debugging is not supported"),
+				ConsoleType.Genesis => CpuType.GenesisM68K,
 				_ => throw new Exception("Invalid type")
 			};
 		}

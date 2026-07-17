@@ -1,4 +1,4 @@
-﻿using Mesen.Config;
+using Mesen.Config;
 using Mesen.Interop;
 using Mesen.ViewModels;
 using ReactiveUI;
@@ -42,6 +42,7 @@ namespace Mesen.Debugger.ViewModels
 				ConsoleType.Sms => 192,
 				ConsoleType.Gba => 160,
 				ConsoleType.Ws => 144,
+				ConsoleType.Genesis => 224,
 				_ => throw new Exception("Invalid console type")
 			};
 

@@ -129,7 +129,7 @@ extern "C"
 	DllExport void __stdcall GetFrozenState(CpuType cpuType, uint32_t start, uint32_t end, bool* outState) { return WithToolVoid(GetFrozenAddressManager(cpuType), GetFrozenState(start, end, outState)); }
 
 	DllExport void __stdcall SetMemoryState(MemoryType type, uint8_t* buffer, int32_t length) { WithDebugger(void, GetMemoryDumper()->SetMemoryState(type, buffer, length)); }
-	DllExport uint32_t __stdcall GetMemorySize(MemoryType type) { return WithDebugger(uint32_t, GetMemoryDumper()->GetMemorySize(type)); }
+	DllExport uint32_t __stdcall GetMemorySize(MemoryType type) { uint32_t r = WithDebugger(uint32_t, GetMemoryDumper()->GetMemorySize(type)); return r; }
 	DllExport void __stdcall GetMemoryState(MemoryType type, uint8_t* buffer) { WithDebugger(void, GetMemoryDumper()->GetMemoryState(type, buffer)); }
 	DllExport uint8_t __stdcall GetMemoryValue(MemoryType type, uint32_t address) { return WithDebugger(uint8_t, GetMemoryDumper()->GetMemoryValue(type, address)); }
 	DllExport void __stdcall GetMemoryValues(MemoryType type, uint32_t start, uint32_t end, uint8_t* output) { WithDebugger(void, GetMemoryDumper()->GetMemoryValues(type, start, end, output)); }
@@ -178,10 +178,10 @@ extern "C"
 	DllExport void __stdcall SetEventViewerConfig(CpuType cpuType, BaseEventViewerConfig& config) { WithToolVoid(GetEventManager(cpuType), SetConfiguration(config)); }
 	DllExport void __stdcall GetDebugEvents(CpuType cpuType, DebugEventInfo* infoArray, uint32_t& maxEventCount) { WithToolVoid(GetEventManager(cpuType), GetEvents(infoArray, maxEventCount)); }
 	DllExport uint32_t __stdcall GetDebugEventCount(CpuType cpuType) { return WithTool(uint32_t, GetEventManager(cpuType), GetEventCount()); }
-	DllExport FrameInfo __stdcall GetEventViewerDisplaySize(CpuType cpuType) { return WithTool(FrameInfo, GetEventManager(cpuType), GetDisplayBufferSize()); }
+	DllExport FrameInfo __stdcall GetEventViewerDisplaySize(CpuType cpuType) { FrameInfo r = WithTool(FrameInfo, GetEventManager(cpuType), GetDisplayBufferSize()); return r; }
 	DllExport void __stdcall GetEventViewerOutput(CpuType cpuType, uint32_t* buffer, uint32_t bufferSize) { WithToolVoid(GetEventManager(cpuType), GetDisplayBuffer(buffer, bufferSize)); }
 	DllExport DebugEventInfo __stdcall GetEventViewerEvent(CpuType cpuType, uint16_t scanline, uint16_t cycle) { return WithTool(DebugEventInfo, GetEventManager(cpuType), GetEvent(scanline, cycle)); }
-	DllExport uint32_t __stdcall TakeEventSnapshot(CpuType cpuType, bool forAutoRefresh) { return WithTool(uint32_t, GetEventManager(cpuType), TakeEventSnapshot(forAutoRefresh)); }
+	DllExport uint32_t __stdcall TakeEventSnapshot(CpuType cpuType, bool forAutoRefresh) { uint32_t r = WithTool(uint32_t, GetEventManager(cpuType), TakeEventSnapshot(forAutoRefresh)); return r; }
 
 	DllExport int32_t __stdcall LoadScript(char* name, char* path, char* content, int32_t scriptId) { return WithTool(int32_t, GetScriptManager(), LoadScript(name, path, content, scriptId)); }
 	DllExport void __stdcall RemoveScript(int32_t scriptId) { WithToolVoid(GetScriptManager(), RemoveScript(scriptId)); }

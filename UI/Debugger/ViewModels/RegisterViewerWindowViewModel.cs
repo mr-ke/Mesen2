@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Selection;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -109,6 +109,8 @@ namespace Mesen.Debugger.ViewModels
 				_state = DebugApi.GetConsoleState<GbaState>(ConsoleType.Gba);
 			} else if(_romInfo.ConsoleType == ConsoleType.Ws) {
 				_state = DebugApi.GetConsoleState<WsState>(ConsoleType.Ws);
+			} else if(_romInfo.ConsoleType == ConsoleType.Genesis) {
+				_state = DebugApi.GetConsoleState<GenesisState>(ConsoleType.Genesis);
 			}
 
 			Dispatcher.UIThread.Post(() => {
@@ -139,6 +141,8 @@ namespace Mesen.Debugger.ViewModels
 				tabs = GbaRegisterViewer.GetTabs(ref gbaState);
 			} else if(lastState is WsState wsState) {
 				tabs = WsRegisterViewer.GetTabs(ref wsState);
+			} else if(lastState is GenesisState genesisState) {
+				tabs = GenesisRegisterViewer.GetTabs(ref genesisState, _romInfo.Format);
 			}
 
 			foreach(RegisterViewerTab tab in tabs) {

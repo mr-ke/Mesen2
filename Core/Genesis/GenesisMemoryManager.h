@@ -70,6 +70,13 @@ public:
 	AddressInfo GetAbsoluteAddress(uint32_t addr, CpuType cpuType);
 	AddressInfo GetRelativeAddress(AddressInfo& absAddress, CpuType cpuType);
 
+	//--- Debug access (no side effects) ---
+	uint8_t M68KDebugRead(uint32_t address);
+	uint8_t Z80DebugRead(uint16_t address);
+	void M68KDebugWrite(uint32_t address, uint8_t value);
+	void Z80DebugWrite(uint16_t address, uint8_t value);
+	void M68KPeekBlock(uint32_t start, uint8_t* dest);
+
 	//--- ISerializable ---
 	void Serialize(Serializer& s) override;
 

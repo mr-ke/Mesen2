@@ -770,6 +770,117 @@ AddressInfo GenesisMemoryManager::GetRelativeAddress(AddressInfo& absAddress, Cp
 }
 
 // ============================================================================
+// Debug access (no side effects)
+// ============================================================================
+
+uint8_t GenesisMemoryManager::M68KDebugRead(uint32_t address)
+{
+	address &= 0x00FFFFFF;
+
+	//0x000000-0x3FFFFF: Cartridge ROM / SRAM
+	if(address < 0x400000) {
+		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable) {
+			uint32_t offset = address - _sramStart;
+			return offset < _sramSize ? _sram[offset] : 0xFF;
+		}
+		return address < _romSize ? _rom[address] : 0xFF;
+	}
+
+	//0xA00000-0xA01FFF: Z80 RAM
+	if(address >= 0xA00000 && address <= 0xA01FFF) {
+		return _z80Ram[address & 0x1FFF];
+	}
+
+	//0xE00000-0xFFFFFF: M68K work RAM (64KB, mirrored)
+	if(address >= 0xE00000) {
+		return _m68kRam[address & 0xFFFF];
+	}
+
+	return 0xFF;
+}
+
+uint8_t GenesisMemoryManager::Z80DebugRead(uint16_t address)
+{
+	//0x0000-0x3FFF: Z80 RAM (8KB, mirrored at 0x2000-0x3FFF)
+	if(address <= 0x3FFF) {
+		return _z80Ram[address & 0x1FFF];
+	}
+
+	//0x8000-0xFFFF: M68K bus window (banked) — read without side effects
+	if(address >= 0x8000) {
+		uint32_t m68kAddr = (_z80Bank << 15) | (address & 0x7FFF);
+		//Z80 cannot read M68K RAM
+		if(m68kAddr >= 0xE00000 && m68kAddr <= 0xFFFFFF) {
+			return 0xFF;
+		}
+		bool accessible =
+			(m68kAddr < 0xA00000) ||
+			(m68kAddr >= 0xA10000 && m68kAddr <= 0xA1FFFF) ||
+			(m68kAddr >= 0xC00000 && m68kAddr <= 0xC000FF);
+		if(!accessible) return 0xFF;
+		return M68KDebugRead(m68kAddr);
+	}
+
+	//Other regions (YM2612, bank register, VDP) — return open bus for debug
+	return 0xFF;
+}
+
+void GenesisMemoryManager::M68KDebugWrite(uint32_t address, uint8_t value)
+{
+	address &= 0x00FFFFFF;
+
+	//0x000000-0x3FFFFF: Cartridge area (SRAM writes)
+	if(address < 0x400000) {
+		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable && _sramWritable) {
+			uint32_t offset = address - _sramStart;
+			if(offset < _sramSize) _sram[offset] = value;
+		}
+		return;
+	}
+
+	//0xA00000-0xA01FFF: Z80 RAM
+	if(address >= 0xA00000 && address <= 0xA01FFF) {
+		_z80Ram[address & 0x1FFF] = value;
+		return;
+	}
+
+	//0xE00000-0xFFFFFF: M68K work RAM (64KB, mirrored)
+	if(address >= 0xE00000) {
+		_m68kRam[address & 0xFFFF] = value;
+		return;
+	}
+}
+
+void GenesisMemoryManager::Z80DebugWrite(uint16_t address, uint8_t value)
+{
+	//0x0000-0x3FFF: Z80 RAM
+	if(address <= 0x3FFF) {
+		_z80Ram[address & 0x1FFF] = value;
+		return;
+	}
+
+	//0x8000-0xFFFF: M68K bus window (banked) — write through to M68K bus
+	if(address >= 0x8000) {
+		uint32_t m68kAddr = (_z80Bank << 15) | (address & 0x7FFF);
+		bool accessible =
+			(m68kAddr < 0xA00000) ||
+			(m68kAddr >= 0xA10000 && m68kAddr <= 0xA1FFFF) ||
+			(m68kAddr >= 0xC00000 && m68kAddr <= 0xC000FF) ||
+			(m68kAddr >= 0xE00000 && m68kAddr <= 0xFFFFFF);
+		if(accessible) {
+			M68KDebugWrite(m68kAddr, value);
+		}
+	}
+}
+
+void GenesisMemoryManager::M68KPeekBlock(uint32_t start, uint8_t* dest)
+{
+	for(uint32_t i = 0; i < 0x1000; i++) {
+		dest[i] = M68KDebugRead(start + i);
+	}
+}
+
+// ============================================================================
 // Serialization
 // ============================================================================
 

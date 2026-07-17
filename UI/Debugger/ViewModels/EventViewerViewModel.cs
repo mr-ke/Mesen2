@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -240,6 +240,7 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Sms => Config.SmsConfig,
 				CpuType.Gba => Config.GbaConfig,
 				CpuType.Ws => Config.WsConfig,
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => Config.GenesisConfig,
 				_ => throw new Exception("Invalid cpu type")
 			};
 		}
@@ -311,6 +312,7 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Sms => new PixelPoint(evt.Cycle * 2, evt.Scanline * 2),
 				CpuType.Gba => new PixelPoint(evt.Cycle, evt.Scanline * 4),
 				CpuType.Ws => new PixelPoint(evt.Cycle * 2, evt.Scanline * 2),
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => new PixelPoint(evt.Cycle, evt.Scanline * 2),
 				_ => throw new Exception("Invalid cpu type")
 			};
 		}
@@ -368,14 +370,21 @@ namespace Mesen.Debugger.ViewModels
 					break;
 
 				case CpuType.Ws:
-					result.X = p.X / 2 * 2;
-					xPos = result.X / 2;
-					yPos = result.Y / 2;
-					break;
+				result.X = p.X / 2 * 2;
+				xPos = result.X / 2;
+				yPos = result.Y / 2;
+				break;
 
-				default:
-					throw new Exception("Invalid cpu type");
-			}
+			case CpuType.GenesisM68K:
+			case CpuType.GenesisZ80:
+				result.X = p.X;
+				xPos = result.X;
+				yPos = result.Y / 2;
+				break;
+
+			default:
+				throw new Exception("Invalid cpu type");
+		}
 
 			result.DisplayValue = $"X: {xPos}\nY: {yPos}";
 
@@ -398,6 +407,8 @@ namespace Mesen.Debugger.ViewModels
 				DebugApi.SetEventViewerConfig(CpuType, smsCfg.ToInterop());
 			} else if(ConsoleConfig is WsEventViewerConfig wsCfg) {
 				DebugApi.SetEventViewerConfig(CpuType, wsCfg.ToInterop());
+			} else if(ConsoleConfig is GenesisEventViewerConfig genesisCfg) {
+				DebugApi.SetEventViewerConfig(CpuType, genesisCfg.ToInterop());
 			}
 		}
 

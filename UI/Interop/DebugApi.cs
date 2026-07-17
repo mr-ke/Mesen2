@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -18,6 +18,7 @@ namespace Mesen.Interop
 	public class DebugApi
 	{
 		private const string DllPath = EmuApi.DllName;
+
 		[DllImport(DllPath)] public static extern void InitializeDebugger();
 		[DllImport(DllPath)] public static extern void ReleaseDebugger();
 
@@ -113,18 +114,20 @@ namespace Mesen.Interop
 		}
 
 		public static BaseState GetPpuState(CpuType cpuType)
-		{
-			return cpuType switch {
-				CpuType.Snes => GetPpuState<SnesPpuState>(cpuType),
-				CpuType.Nes => GetPpuState<NesPpuState>(cpuType),
-				CpuType.Gameboy => GetPpuState<GbPpuState>(cpuType),
-				CpuType.Pce => GetPpuState<PceVideoState>(cpuType),
-				CpuType.Sms => GetPpuState<SmsVdpState>(cpuType),
-				CpuType.Gba => GetPpuState<GbaPpuState>(cpuType),
-				CpuType.Ws => GetPpuState<WsPpuState>(cpuType),
-				_ => throw new Exception("Unsupported cpu type")
-			};
-		}
+			{
+				return cpuType switch {
+					CpuType.Snes => GetPpuState<SnesPpuState>(cpuType),
+					CpuType.Nes => GetPpuState<NesPpuState>(cpuType),
+					CpuType.Gameboy => GetPpuState<GbPpuState>(cpuType),
+					CpuType.Pce => GetPpuState<PceVideoState>(cpuType),
+					CpuType.Sms => GetPpuState<SmsVdpState>(cpuType),
+					CpuType.Gba => GetPpuState<GbaPpuState>(cpuType),
+					CpuType.Ws => GetPpuState<WsPpuState>(cpuType),
+					CpuType.GenesisM68K => GetPpuState<GenesisVdpState>(cpuType),
+					CpuType.GenesisZ80 => GetPpuState<GenesisVdpState>(cpuType),
+					_ => throw new Exception("Unsupported cpu type")
+				};
+			}
 
 		[DllImport(DllPath)] private static extern void GetPpuToolsState(CpuType cpuType, IntPtr state);
 		public unsafe static T GetPpuToolsState<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)] T>(CpuType cpuType) where T : struct, BaseState
@@ -135,18 +138,20 @@ namespace Mesen.Interop
 		}
 
 		public static BaseState GetPpuToolsState(CpuType cpuType)
-		{
-			return cpuType switch {
-				CpuType.Snes => GetPpuToolsState<SnesPpuToolsState>(cpuType),
-				CpuType.Nes => GetPpuToolsState<NesPpuToolsState>(cpuType),
-				CpuType.Gameboy => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
-				CpuType.Pce => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
-				CpuType.Sms => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
-				CpuType.Gba => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
-				CpuType.Ws => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
-				_ => throw new Exception("Unsupported cpu type")
-			};
-		}
+			{
+				return cpuType switch {
+					CpuType.Snes => GetPpuToolsState<SnesPpuToolsState>(cpuType),
+					CpuType.Nes => GetPpuToolsState<NesPpuToolsState>(cpuType),
+					CpuType.Gameboy => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.Pce => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.Sms => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.Gba => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.Ws => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.GenesisM68K => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					CpuType.GenesisZ80 => GetPpuToolsState<EmptyPpuToolsState>(cpuType),
+					_ => throw new Exception("Unsupported cpu type")
+				};
+			}
 
 		[DllImport(DllPath)] private static extern void SetPpuState(IntPtr state, CpuType cpuType);
 		public unsafe static void SetPpuState<T>(T state, CpuType cpuType) where T : BaseState
@@ -175,7 +180,8 @@ namespace Mesen.Interop
 		{
 			byte* ptr = stackalloc byte[Marshal.SizeOf<T>()];
 			DebugApi.GetConsoleState((IntPtr)ptr, consoleType);
-			return Marshal.PtrToStructure<T>((IntPtr)ptr);
+			T result = Marshal.PtrToStructure<T>((IntPtr)ptr);
+			return result;
 		}
 
 		[DllImport(DllPath)] public static extern void SetProgramCounter(CpuType cpuType, UInt32 address);
@@ -410,6 +416,7 @@ namespace Mesen.Interop
 		[DllImport(DllPath)] public static extern void SetEventViewerConfig(CpuType cpuType, InteropPceEventViewerConfig config);
 		[DllImport(DllPath)] public static extern void SetEventViewerConfig(CpuType cpuType, InteropSmsEventViewerConfig config);
 		[DllImport(DllPath)] public static extern void SetEventViewerConfig(CpuType cpuType, InteropWsEventViewerConfig config);
+		[DllImport(DllPath)] public static extern void SetEventViewerConfig(CpuType cpuType, InteropGenesisEventViewerConfig config);
 
 		[DllImport(DllPath, EntryPoint = "GetEventViewerEvent")] private static extern DebugEventInfo GetEventViewerEventWrapper(CpuType cpuType, UInt16 scanline, UInt16 cycle);
 		public static DebugEventInfo? GetEventViewerEvent(CpuType cpuType, UInt16 scanline, UInt16 cycle)
@@ -556,23 +563,26 @@ namespace Mesen.Interop
 				CpuType.Sms => state is SmsCpuState,
 				CpuType.Gba => state is GbaCpuState,
 				CpuType.Ws => state is WsCpuState,
+				CpuType.GenesisM68K => state is GenesisM68KState,
+				CpuType.GenesisZ80 => state is GenesisZ80State,
 				_ => false
 			};
 		}
 
 		private static bool IsValidPpuState<T>(ref T state, CpuType cpuType) where T : BaseState
-		{
-			return cpuType.GetConsoleType() switch {
-				ConsoleType.Snes => state is SnesPpuState,
-				ConsoleType.Nes => state is NesPpuState,
-				ConsoleType.Gameboy => state is GbPpuState,
-				ConsoleType.PcEngine => state is PceVideoState,
-				ConsoleType.Sms => state is SmsVdpState,
-				ConsoleType.Gba => state is GbaPpuState,
-				ConsoleType.Ws => state is WsPpuState,
-				_ => false
-			};
-		}
+			{
+				return cpuType.GetConsoleType() switch {
+					ConsoleType.Snes => state is SnesPpuState,
+					ConsoleType.Nes => state is NesPpuState,
+					ConsoleType.Gameboy => state is GbPpuState,
+					ConsoleType.PcEngine => state is PceVideoState,
+					ConsoleType.Sms => state is SmsVdpState,
+					ConsoleType.Gba => state is GbaPpuState,
+					ConsoleType.Ws => state is WsPpuState,
+					ConsoleType.Genesis => state is GenesisVdpState,
+					_ => false
+				};
+			}
 
 		private static int GetStateSize(BaseState state)
 		{
@@ -599,6 +609,9 @@ namespace Mesen.Interop
 		SmsMemory,
 		GbaMemory,
 		WsMemory,
+		NdsMemory,
+		ThreeDsMemory,
+		GenesisMemory,
 
 		SnesPrgRom,
 		SnesWorkRam,
@@ -682,6 +695,16 @@ namespace Mesen.Interop
 		WsBootRom,
 		WsInternalEeprom,
 		WsPort,
+
+		GenesisM68KRam,
+		GenesisZ80Ram,
+		GenesisZ80Bus,
+		GenesisVdpVram,
+		GenesisVdpVsram,
+		GenesisVdpCram,
+		GenesisCartridgeRom,
+		GenesisCartridgeRam,
+		GenesisPort,
 
 		None,
 	}
@@ -1006,6 +1029,30 @@ namespace Mesen.Interop
 
 		public InteropEventViewerCategoryCfg GameGearPortWrite;
 		public InteropEventViewerCategoryCfg GameGearPortRead;
+
+		[MarshalAs(UnmanagedType.I1)] public bool ShowPreviousFrameEvents;
+	}
+
+	[StructLayout(LayoutKind.Sequential)]
+	public class InteropGenesisEventViewerConfig
+	{
+		public InteropEventViewerCategoryCfg Irq;
+		public InteropEventViewerCategoryCfg Nmi;
+		public InteropEventViewerCategoryCfg MarkedBreakpoints;
+
+		public InteropEventViewerCategoryCfg VdpPaletteWrite;
+		public InteropEventViewerCategoryCfg VdpVramWrite;
+		public InteropEventViewerCategoryCfg VdpVramRead;
+		public InteropEventViewerCategoryCfg VdpControlPortWrite;
+		public InteropEventViewerCategoryCfg VdpControlPortRead;
+
+		public InteropEventViewerCategoryCfg IoWrite;
+		public InteropEventViewerCategoryCfg IoRead;
+		public InteropEventViewerCategoryCfg PsgWrite;
+		public InteropEventViewerCategoryCfg Ym2612Write;
+
+		public InteropEventViewerCategoryCfg Z80BusRequest;
+		public InteropEventViewerCategoryCfg Z80Reset;
 
 		[MarshalAs(UnmanagedType.I1)] public bool ShowPreviousFrameEvents;
 	}
@@ -1524,7 +1571,9 @@ namespace Mesen.Interop
 		Gba,
 		Ws,
 		Nds,
-		ThreeDs
+		ThreeDs,
+		GenesisM68K,
+		GenesisZ80
 	}
 
 	public enum StepType
