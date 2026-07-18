@@ -87,7 +87,9 @@ LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
 		_psg.get(), _ym2612.get(),
 		_controlManager.get(),
 		_romData.data(), (uint32_t)_romData.size(),
-		_sram, _sramSize, _sramStart, _sramWritable
+		_sram, _sramSize, _sramStart, _sramWritable, _sramOddByte,
+		_banked, _romBank,
+		_useEeprom, &_eeprom, _eepromRsda, _eepromWsda, _eepromWscl
 	);
 
 	//Wire M68K pointer to VDP
@@ -107,31 +109,84 @@ void GenesisConsole::ParseRomHeader(vector<uint8_t>& romData)
 {
 	if(romData.size() < 0x200) return;
 
+	//System type at offset $100 (16 bytes, space-padded ASCII).
+	//Standard values: "SEGA MEGA DRIVE ", "SEGA GENESIS    ".
+	//Homebrew/SSF carts use "SEGA SSF        " to request the
+	//SSF2 bank-switching mapper on flash carts. We honor this header
+	//as an explicit signal to enable bank switching, matching the
+	//behavior documented at blog.roberthargreaves.com/2025/03/10/sram-and-everdrives.
+	if(romData.size() >= 0x110 &&
+	   romData[0x100] == 'S' && romData[0x101] == 'E' &&
+	   romData[0x102] == 'G' && romData[0x103] == 'A' &&
+	   romData[0x104] == 'S' && romData[0x105] == 'S' &&
+	   romData[0x106] == 'F') {
+		_banked = true;
+	}
+
 	//SRAM info from ROM header at offset $1B0-$1BF
-	// $1B0: "RA" for SRAM present
+	// $1B0: "RA" for save memory present
 	// $1B2: SRAM start address (big-endian 32-bit)
 	// $1B6: SRAM end address (big-endian 32-bit)
-	// $1BA: SRAM type: bit 7 = 1 for SRAM (vs EEPROM), bit 0 = 1 for odd-byte-only
+	// $1BA: type byte — bit 0 = 1 for odd-byte SRAM (D0-D7 only).
+	//
+	// NOTE on the type byte's bit 7: an early heuristic treated bit 7 = 0
+	// as an EEPROM marker. This is unreliable — Light Crusader (J) has
+	// bit 7 = 0 yet uses parallel SRAM (writes a 16-byte range at
+	// 0x200000-0x20000E, classic odd-byte SRAM pattern). ares itself does
+	// NOT use this bit for EEPROM detection; EEPROM config in ares comes
+	// from an external pak manifest. We now treat every "RA" header as
+	// parallel SRAM. The GenesisEeprom code is retained for future use
+	// with an explicit game-database lookup for known EEPROM titles
+	// (NBA Jam TE, WWF WrestleMania, etc.).
+	//
+	// Many ROMs ship with garbage sramStart/sramEnd values (e.g. Light
+	// Crusader: 0xF8200020 / 0x00010020) because the actual hardware
+	// configuration was meant to come from an external manifest. We
+	// validate the range and fall back to a safe 8KB at 0x200000 (the
+	// most common SRAM configuration) when the header is unusable.
 	if(romData.size() > 0x1BB) {
 		if(romData[0x1B0] == 'R' && romData[0x1B1] == 'A') {
-			_sramStart = ((uint32_t)romData[0x1B2] << 24) | ((uint32_t)romData[0x1B3] << 16) |
-			             ((uint32_t)romData[0x1B4] << 8) | (uint32_t)romData[0x1B5];
+			uint32_t sramStart = ((uint32_t)romData[0x1B2] << 24) | ((uint32_t)romData[0x1B3] << 16) |
+			                     ((uint32_t)romData[0x1B4] << 8) | (uint32_t)romData[0x1B5];
 			uint32_t sramEnd = ((uint32_t)romData[0x1B6] << 24) | ((uint32_t)romData[0x1B7] << 16) |
 			                   ((uint32_t)romData[0x1B8] << 8) | (uint32_t)romData[0x1B9];
 			uint8_t sramType = romData[0x1BA];
 
-			if(sramEnd > _sramStart) {
-				_sramSize = (sramEnd - _sramStart) + 1; //+1 because end is inclusive
-				//Some ROMs report double the actual size (odd+even bytes), halve it
-				//for 8-bit SRAM
-				if(sramType & 0x01) {
-					//Odd-byte SRAM — actual size is half
-					_sramSize = (_sramSize + 1) / 2;
-				}
-				//Cap at 64KB
-				if(_sramSize > 0x10000) _sramSize = 0x10000;
-				_sramEnable = true;
+			//Validate the SRAM range. Valid SRAM lives in the upper 2MB of
+			//the cartridge slot (0x200000-0x3FFFFF), and sramEnd must be
+			//greater than sramStart. Many games (Light Crusader, etc.) have
+			//garbage values here that fail this check.
+			bool validRange = (sramStart >= 0x200000 && sramStart < 0x400000 &&
+			                   sramEnd > sramStart && sramEnd <= 0x400000);
+
+			//Odd-byte SRAM: type bit 0 = 1 means only D0-D7 are connected
+			//(the SRAM chip is /LDS-selected, A0 is ignored). For odd-byte
+			//SRAM the chip occupies half the address range (one byte per
+			//word); for word SRAM the chip occupies the full range.
+			_sramOddByte = (sramType & 0x01) != 0;
+
+			if(validRange) {
+				_sramStart = sramStart;
+				//+1 because the end address is inclusive
+				_sramSize = (sramEnd - sramStart) + 1;
+			} else {
+				//Garbage header — use safe defaults: 8KB SRAM chip at
+				//0x200000. For odd-byte SRAM the chip occupies a 16KB word
+				//range (one byte per word); the halving below brings it
+				//back to the 8KB chip size. For word SRAM the chip occupies
+				//an 8KB range directly.
+				_sramStart = 0x200000;
+				_sramSize = _sramOddByte ? 0x4000 : 0x2000;
 			}
+
+			//For odd-byte SRAM the chip's byte count is half the address
+			//range (one byte stored per word).
+			if(_sramOddByte) {
+				_sramSize = (_sramSize + 1) / 2;
+			}
+			//Cap at 64KB (largest standard Genesis SRAM)
+			if(_sramSize > 0x10000) _sramSize = 0x10000;
+			_sramEnable = true;
 		}
 	}
 
@@ -153,13 +208,36 @@ void GenesisConsole::InitCart(vector<uint8_t>& romData)
 		romData.insert(romData.end(), newSize - romData.size(), 0xFF);
 	}
 
-	//Initialize bank registers (default: identity mapping)
+	//Enable SSF2 bank switching for ROMs larger than 4MB. The standard
+	//cartridge ROM window is 0x000000-0x3FFFFF (4MB); ROMs beyond that
+	//size (e.g. Super Street Fighter II at 5MB) require bank switching
+	//to expose the upper 1MB via 512KB swappable banks. This is also
+	//auto-enabled by ParseRomHeader when the system type is "SEGA SSF".
+	//Reference: ares/md/cartridge/board/banked.cpp.
+	if(romData.size() > 0x400000) {
+		_banked = true;
+	}
+
+	//Initialize bank registers (default: identity mapping). ares
+	//banked.cpp::power() sets romBank[index] = index for all 8 entries,
+	//so on power-on each 512KB region maps to itself.
 	for(int i = 0; i < 8; i++) {
 		_romBank[i] = i;
 	}
 
 	//Allocate SRAM if the header indicated its presence
-	if(_sramSize > 0 && _sramEnable) {
+	if(_useEeprom) {
+		//EEPROM cartridge — initialize the M24C chip. Default to M24C08
+		//(1KB) which is the most common type for Acclaim-mapper EEPROM
+		//games (Light Crusader, Shadowrun, etc.). The EEPROM type is
+		//normally specified by an external manifest in ares; without one,
+		//M24C08 is a safe default that matches the majority of games.
+		_eeprom.load(GenesisEeprom::Type::M24C08);
+		_eeprom.power();
+		//No parallel SRAM on EEPROM carts
+		_sram = nullptr;
+		_sramEnable = false;
+	} else if(_sramSize > 0 && _sramEnable) {
 		_sram = new uint8_t[_sramSize];
 		memset(_sram, 0, _sramSize);
 	} else {
@@ -185,6 +263,15 @@ void GenesisConsole::Reset()
 	if(_z80) _z80->Power();
 	if(_vdp) _vdp->Reset();
 	if(_memoryManager) _memoryManager->Reset();
+	//Reset bank registers to identity mapping on soft reset, matching
+	//ares banked.cpp::power(reset) which runs on both power-on and reset.
+	for(int i = 0; i < 8; i++) {
+		_romBank[i] = i;
+	}
+	//Reset the EEPROM I2C state machine to Standby (preserves memory
+	//contents). Matches ares standard.cpp::power(reset) which calls
+	//m24c.power() on both power-on and reset.
+	if(_useEeprom) _eeprom.power();
 	_frameCount = 0;
 	_masterClock = 0;
 	UpdateRegion();
@@ -505,6 +592,13 @@ void GenesisConsole::UpdateRegion()
 
 	if(_psg) _psg->SetRegion(_region);
 	if(_ym2612) _ym2612->SetRegion(_region);
+	//VDP must also be told the region — it defaults to NTSC in its
+	//constructor and otherwise never learns it. Without this, the VDP
+	//status register reports NTSC (bit 0 = 0), runs 262 scanlines/frame
+	//instead of 313, and uses NTSC VBlank timing. PAL-strict ROMs (e.g.
+	//Titan Overdrive 2) detect this and refuse to run with messages
+	//like "THIS DEMO REQUIRES PAL/50HZ".
+	if(_vdp) _vdp->SetRegion(_region);
 }
 
 void GenesisConsole::Serialize(Serializer& s)
@@ -524,5 +618,16 @@ void GenesisConsole::Serialize(Serializer& s)
 	SV(_banked);
 	for(int i = 0; i < 8; i++) {
 		SVI(_romBank[i]);
+	}
+
+	//EEPROM state (serialized separately from the memory manager so the
+	//console owns the save/load lifecycle; the memory manager just holds
+	//a pointer for bit-banging access).
+	SV(_useEeprom);
+	if(_useEeprom) {
+		SV(_eeprom);
+		SV(_eepromRsda);
+		SV(_eepromWsda);
+		SV(_eepromWscl);
 	}
 }

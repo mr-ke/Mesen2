@@ -73,8 +73,11 @@ void GenesisVdp::Reset()
 
 void GenesisVdp::UpdateScreenParams()
 {
-	if(_region == ConsoleRegion::Ntsc && V28()) { _state.topline = 0x1E5; _state.bottomline = 0x0EA; }
-	if(_region == ConsoleRegion::Ntsc && V30()) { _state.topline = 0x000; _state.bottomline = 0x1FF; }
+	//Treat any non-PAL region as NTSC. The MD VDP only distinguishes NTSC
+	//vs PAL for timing; NtscJapan differs from Ntsc only in the version
+	//register's export flag (handled in ReadM68KIO via _console->GetRegion()).
+	if(_region != ConsoleRegion::Pal && V28()) { _state.topline = 0x1E5; _state.bottomline = 0x0EA; }
+	if(_region != ConsoleRegion::Pal && V30()) { _state.topline = 0x000; _state.bottomline = 0x1FF; }
 	if(_region == ConsoleRegion::Pal && V28())  { _state.topline = 0x1CA; _state.bottomline = 0x102; }
 	if(_region == ConsoleRegion::Pal && V30())  { _state.topline = 0x1D2; _state.bottomline = 0x10A; }
 }
@@ -271,7 +274,8 @@ uint32_t* GenesisVdp::GetLineBuffer()
 	//NTSC:          y >= 0x0E8 && y < 0x1F5  → nullptr
 	//PAL overscan:  y >= 0x108 && y < 0x1E2  → nullptr
 	//PAL no-oversc: y >= 0x100 && y < 0x1DA  → nullptr
-	if(_region == ConsoleRegion::Ntsc) {
+	//Treat any non-PAL region (incl. NtscJapan) as NTSC.
+	if(_region != ConsoleRegion::Pal) {
 		if(y >= 0x0E8 && y < 0x1F5) return nullptr;
 	} else {
 		if(_latch.overscan && y >= 0x108 && y < 0x1E2) return nullptr;
@@ -282,7 +286,7 @@ uint32_t* GenesisVdp::GetLineBuffer()
 	//1. Collapse the blank gap by subtracting the vsync region size
 	//2. Add top border offset to center active display
 	//3. Modulo by visibleHeight (243 NTSC, 294 PAL)
-	if(_region == ConsoleRegion::Ntsc) {
+	if(_region != ConsoleRegion::Pal) {
 		if(y >= 0x0E8) y -= (0x1F5 - 0x0E8);  //y -= 0x10D
 		y += 11;
 		y = y % 243;

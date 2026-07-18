@@ -112,6 +112,19 @@ public:
 	void DebugWriteCRAM(uint32_t index, uint16_t data) { if(index < CRAMSize) _cram[index] = data & 0x1FF; }
 	uint8_t GetBackgroundColor() const { return _io.backgroundColor; }
 
+	//Region (PAL/NTSC) setter. The VDP defaults to NTSC in its constructor;
+	//the console calls this from UpdateRegion() once ROM-header region
+	//detection has settled on PAL vs NTSC. Affects: status register bit 0
+	//(PAL flag read by games to detect 50Hz), VBlank topline/bottomline,
+	//scanline count per frame (313 PAL / 262 NTSC), framebuffer height,
+	//and pixel blanking ranges. Must be called before Power() for correct
+	//initial VBlank lines, but is also re-applied every frame at the
+	//bottomline transition via UpdateScreenParams().
+	void SetRegion(ConsoleRegion region) {
+		_region = region;
+		UpdateScreenParams();
+	}
+
 	//Clock helpers. The VDP clock is the master clock; we track cycle counts
 	//relative to it. In H40 mode, 4 mclks/pixel; in H32 mode, 5 mclks/pixel.
 	uint32_t GetHcounter() const { return _state.hcounter; }

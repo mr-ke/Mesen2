@@ -14,6 +14,7 @@ class GenesisVdp;
 class GenesisPsg;
 class GenesisYm2612;
 class GenesisControlManager;
+class GenesisEeprom;
 
 // Genesis Memory Manager — M68K + Z80 bus arbiter.
 //
@@ -38,7 +39,10 @@ public:
 		GenesisControlManager* controlManager,
 		uint8_t* rom, uint32_t romSize,
 		uint8_t* sram, uint32_t sramSize,
-		uint32_t sramStart, bool sramWritable);
+		uint32_t sramStart, bool sramWritable, bool sramOddByte,
+		bool useSsfMapper, uint8_t* romBank,
+		bool useEeprom, GenesisEeprom* eeprom,
+		uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl);
 
 	void Reset();
 
@@ -108,7 +112,38 @@ private:
 	uint32_t _sramStart = 0;   //M68K address where SRAM window starts
 	bool _sramWritable = true;
 	bool _sramEnable = false;  //for banked cartridges
+	//True for odd-byte SRAM (D0-D7 only, /LDS-selected). SRAM chip index
+	//is (m68kAddress - _sramStart) >> 1. Word reads return the byte
+	//duplicated to both bytes (lram * 0x0101 in ares). Only lower-byte
+	//writes are stored. Matches ares/md/cartridge/board/linear.cpp lram.
+	bool _sramOddByte = false;
 	uint8_t* _originalSram = nullptr;
+
+	//SSF2-style bank switching (SEGA SSF mapper, also used by 4MB+ ROMs).
+	//When _useSsfMapper is true, the 8 entries of _romBank[] (owned by
+	//GenesisConsole, pointed to here) translate the upper 3 bits of the
+	//M68K ROM address (bits 19-21 -> 512KB region index 0-7) into a 6-bit
+	//bank number (0-31). The translated address is:
+	//  byteOffset = (romBank[address >> 19] << 19) | (address & 0x7FFFF)
+	//Bank 0 is fixed (identity mapping, not writable); banks 1-7 are set
+	//by writing the lower 6 bits to 0xA130F2/4/6/8/A/C/E. The control
+	//register at 0xA130F0 gates SRAM access (bit 0 = ramEnable,
+	//bit 1 = ramWritable active-low). Ported from
+	//ares/md/cartridge/board/banked.cpp.
+	bool _useSsfMapper = false;
+	uint8_t* _romBank = nullptr;  //points to GenesisConsole::_romBank[8]
+
+	//EEPROM (M24C I2C serial) save storage. When _useEeprom is true,
+	//the SRAM address range is used for SDA/SCL bit-banging instead of
+	//parallel SRAM. The EEPROM object is owned by GenesisConsole; this
+	//is a non-owning pointer used for read/write/bit-bang access.
+	//Reference: ares/md/cartridge/board/standard.cpp read/write for m24c.
+	bool _useEeprom = false;
+	GenesisEeprom* _eeprom = nullptr;
+	uint8_t _eepromRsda = 0;  //bit position of SDA on reads
+	uint8_t _eepromWsda = 0;  //bit position of SDA on writes
+	uint8_t _eepromWscl = 1;  //bit position of SCL on writes
+	uint8_t* _originalEeprom = nullptr;  //snapshot for change detection
 
 	//Z80 bank register (determines which 32KB window of the M68K bus
 	//the Z80 sees at 0x8000-0xFFFF)
@@ -133,8 +168,19 @@ private:
 	uint16_t ReadRomWord(uint32_t address);
 	uint16_t ReadSramWord(uint32_t address);
 	void WriteSramWord(uint32_t address, uint16_t data, uint8_t upper, uint8_t lower);
+	uint16_t ReadEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
+	void WriteEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
 	uint16_t ReadM68KIO(uint32_t address, uint16_t openBus);
 	void WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data);
+	//Apply SSF2 bank translation to a byte M68K ROM address.
+	//Returns the corresponding byte offset into the _rom array.
+	//When _useSsfMapper is false, returns the address unchanged.
+	uint32_t TranslateRomAddress(uint32_t address) const;
+	//Returns the M68K address one past the end of the SRAM window.
+	//For odd-byte SRAM, the window is twice the chip size (one byte per
+	//word — A0 is ignored and only /LDS selects the chip); for word/byte
+	//SRAM, the window equals the chip size.
+	uint32_t GetSramEnd() const { return _sramStart + (_sramOddByte ? _sramSize * 2 : _sramSize); }
 
 	//Z80 external bus access (through M68K bus, with arbitration)
 	uint8_t Z80ReadExternal(uint32_t m68kAddress);

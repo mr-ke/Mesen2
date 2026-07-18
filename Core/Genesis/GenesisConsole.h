@@ -3,6 +3,7 @@
 #include "Shared/Interfaces/IConsole.h"
 #include "Shared/SettingTypes.h"
 #include "Genesis/GenesisTypes.h"
+#include "Genesis/GenesisEeprom.h"
 
 class Emulator;
 class VirtualFile;
@@ -36,8 +37,34 @@ private:
 	uint32_t _sramStart = 0x200000; //default SRAM window at 2MB boundary
 	bool _sramWritable = true;
 	bool _sramEnable = false;
+	//True if SRAM is wired to D0-D7 only (odd-byte access). The SRAM
+	//chip is selected by /LDS, A0 is ignored, and the chip's byte index
+	//is (m68kAddress - _sramStart) >> 1. Matches ares's lram[address>>1]
+	//pattern (linear.cpp/standard.cpp). Derived from ROM header type
+	//byte (0x1BA) bit 0 = 1.
+	bool _sramOddByte = false;
 	bool _banked = false; //true if cartridge uses banked mapping
 	uint8_t _romBank[8] = {}; //bank registers for banked cartridges
+
+	//EEPROM (M24C) save storage. Mutually exclusive with SRAM — a
+	//cartridge has either parallel SRAM or an I2C EEPROM, never both.
+	//When _useEeprom is true, the SRAM address range (_sramStart ..
+	// _sramStart+_sramSize) is used for SDA/SCL bit-banging instead of
+	//parallel SRAM access. Ported from ares/md/cartridge/board/standard.cpp
+	//and ares/component/eeprom/m24c/. Detection: NOT driven by the ROM
+	//header type byte (bit 7 proved unreliable — Light Crusader has
+	//bit 7=0 but uses parallel SRAM). EEPROM is currently disabled by
+	//default; enable only via an explicit game-database lookup for
+	//known EEPROM titles (NBA Jam TE, WWF WrestleMania, etc.).
+	bool _useEeprom = false;
+	GenesisEeprom _eeprom;
+	//SDA/SCL bit positions within the 16-bit M68K word at _sramStart.
+	//rsda: bit position of SDA on reads. wsda/wscl: bit positions of
+	//SDA/SCL on writes. The upper nibble (>>3) selects the byte (0=low,
+	//1=high). Defaults (Acclaim mapper): rsda=0, wsda=0, wscl=1.
+	uint8_t _eepromRsda = 0;
+	uint8_t _eepromWsda = 0;
+	uint8_t _eepromWscl = 1;
 
 	RomFormat _romFormat = RomFormat::Genesis;
 	ConsoleRegion _region = ConsoleRegion::Ntsc;

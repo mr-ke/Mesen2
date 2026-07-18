@@ -7,6 +7,7 @@
 #include "Genesis/GenesisPsg.h"
 #include "Genesis/GenesisYm2612.h"
 #include "Genesis/GenesisControlManager.h"
+#include "Genesis/GenesisEeprom.h"
 #include "Shared/Emulator.h"
 #include "Shared/BatteryManager.h"
 #include "Shared/EmuSettings.h"
@@ -26,6 +27,7 @@ GenesisMemoryManager::~GenesisMemoryManager()
 	delete[] _m68kRam;
 	delete[] _z80Ram;
 	delete[] _originalSram;
+	delete[] _originalEeprom;
 }
 
 void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
@@ -34,7 +36,10 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	GenesisControlManager* controlManager,
 	uint8_t* rom, uint32_t romSize,
 	uint8_t* sram, uint32_t sramSize,
-	uint32_t sramStart, bool sramWritable)
+	uint32_t sramStart, bool sramWritable, bool sramOddByte,
+	bool useSsfMapper, uint8_t* romBank,
+	bool useEeprom, GenesisEeprom* eeprom,
+	uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl)
 {
 	_emu = emu;
 	_console = console;
@@ -51,23 +56,51 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	_sramSize = sramSize;
 	_sramStart = sramStart;
 	_sramWritable = sramWritable;
-	_sramEnable = (sramSize > 0);
+	_sramOddByte = sramOddByte;
+	_useSsfMapper = useSsfMapper;
+	_romBank = romBank;
+	//On the SSF mapper, SRAM access is gated by bit 0 of the control
+	//register at 0xA130F0 (ramEnable). ares initializes ramEnable=0 at
+	//power-on, so SRAM is not accessible until the game explicitly enables
+	//it. For non-banked carts, SRAM is always accessible when present.
+	_sramEnable = _useSsfMapper ? false : (sramSize > 0);
+
+	//EEPROM state (owned by GenesisConsole; we hold a pointer for
+	//bit-banging access). When _useEeprom is true, the SRAM address
+	//range is repurposed for SDA/SCL bit-banging.
+	_useEeprom = useEeprom;
+	_eeprom = eeprom;
+	_eepromRsda = eepromRsda;
+	_eepromWsda = eepromWsda;
+	_eepromWscl = eepromWscl;
 
 	//Register memory regions with the emulator for debugger/cheat support
 	_emu->RegisterMemory(MemoryType::GenesisM68KRam, _m68kRam, M68KRamSize);
 	_emu->RegisterMemory(MemoryType::GenesisZ80Ram, _z80Ram, Z80RamSize);
 	if(_rom) _emu->RegisterMemory(MemoryType::GenesisCartridgeRom, _rom, _romSize);
 	if(_sram && _sramSize > 0) _emu->RegisterMemory(MemoryType::GenesisCartridgeRam, _sram, _sramSize);
+	//Register the EEPROM data array as GenesisCartridgeRam so the
+	//debugger's memory viewer can inspect save contents. The EEPROM is
+	//not directly memory-mapped (access is via I2C bit-banging), but
+	//exposing the raw bytes is useful for debugging saves.
+	if(_useEeprom && _eeprom && _eeprom->size() > 0) {
+		_emu->RegisterMemory(MemoryType::GenesisCartridgeRam, _eeprom->memory, _eeprom->size());
+	}
 
 	//Initialize RAM
 	console->InitializeRam(_m68kRam, M68KRamSize);
 	console->InitializeRam(_z80Ram, Z80RamSize);
 
-	//Load battery (SRAM)
+	//Load battery (SRAM or EEPROM)
 	LoadBattery();
 	if(_sram && _sramSize > 0) {
 		_originalSram = new uint8_t[_sramSize];
 		memcpy(_originalSram, _sram, _sramSize);
+	}
+	if(_useEeprom && _eeprom && _eeprom->size() > 0) {
+		uint32_t eepromSize = _eeprom->size();
+		_originalEeprom = new uint8_t[eepromSize];
+		memcpy(_originalEeprom, _eeprom->memory, eepromSize);
 	}
 
 	//Wire M68K bus callbacks
@@ -134,8 +167,14 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 			//just return open bus for now)
 			return 0xFFFF;
 		}
+		//EEPROM access: SDA bit is read from the configured bit position
+		//of the word at _sramStart. The rest of the word is open bus.
+		//Takes priority over SRAM (a cart has one or the other, never both).
+		if(_useEeprom && _eeprom && address >= _sramStart && address < _sramStart + _sramSize) {
+			return ReadEepromWord(0xFFFF, upper, lower);
+		}
 		//Banked cartridge: use bank mapping
-		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable) {
+		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
 			return ReadSramWord(address);
 		}
 		return ReadRomWord(address);
@@ -208,9 +247,16 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 {
 	address &= 0x00FFFFFE;
 
-	//0x000000-0x3FFFFF: Cartridge area (SRAM writes)
+	//0x000000-0x3FFFFF: Cartridge area (SRAM/EEPROM writes)
 	if(address < 0x400000) {
-		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable) {
+		//EEPROM access: SCL/SDA bits are driven from the configured bit
+		//positions of the word write, then the I2C state machine is
+		//advanced by one SCL/SDA sample. Takes priority over SRAM.
+		if(_useEeprom && _eeprom && address >= _sramStart && address < _sramStart + _sramSize) {
+			WriteEepromWord(data, upper, lower);
+			return;
+		}
+		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
 			WriteSramWord(address, data, upper, lower);
 		}
 		//ROM writes ignored
@@ -381,16 +427,28 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 		return;
 	}
 
-	//0xA130F0: Banked cartridge control
+	//0xA130F0-0xA130FF: SSF2 banked cartridge control (SEGA SSF mapper).
+	//Only active when _useSsfMapper is true. On non-banked carts these
+	//addresses are unconnected — writes are silently dropped, matching real
+	//hardware where the /TIME line goes only to carts with mapper logic.
+	//Reference: ares/md/cartridge/board/banked.cpp::writeIO.
 	if(address >= 0xA130F0 && address <= 0xA130FF) {
-		if(!lower) return;
-		//SRAM enable / write protect
+		if(!_useSsfMapper) return;
+		if(!lower) return;  //ares: only lower-byte writes are processed
+		//0xA130F0: CTRL0 — ramEnable (bit 0), ramWritable active-low (bit 1)
 		if(address == 0xA130F0) {
 			_sramEnable = (data & 1) != 0;
 			_sramWritable = (data & 2) == 0;
 		}
-		//Bank registers are handled in ReadRomWord/WriteSramWord via the cartridge
-		//For now, standard cartridge doesn't use banks
+		//0xA130F2-FE: CTRL1-7 — bank registers for 512KB regions 1-7.
+		//Bank 0 (0x000000-0x07FFFF) is fixed at identity and not writable.
+		//Only the lower 6 bits are used (banks 0-31, 512KB each = 16MB max).
+		else if(_romBank) {
+			uint32_t index = ((address - 0xA130F0) >> 1) & 7;
+			if(index >= 1 && index <= 7) {
+				_romBank[index] = (uint8_t)(data & 0x3F);
+			}
+		}
 		return;
 	}
 }
@@ -399,17 +457,47 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 // ROM access helpers
 // ============================================================================
 
+uint32_t GenesisMemoryManager::TranslateRomAddress(uint32_t address) const
+{
+	//SSF2 bank translation (ares/md/cartridge/board/banked.cpp::read):
+	//   offset = romBank[address >> 19] << 19 | (address & 0x7FFFF)
+	//Bits 19-21 of the M68K address select one of 8 512KB regions; the
+	//bank register for that region replaces those bits with the bank number
+	//(0-31). For non-banked carts, _romBank is null and the address passes
+	//through unchanged.
+	if(_useSsfMapper && _romBank) {
+		uint32_t region = (address >> 19) & 7;
+		return ((uint32_t)_romBank[region] << 19) | (address & 0x7FFFF);
+	}
+	return address;
+}
+
 uint16_t GenesisMemoryManager::ReadRomWord(uint32_t address)
 {
-	if(address + 1 >= _romSize) return 0xFFFF;
-	return ((uint16_t)_rom[address] << 8) | _rom[address + 1];
+	//Apply SSF2 bank translation first, then bounds-check the translated
+	//byte offset against the actual ROM size. ares checks
+	//(offset >> 1) > rom.size() - 1 (i.e., word index out of range); we
+	//do the equivalent byte-level check.
+	uint32_t offset = TranslateRomAddress(address);
+	if(offset + 1 >= _romSize) return 0xFFFF;
+	return ((uint16_t)_rom[offset] << 8) | _rom[offset + 1];
 }
 
 uint16_t GenesisMemoryManager::ReadSramWord(uint32_t address)
 {
 	uint32_t offset = address - _sramStart;
+	if(_sramOddByte) {
+		//Odd-byte SRAM: only D0-D7 are connected, A0 is ignored, and the
+		//chip is selected by /LDS. The SRAM byte index is offset >> 1.
+		//Word reads return the byte duplicated to both bytes of the word
+		//(ares: lram[address >> 1] * 0x0101 in linear.cpp).
+		uint32_t idx = offset >> 1;
+		if(idx >= _sramSize) return 0xFFFF;
+		uint8_t b = _sram[idx];
+		return ((uint16_t)b << 8) | b;
+	}
+	//Word/byte SRAM: both bytes connected, byte-addressed.
 	if(offset >= _sramSize) return 0xFFFF;
-	//SRAM is byte-addressed; return as big-endian word
 	uint16_t data = 0xFFFF;
 	if(offset < _sramSize) {
 		data = ((uint16_t)_sram[offset]) << 8;
@@ -424,8 +512,63 @@ void GenesisMemoryManager::WriteSramWord(uint32_t address, uint16_t data, uint8_
 {
 	if(!_sramWritable) return;
 	uint32_t offset = address - _sramStart;
+	if(_sramOddByte) {
+		//Odd-byte SRAM: only /LDS-selected writes are stored. The SRAM
+		//byte index is offset >> 1. For word writes, the lower byte wins
+		//(ares: lram[address >> 1] = data, taking data.byte(0)).
+		uint32_t idx = offset >> 1;
+		if(idx >= _sramSize) return;
+		if(lower) _sram[idx] = data & 0xFF;
+		return;
+	}
+	//Word/byte SRAM: upper byte at _sram[offset], lower byte at [offset+1].
 	if(upper && offset < _sramSize) _sram[offset] = (data >> 8) & 0xFF;
 	if(lower && offset + 1 < _sramSize) _sram[offset + 1] = data & 0xFF;
+}
+
+// ============================================================================
+// EEPROM (M24C) bit-bang access
+// ============================================================================
+
+uint16_t GenesisMemoryManager::ReadEepromWord(uint16_t data, uint8_t upper, uint8_t lower)
+{
+	//Read the SDA bit from the EEPROM and place it at the configured bit
+	//position in the returned word. The upper nibble of the bit position
+	//(rsda >> 3) selects the byte: 0 = low byte (lower), 1 = high byte
+	//(upper). The rest of the word is left as-is (open bus, passed in as
+	//`data`). Reference: ares/md/cartridge/board/standard.cpp::read.
+	if(!_eeprom) return data;
+	bool sda = _eeprom->read();
+	if(upper && (_eepromRsda >> 3) == 1) {
+		if(sda) data |=  (1 << _eepromRsda);
+		else    data &= ~(1 << _eepromRsda);
+	}
+	if(lower && (_eepromRsda >> 3) == 0) {
+		if(sda) data |=  (1 << _eepromRsda);
+		else    data &= ~(1 << _eepromRsda);
+	}
+	return data;
+}
+
+void GenesisMemoryManager::WriteEepromWord(uint16_t data, uint8_t upper, uint8_t lower)
+{
+	//Drive SCL and SDA from the configured bit positions of the written
+	//word, then advance the I2C state machine by one sample. The upper
+	//nibble of each bit position (>>3) selects the byte: 0 = low, 1 = high.
+	//Special case: wscl == 8 selects the 32Mbit Acclaim mapper where a
+	//word write toggles eepromEnable (not implemented here).
+	//Reference: ares/md/cartridge/board/standard.cpp::write.
+	if(!_eeprom) return;
+	if(_eepromWscl == 8 && upper && lower) {
+		//32Mbit Acclaim mapper: control via word write. Not implemented;
+		//EEPROM is always enabled in our default config.
+		return;
+	}
+	if(upper && (_eepromWscl >> 3) == 1) { _eeprom->clock = (data >> _eepromWscl) & 1; }
+	if(upper && (_eepromWsda >> 3) == 1) { _eeprom->data   = (data >> _eepromWsda) & 1; }
+	if(lower && (_eepromWscl >> 3) == 0) { _eeprom->clock = (data >> _eepromWscl) & 1; }
+	if(lower && (_eepromWsda >> 3) == 0) { _eeprom->data   = (data >> _eepromWsda) & 1; }
+	_eeprom->write();
 }
 
 // ============================================================================
@@ -612,14 +755,29 @@ uint16_t GenesisMemoryManager::DmaRead(uint32_t address)
 	//side effects like register access — just ROM/RAM reads)
 	address &= 0x00FFFFFE;
 
-	//ROM (0x000000-0x3FFFFF) and its mirrors (0x400000-0x7FFFFF, 0x800000-0xBFFFFF)
-	//On real Genesis, ROM appears at every 4MB region except VDP/Z80/RAM areas
-	if(address < 0xC00000 && address >= 0x400000) {
-		//Mirror ROM into this region
-		return ReadRomWord(address & 0x3FFFFE);
-	}
+	//0x000000-0x3FFFFF: Cartridge ROM (with SSF2 bank translation applied
+	//inside ReadRomWord when _useSsfMapper is set).
 	if(address < 0x400000) {
+		//EEPROM region — DMA reads return the SDA bit (read() is const,
+		//no side effects on the I2C state machine). Games don't normally
+		//DMA from the EEPROM address, but this matches M68KRead behavior.
+		if(_useEeprom && _eeprom && address >= _sramStart && address < _sramStart + _sramSize) {
+			return ReadEepromWord(0xFFFF, 1, 1);
+		}
+		//SRAM region (only when enabled; ares checks sramAddr range first).
+		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
+			return ReadSramWord(address);
+		}
 		return ReadRomWord(address);
+	}
+
+	//0x400000-0xBFFFFF: ROM mirror (non-banked carts only).
+	//Banked carts (SSF2) do not decode this region — return open bus,
+	//matching real hardware. ReadRomWord applies bank translation to
+	//the masked address so a bank-switched region is still honored.
+	if(address < 0xC00000) {
+		if(_useSsfMapper) return 0xFFFF;
+		return ReadRomWord(address & 0x3FFFFE);
 	}
 
 	//M68K RAM (64KB, mirrored across 0xE00000-0xFFFFFF)
@@ -673,17 +831,33 @@ bool GenesisMemoryManager::PollM68KInterruptsBool()
 }
 
 // ============================================================================
-// Battery (SRAM) save/load
+// Battery (SRAM/EEPROM) save/load
 // ============================================================================
 
 void GenesisMemoryManager::LoadBattery()
 {
+	//EEPROM: load the M24C memory array (size() bytes) from the .sav file.
+	//Matches ares Interface::save which writes m24c.memory of m24c.size() bytes.
+	if(_useEeprom && _eeprom && _eeprom->size() > 0) {
+		_emu->GetBatteryManager()->LoadBattery(".sav", _eeprom->memory, _eeprom->size());
+		return;
+	}
 	if(!_sram || _sramSize == 0) return;
 	_emu->GetBatteryManager()->LoadBattery(".sav", _sram, _sramSize);
 }
 
 void GenesisMemoryManager::SaveBattery()
 {
+	//EEPROM: only write if the memory array has changed since load,
+	//matching the SRAM change-detection optimization.
+	if(_useEeprom && _eeprom && _eeprom->size() > 0) {
+		uint32_t eepromSize = _eeprom->size();
+		bool changed = (_originalEeprom && memcmp(_eeprom->memory, _originalEeprom, eepromSize) != 0);
+		if(changed) {
+			_emu->GetBatteryManager()->SaveBattery(".sav", _eeprom->memory, eepromSize);
+		}
+		return;
+	}
 	if(!_sram || _sramSize == 0) return;
 	if(_originalSram && memcmp(_sram, _originalSram, _sramSize) != 0) {
 		_emu->GetBatteryManager()->SaveBattery(".sav", _sram, _sramSize);
@@ -698,9 +872,33 @@ AddressInfo GenesisMemoryManager::GetAbsoluteAddress(uint32_t addr, CpuType cpuT
 {
 	if(cpuType == CpuType::GenesisM68K) {
 		addr &= 0x00FFFFFF;
-		//ROM
-		if(addr < _romSize && _rom) {
-			return { (int32_t)addr, MemoryType::GenesisCartridgeRom };
+		//EEPROM: the M68K address doesn't map to a specific EEPROM byte
+		//(access is via I2C bit-banging, not direct memory). Return None
+		//so the debugger doesn't try to interpret the bit-bang address
+		//as a cartridge RAM offset. The EEPROM data is still accessible
+		//via the memory viewer through the GenesisCartridgeRam registration.
+		if(_useEeprom && addr >= _sramStart && addr < _sramStart + _sramSize) {
+			return { -1, MemoryType::None };
+		}
+		//SRAM (checked first so a banked cart's SRAM window maps to
+		//GenesisCartridgeRam, not the ROM underneath). For odd-byte SRAM
+		//the byte index is (addr - _sramStart) >> 1 because each word
+		//holds one SRAM byte.
+		if(addr >= _sramStart && addr < GetSramEnd() && _sram) {
+			uint32_t offset = addr - _sramStart;
+			uint32_t idx = _sramOddByte ? (offset >> 1) : offset;
+			return { (int32_t)idx, MemoryType::GenesisCartridgeRam };
+		}
+		//ROM — when SSF2 bank switching is active, the M68K address must
+		//be translated through the bank registers to find the underlying
+		//byte offset in the ROM image. This is what the debugger/cheats
+		//need to display or patch the byte the CPU actually reads.
+		if(addr < 0x400000 && _rom) {
+			uint32_t offset = TranslateRomAddress(addr);
+			if(offset < _romSize) {
+				return { (int32_t)offset, MemoryType::GenesisCartridgeRom };
+			}
+			return { -1, MemoryType::None };
 		}
 		//M68K RAM
 		if(addr >= 0xE00000 && _m68kRam) {
@@ -709,10 +907,6 @@ AddressInfo GenesisMemoryManager::GetAbsoluteAddress(uint32_t addr, CpuType cpuT
 		//Z80 RAM (mapped at 0xA00000)
 		if(addr >= 0xA00000 && addr <= 0xA01FFF && _z80Ram) {
 			return { (int32_t)(addr & 0x1FFF), MemoryType::GenesisZ80Ram };
-		}
-		//SRAM
-		if(addr >= _sramStart && addr < _sramStart + _sramSize && _sram) {
-			return { (int32_t)(addr - _sramStart), MemoryType::GenesisCartridgeRam };
 		}
 		//VDP registers
 		if(addr >= 0xC00000 && addr <= 0xC0001F) {
@@ -748,8 +942,15 @@ AddressInfo GenesisMemoryManager::GetRelativeAddress(AddressInfo& absAddress, Cp
 					return { 0xE00000 + absAddress.Address, MemoryType::GenesisM68KRam };
 				break;
 			case MemoryType::GenesisCartridgeRam:
-				if(_sram && absAddress.Address < (int32_t)_sramSize)
-					return { (int32_t)(_sramStart + absAddress.Address), MemoryType::GenesisCartridgeRam };
+				if(_sram && absAddress.Address < (int32_t)_sramSize) {
+					//For odd-byte SRAM, SRAM byte N lives at M68K address
+					//_sramStart + 2*N (one byte per word). For word SRAM the
+					//address is _sramStart + N (byte-addressed).
+					uint32_t m68kAddr = _sramOddByte
+						? _sramStart + (uint32_t)absAddress.Address * 2
+						: _sramStart + (uint32_t)absAddress.Address;
+					return { (int32_t)m68kAddr, MemoryType::GenesisCartridgeRam };
+				}
 				break;
 			case MemoryType::GenesisZ80Ram:
 				if(absAddress.Address < (int32_t)Z80RamSize)
@@ -777,13 +978,28 @@ uint8_t GenesisMemoryManager::M68KDebugRead(uint32_t address)
 {
 	address &= 0x00FFFFFF;
 
-	//0x000000-0x3FFFFF: Cartridge ROM / SRAM
+	//0x000000-0x3FFFFF: Cartridge ROM / SRAM / EEPROM
 	if(address < 0x400000) {
-		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable) {
-			uint32_t offset = address - _sramStart;
-			return offset < _sramSize ? _sram[offset] : 0xFF;
+		//EEPROM: return open bus for debug reads. The EEPROM is accessed
+		//via I2C bit-banging, so a debug read can't return a meaningful
+		//byte (the SDA bit is the only readable value, and reading it
+		//here would not advance the state machine).
+		if(_useEeprom && address >= _sramStart && address < _sramStart + _sramSize) {
+			return 0xFF;
 		}
-		return address < _romSize ? _rom[address] : 0xFF;
+		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
+			uint32_t offset = address - _sramStart;
+			//For odd-byte SRAM the byte index is offset >> 1; for word SRAM
+			//the offset directly addresses the byte (upper byte at offset,
+			//lower byte at offset+1 — a debug read of an even address
+			//returns the upper byte).
+			uint32_t idx = _sramOddByte ? (offset >> 1) : offset;
+			return idx < _sramSize ? _sram[idx] : 0xFF;
+		}
+		//Apply SSF2 bank translation so the debugger sees the same byte
+		//the CPU would see at this M68K address.
+		uint32_t offset = TranslateRomAddress(address);
+		return offset < _romSize ? _rom[offset] : 0xFF;
 	}
 
 	//0xA00000-0xA01FFF: Z80 RAM
@@ -829,11 +1045,19 @@ void GenesisMemoryManager::M68KDebugWrite(uint32_t address, uint8_t value)
 {
 	address &= 0x00FFFFFF;
 
-	//0x000000-0x3FFFFF: Cartridge area (SRAM writes)
+	//0x000000-0x3FFFFF: Cartridge area (SRAM/EEPROM writes)
 	if(address < 0x400000) {
-		if(address >= _sramStart && address < _sramStart + _sramSize && _sram && _sramEnable && _sramWritable) {
+		//EEPROM: debug writes are silently ignored. The EEPROM is
+		//accessed via I2C bit-banging; a direct byte write would
+		//corrupt the I2C state. Use the memory viewer to edit EEPROM
+		//bytes directly via the GenesisCartridgeRam registration.
+		if(_useEeprom && address >= _sramStart && address < _sramStart + _sramSize) {
+			return;
+		}
+		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable && _sramWritable) {
 			uint32_t offset = address - _sramStart;
-			if(offset < _sramSize) _sram[offset] = value;
+			uint32_t idx = _sramOddByte ? (offset >> 1) : offset;
+			if(idx < _sramSize) _sram[idx] = value;
 		}
 		return;
 	}
