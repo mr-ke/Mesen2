@@ -427,13 +427,20 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 		return;
 	}
 
-	//0xA130F0-0xA130FF: SSF2 banked cartridge control (SEGA SSF mapper).
-	//Only active when _useSsfMapper is true. On non-banked carts these
-	//addresses are unconnected — writes are silently dropped, matching real
-	//hardware where the /TIME line goes only to carts with mapper logic.
+	//0xA130F0-0xA130FF: Cartridge banking/SRAM control register.
+	//Two cart types respond to /TIME at this address:
+	//  (1) 24MBit+SRAM carts (e.g. Story of Thor, Phantasy Star IV) — only
+	//      CTRL0 (0xA130F0) is meaningful; it gates SRAM access on/off
+	//      (bit 0 = ramEnable, bit 1 = ramWritable active-low). The game
+	//      writes 0x02 to disable SRAM (so ROM is visible at 0x200000),
+	//      0x01 to enable writable SRAM, 0x03 for read-only SRAM.
+	//  (2) SSF2 mapper carts ("SEGA SSF") — CTRL0 gates SRAM, and CTRL1-7
+	//      (0xA130F2-FE) select 512KB ROM banks for regions 1-7.
+	//CTRL0 is always handled so 24MBit+SRAM carts can swap SRAM in/out.
+	//Bank registers are only handled for SSF2 carts (_romBank != null).
+	//For carts without SRAM, CTRL0 writes are harmless (no SRAM to gate).
 	//Reference: ares/md/cartridge/board/banked.cpp::writeIO.
 	if(address >= 0xA130F0 && address <= 0xA130FF) {
-		if(!_useSsfMapper) return;
 		if(!lower) return;  //ares: only lower-byte writes are processed
 		//0xA130F0: CTRL0 — ramEnable (bit 0), ramWritable active-low (bit 1)
 		if(address == 0xA130F0) {

@@ -542,8 +542,12 @@ void GenesisConsole::UpdateRegion()
 			//Characters: J=Japan, U=USA, E=Europe, K=Korea, etc.
 			//Priority:
 			//  - Europe-only ('E' without 'J' or 'U') → PAL
-			//  - Japan-only ('J' without 'U' or 'E') → NTSC-J (domestic)
-			//  - Otherwise (US-only or multi-region) → NTSC-U (export)
+			//  - Japan present, US absent ('J' without 'U', incl. 'JE')
+			//    → NTSC-J (domestic). Many JE games (e.g. Bare Knuckle 2)
+			//    are Japanese-origin and enforce a region lockout against
+			//    export (US) hardware: "developed for use outside north
+			//    and south america". Domestic (bit 7 = 0) satisfies them.
+			//  - Otherwise (US-only or multi-region incl. 'U') → NTSC-U (export)
 			//This is critical because the version register at $A10001 returns
 			//bit 7 = 0 (domestic/Japan) only when region == NtscJapan.
 			//Japan-only games check this bit and show a region lockout
@@ -555,20 +559,38 @@ void GenesisConsole::UpdateRegion()
 			   _romRegion.find('J') == string::npos) {
 				region = ConsoleRegion::Pal;
 			} else if(_romRegion.find('J') != string::npos &&
-			          _romRegion.find('U') == string::npos &&
-			          _romRegion.find('E') == string::npos) {
+			          _romRegion.find('U') == string::npos) {
+				//J present, U absent → domestic NTSC-J. This covers both
+				//'J' (Japan-only) and 'JE' (Japan+Europe). We prefer
+				//NtscJapan over Pal for 'JE' because the game is
+				//Japanese-origin and runs at NTSC timing (262 lines/60Hz).
 				region = ConsoleRegion::NtscJapan;
 			}
 			//Fall back to filename tags when the ROM header region string
 			//is empty or doesn't contain any of J/U/E.
 			if(_romRegion.find_first_of("JUEjue") == string::npos) {
 				string filename = StringUtilities::ToLower(_filename);
-				if(filename.find("(europe)") != string::npos || filename.find("(e)") != string::npos) {
+				if(filename.find("(europe)") != string::npos || filename.find("(e)") != string::npos ||
+				   filename.find("[e]") != string::npos) {
 					region = ConsoleRegion::Pal;
-				} else if(filename.find("(japan)") != string::npos || filename.find("(j)") != string::npos) {
+				} else if(filename.find("(japan)") != string::npos || filename.find("(j)") != string::npos ||
+				          filename.find("[j]") != string::npos) {
 					region = ConsoleRegion::NtscJapan;
-				} else {
+				} else if(filename.find("(usa)") != string::npos || filename.find("(u)") != string::npos ||
+				          filename.find("[u]") != string::npos) {
 					region = ConsoleRegion::Ntsc;
+				} else {
+					//No header region AND no recognizable filename tag —
+					//typically a headerless pirate/hack ROM (no "SEGA" at
+					//0x100, region string at 0x1F0 all zeros, e.g. Chinese
+					//hacks tagged "[CN]"). Default to NtscJapan (domestic)
+					//so the version register reports export=0: Japanese
+					//domestic games enforce a region lockout against export
+					//(US) hardware with messages like "developed for use
+					//outside north and south america", and many headerless
+					//ROMs are Japanese-origin. US games rarely lock out
+					//domestic hardware, so this is the safer default.
+					region = ConsoleRegion::NtscJapan;
 				}
 			}
 			_region = region;
