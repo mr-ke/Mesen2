@@ -371,6 +371,7 @@ namespace Mesen.Config
 		WsInput,
 		ThreeDsInput,
 		GenesisInput,
+		GenesisInputP2,
 		NextValue,
 	}
 }

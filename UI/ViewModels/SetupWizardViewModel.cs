@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Mesen.Config;
 using Mesen.Utilities;
 using Mesen.Windows;
@@ -34,18 +34,6 @@ namespace Mesen.ViewModels
 					InstallLocation = ConfigManager.DefaultDocumentsFolder;
 				} else {
 					InstallLocation = ConfigManager.DefaultPortableFolder;
-				}
-			});
-
-			this.WhenAnyValue(x => x.EnableWasdMappings).Subscribe(x => {
-				if(x) {
-					EnableArrowMappings = false;
-				}
-			});
-
-			this.WhenAnyValue(x => x.EnableArrowMappings).Subscribe(x => {
-				if(x) {
-					EnableWasdMappings = false;
 				}
 			});
 		}

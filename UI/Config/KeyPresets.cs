@@ -148,9 +148,13 @@ namespace Mesen.Config
 				m.L = InputApi.GetKeyCode("Down Arrow");
 				m.R = InputApi.GetKeyCode("Up Arrow");
 			} else if(type == ControllerType.GenesisController) {
-				m.X = InputApi.GetKeyCode("D");  //C button
-				m.Select = InputApi.GetKeyCode("Q");
-				m.Start = InputApi.GetKeyCode("W");
+				//Override base A=S, B=A (which conflict with WASD movement)
+				//with keys near the arrow cluster for ergonomic 2-player use.
+				m.A = InputApi.GetKeyCode(".");  //A button
+				m.B = InputApi.GetKeyCode(",");  //B button
+				m.X = InputApi.GetKeyCode("/");  //C button
+				m.Select = InputApi.GetKeyCode("Right Shift");
+				m.Start = InputApi.GetKeyCode("Enter");
 			} else {
 				m.TurboA = InputApi.GetKeyCode("X");
 				m.TurboB = InputApi.GetKeyCode("Z");

@@ -57,7 +57,21 @@ public class GenesisConfig : BaseConfig<GenesisConfig>
 
 	internal void InitializeDefaults(DefaultKeyMappingType defaultMappings)
 	{
-		Port1.InitDefaults(defaultMappings, ControllerType.GenesisController);
+		//When both keyboard layouts are selected, split them between ports so
+		//two players can share one keyboard without key conflicts:
+		//  P1 gets ArrowKeys, P2 gets WasdKeys.
+		//Gamepad mappings (Xbox/Ps4) are shared by both ports (distinguished by
+		//the port parameter — P1 uses Pad1/Joy1, P2 uses Pad2/Joy2).
+		DefaultKeyMappingType p1Mappings = defaultMappings;
+		DefaultKeyMappingType p2Mappings = defaultMappings;
+
+		if(defaultMappings.HasFlag(DefaultKeyMappingType.WasdKeys) && defaultMappings.HasFlag(DefaultKeyMappingType.ArrowKeys)) {
+			p1Mappings &= ~DefaultKeyMappingType.WasdKeys;   //P1: ArrowKeys (no WASD)
+			p2Mappings &= ~DefaultKeyMappingType.ArrowKeys;   //P2: WasdKeys (no Arrows)
+		}
+
+		Port1.InitDefaults(p1Mappings, ControllerType.GenesisController, 0);
+		Port2.InitDefaults(p2Mappings, ControllerType.GenesisController, 1);
 	}
 }
 
