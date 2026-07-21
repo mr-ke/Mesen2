@@ -52,6 +52,9 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 
 	_rom = rom;
 	_romSize = romSize;
+	//ROM is padded to power-of-2 in InitCart, so _romSize-1 is a valid mask.
+	//Guard against _romSize==0 (no ROM) to avoid a 0xFFFFFFFF mask.
+	_romMask = _romSize > 0 ? _romSize - 1 : 0;
 	_sram = sram;
 	_sramSize = sramSize;
 	_sramStart = sramStart;
@@ -476,15 +479,26 @@ uint32_t GenesisMemoryManager::TranslateRomAddress(uint32_t address) const
 		uint32_t region = (address >> 19) & 7;
 		return ((uint32_t)_romBank[region] << 19) | (address & 0x7FFFF);
 	}
-	return address;
+	//Mirror ROM across the 4MB cartridge window for non-banked carts.
+	//gpgx (md_cart.c) sets cart.mask = romsize-1 and maps each 64KB block
+	//as cart.rom + ((i<<16) & cart.mask), so a ROM smaller than 4MB
+	//mirrors to fill the window. Without this, reads beyond _romSize
+	//return 0xFFFF (open bus). This breaks games that use the standard
+	//Sega mapper (0xA130F0) to switch SRAM off and read ROM from the
+	//0x200000+ region — e.g. Daikoukai Jidai II [CN] (2MB ROM with
+	//64KB SRAM at 0x200001-0x20FFFF) shows corrupted tiles because
+	//the SRAM-disabled ROM reads return 0xFFFF instead of mirrored ROM.
+	//Reference: gpgx/core/cart_hw/md_cart.c::md_cart_init (cart.mask).
+	return address & _romMask;
 }
 
 uint16_t GenesisMemoryManager::ReadRomWord(uint32_t address)
 {
-	//Apply SSF2 bank translation first, then bounds-check the translated
-	//byte offset against the actual ROM size. ares checks
-	//(offset >> 1) > rom.size() - 1 (i.e., word index out of range); we
-	//do the equivalent byte-level check.
+	//TranslateRomAddress applies SSF2 bank translation (for banked carts)
+	//or ROM mirroring via _romMask (for non-banked carts). The bounds check
+	//is a safety net: for non-banked carts the mask already guarantees
+	//offset < _romSize; for SSF2 carts a bank register could theoretically
+	//point beyond the ROM, in which case we return open bus.
 	uint32_t offset = TranslateRomAddress(address);
 	if(offset + 1 >= _romSize) return 0xFFFF;
 	return ((uint16_t)_rom[offset] << 8) | _rom[offset + 1];
@@ -494,14 +508,14 @@ uint16_t GenesisMemoryManager::ReadSramWord(uint32_t address)
 {
 	uint32_t offset = address - _sramStart;
 	if(_sramOddByte) {
-		//Odd-byte SRAM: only D0-D7 are connected, A0 is ignored, and the
-		//chip is selected by /LDS. The SRAM byte index is offset >> 1.
-		//Word reads return the byte duplicated to both bytes of the word
-		//(ares: lram[address >> 1] * 0x0101 in linear.cpp).
-		uint32_t idx = offset >> 1;
-		if(idx >= _sramSize) return 0xFFFF;
-		uint8_t b = _sram[idx];
-		return ((uint16_t)b << 8) | b;
+		//Odd-byte SRAM: use flat 64KB array indexed by offset within the
+		//SRAM address range, matching gpgx sram.c::sram_read_word which
+		//returns READ_WORD(sram.sram, address & 0xfffe).
+		//Even indices hold the upper byte (initialized to 0xFF, may be
+		//overwritten by word writes). Odd indices hold the SRAM data.
+		uint32_t even = offset & 0xFFFE;
+		if(even + 1 >= _sramSize) return 0xFFFF;
+		return ((uint16_t)_sram[even] << 8) | _sram[even + 1];
 	}
 	//Word/byte SRAM: both bytes connected, byte-addressed.
 	if(offset >= _sramSize) return 0xFFFF;
@@ -520,12 +534,15 @@ void GenesisMemoryManager::WriteSramWord(uint32_t address, uint16_t data, uint8_
 	if(!_sramWritable) return;
 	uint32_t offset = address - _sramStart;
 	if(_sramOddByte) {
-		//Odd-byte SRAM: only /LDS-selected writes are stored. The SRAM
-		//byte index is offset >> 1. For word writes, the lower byte wins
-		//(ares: lram[address >> 1] = data, taking data.byte(0)).
-		uint32_t idx = offset >> 1;
-		if(idx >= _sramSize) return;
-		if(lower) _sram[idx] = data & 0xFF;
+		//Odd-byte SRAM: use flat 64KB array, matching gpgx sram.c::
+		//sram_write_word which does WRITE_WORD(sram.sram, addr & 0xfffe,
+		//data), storing BOTH bytes. On real hardware only D0-D7 (/LDS)
+		//are connected, so even-byte writes do nothing. But gpgx stores
+		//them anyway, and some games depend on this behavior.
+		uint32_t even = offset & 0xFFFE;
+		if(even + 1 >= _sramSize) return;
+		if(upper) _sram[even] = (data >> 8) & 0xFF;
+		if(lower) _sram[even + 1] = data & 0xFF;
 		return;
 	}
 	//Word/byte SRAM: upper byte at _sram[offset], lower byte at [offset+1].
@@ -996,12 +1013,10 @@ uint8_t GenesisMemoryManager::M68KDebugRead(uint32_t address)
 		}
 		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
 			uint32_t offset = address - _sramStart;
-			//For odd-byte SRAM the byte index is offset >> 1; for word SRAM
-			//the offset directly addresses the byte (upper byte at offset,
-			//lower byte at offset+1 — a debug read of an even address
-			//returns the upper byte).
-			uint32_t idx = _sramOddByte ? (offset >> 1) : offset;
-			return idx < _sramSize ? _sram[idx] : 0xFF;
+			//Flat 64KB array: byte at offset is directly indexed.
+			//For odd-byte SRAM, even offsets hold the upper byte
+			//(0xFF by default), odd offsets hold SRAM data.
+			return offset < _sramSize ? _sram[offset] : 0xFF;
 		}
 		//Apply SSF2 bank translation so the debugger sees the same byte
 		//the CPU would see at this M68K address.

@@ -97,6 +97,14 @@ private:
 	//Cartridge ROM (word-accessible, byte-swapped for 68000 big-endian)
 	uint8_t* _rom = nullptr;
 	uint32_t _romSize = 0;
+	//ROM mirror mask (= _romSize - 1, since ROM is padded to power-of-2 in
+	//InitCart). For non-banked carts, ROM is mirrored across the full 4MB
+	//cartridge window using this mask, matching gpgx's cart.mask. A 2MB ROM
+	//mirrors at 0x200000-0x3FFFFF; without this, reads beyond _romSize
+	//return 0xFFFF (open bus), corrupting games that switch SRAM off and
+	//read ROM from the 0x200000 region (e.g. Daikoukai Jidai II [CN]).
+	//Not used for SSF2 banked carts (TranslateRomAddress handles banking).
+	uint32_t _romMask = 0;
 
 	//M68K work RAM (64KB)
 	static constexpr uint32_t M68KRamSize = 0x10000;
@@ -177,10 +185,9 @@ private:
 	//When _useSsfMapper is false, returns the address unchanged.
 	uint32_t TranslateRomAddress(uint32_t address) const;
 	//Returns the M68K address one past the end of the SRAM window.
-	//For odd-byte SRAM, the window is twice the chip size (one byte per
-	//word — A0 is ignored and only /LDS selects the chip); for word/byte
-	//SRAM, the window equals the chip size.
-	uint32_t GetSramEnd() const { return _sramStart + (_sramOddByte ? _sramSize * 2 : _sramSize); }
+	//_sramSize is now the full address range (flat array, matching gpgx's
+	//sram.sram[0x10000]), not the packed chip byte count.
+	uint32_t GetSramEnd() const { return _sramStart + _sramSize; }
 
 	//Z80 external bus access (through M68K bus, with arbitration)
 	uint8_t Z80ReadExternal(uint32_t m68kAddress);

@@ -123,67 +123,64 @@ void GenesisConsole::ParseRomHeader(vector<uint8_t>& romData)
 		_banked = true;
 	}
 
-	//SRAM info from ROM header at offset $1B0-$1BF
-	// $1B0: "RA" for save memory present
-	// $1B2: SRAM start address (big-endian 32-bit)
-	// $1B6: SRAM end address (big-endian 32-bit)
-	// $1BA: type byte — bit 0 = 1 for odd-byte SRAM (D0-D7 only).
+	//SRAM info from ROM header at offset $1B0-$1BF.
+	//The correct Genesis header layout (matching gpgx/Genesis Plus GX):
+	// $1B0: 'R' (0x52)
+	// $1B1: 'A' (0x41)
+	// $1B2: type byte 1 — %1x1yz000 (backup, even/odd address selection)
+	//       yz=10 even-only, yz=11 odd-only, yz=00 both, yz=01 other(EEPROM)
+	// $1B3: type byte 2 — %abc00000 (001=SRAM, 010=EEPROM)
+	// $1B4: SRAM start address (big-endian 32-bit)
+	// $1B8: SRAM end address (big-endian 32-bit)
 	//
-	// NOTE on the type byte's bit 7: an early heuristic treated bit 7 = 0
-	// as an EEPROM marker. This is unreliable — Light Crusader (J) has
-	// bit 7 = 0 yet uses parallel SRAM (writes a 16-byte range at
-	// 0x200000-0x20000E, classic odd-byte SRAM pattern). ares itself does
-	// NOT use this bit for EEPROM detection; EEPROM config in ares comes
-	// from an external pak manifest. We now treat every "RA" header as
-	// parallel SRAM. The GenesisEeprom code is retained for future use
-	// with an explicit game-database lookup for known EEPROM titles
-	// (NBA Jam TE, WWF WrestleMania, etc.).
+	// IMPORTANT: A previous version of this code read sramStart from $1B2
+	// and sramEnd from $1B6 (2 bytes earlier than the correct offsets),
+	// which caused the type bytes to be mixed into the address fields.
+	// For ROMs with non-zero type bytes (e.g. Chinese fan translations
+	// like Daikoukai Jidai II [CN] with type=0xF0 0x20), this produced
+	// garbage addresses and fell back to a default 8KB SRAM. The correct
+	// offsets parse the header properly: e.g. Daikoukai Jidai II [CN]
+	// has start=0x200001, end=0x20FFFF → 64KB SRAM. Reference:
+	// gpgx/core/cart_hw/sram.c::sram_init().
 	//
-	// Many ROMs ship with garbage sramStart/sramEnd values (e.g. Light
-	// Crusader: 0xF8200020 / 0x00010020) because the actual hardware
-	// configuration was meant to come from an external manifest. We
-	// validate the range and fall back to a safe 8KB at 0x200000 (the
-	// most common SRAM configuration) when the header is unusable.
+	// Odd-byte SRAM detection: the yz bits in type byte 1 indicate the
+	// address selection, but many ROMs (including official titles like
+	// Light Crusader) have incorrect yz bits. A more reliable indicator
+	// is the start address parity: odd start (e.g. 0x200001) means the
+	// SRAM chip is /LDS-selected (D0-D7 only, odd-byte access). We use
+	// both signals: yz=11 OR odd start address.
 	if(romData.size() > 0x1BB) {
 		if(romData[0x1B0] == 'R' && romData[0x1B1] == 'A') {
-			uint32_t sramStart = ((uint32_t)romData[0x1B2] << 24) | ((uint32_t)romData[0x1B3] << 16) |
-			                     ((uint32_t)romData[0x1B4] << 8) | (uint32_t)romData[0x1B5];
-			uint32_t sramEnd = ((uint32_t)romData[0x1B6] << 24) | ((uint32_t)romData[0x1B7] << 16) |
-			                   ((uint32_t)romData[0x1B8] << 8) | (uint32_t)romData[0x1B9];
-			uint8_t sramType = romData[0x1BA];
+			uint8_t typeByte1 = romData[0x1B2];
+			uint8_t typeByte2 = romData[0x1B3];
+			uint32_t sramStart = ((uint32_t)romData[0x1B4] << 24) | ((uint32_t)romData[0x1B5] << 16) |
+			                     ((uint32_t)romData[0x1B6] << 8) | (uint32_t)romData[0x1B7];
+			uint32_t sramEnd = ((uint32_t)romData[0x1B8] << 24) | ((uint32_t)romData[0x1B9] << 16) |
+			                   ((uint32_t)romData[0x1BA] << 8) | (uint32_t)romData[0x1BB];
 
-			//Validate the SRAM range. Valid SRAM lives in the upper 2MB of
-			//the cartridge slot (0x200000-0x3FFFFF), and sramEnd must be
-			//greater than sramStart. Many games (Light Crusader, etc.) have
-			//garbage values here that fail this check.
-			bool validRange = (sramStart >= 0x200000 && sramStart < 0x400000 &&
-			                   sramEnd > sramStart && sramEnd <= 0x400000);
+			//Odd-byte SRAM: yz=11 (bits 4+3 both set) in type byte 1,
+			//OR start address is odd (SRAM chip wired to D0-D7 via /LDS).
+			bool yzOdd = (typeByte1 & 0x18) == 0x18;
+			_sramOddByte = yzOdd || ((sramStart & 1) != 0);
 
-			//Odd-byte SRAM: type bit 0 = 1 means only D0-D7 are connected
-			//(the SRAM chip is /LDS-selected, A0 is ignored). For odd-byte
-			//SRAM the chip occupies half the address range (one byte per
-			//word); for word SRAM the chip occupies the full range.
-			_sramOddByte = (sramType & 0x01) != 0;
-
-			if(validRange) {
-				_sramStart = sramStart;
-				//+1 because the end address is inclusive
-				_sramSize = (sramEnd - sramStart) + 1;
-			} else {
-				//Garbage header — use safe defaults: 8KB SRAM chip at
-				//0x200000. For odd-byte SRAM the chip occupies a 16KB word
-				//range (one byte per word); the halving below brings it
-				//back to the 8KB chip size. For word SRAM the chip occupies
-				//an 8KB range directly.
-				_sramStart = 0x200000;
-				_sramSize = _sramOddByte ? 0x4000 : 0x2000;
+			//Validate the SRAM range, matching gpgx sram_init() logic:
+			//  - start >= 0x800000 → invalid, force default 64KB at $200000
+			//  - start > end OR range >= 64KB → cap end to start + 0xFFFF
+			if(sramStart >= 0x800000) {
+				sramStart = 0x200000;
+				sramEnd = 0x20FFFF;
+			} else if(sramStart > sramEnd || (sramEnd - sramStart) >= 0x10000) {
+				sramEnd = sramStart + 0xFFFF;
 			}
 
-			//For odd-byte SRAM the chip's byte count is half the address
-			//range (one byte stored per word).
-			if(_sramOddByte) {
-				_sramSize = (_sramSize + 1) / 2;
-			}
+			_sramStart = sramStart & ~1;
+			_sramSize = (sramEnd - _sramStart) + 1;
+
+			//The old code used a packed 32KB array (_sramSize halved) and
+			//hardcoded 0xFF in the upper byte for reads. This matches real
+			//hardware but differs from gpgx, causing tile corruption in
+			//games that write word values with non-0xFF upper bytes and
+			//read them back.
 			//Cap at 64KB (largest standard Genesis SRAM)
 			if(_sramSize > 0x10000) _sramSize = 0x10000;
 			_sramEnable = true;
@@ -239,7 +236,13 @@ void GenesisConsole::InitCart(vector<uint8_t>& romData)
 		_sramEnable = false;
 	} else if(_sramSize > 0 && _sramEnable) {
 		_sram = new uint8_t[_sramSize];
-		memset(_sram, 0, _sramSize);
+		//Initialize SRAM to 0xFF (unprogrammed SRAM reads as 0xFF on real
+		//hardware). gpgx does the same: memset(sram.sram, 0xFF, 0x10000).
+		//The old 0x00 initialization caused odd-byte SRAM word reads to
+		//return 0xFF00 instead of 0xFFFF on first boot (no save file),
+		//breaking games like Daikoukai Jidai II [CN] that check SRAM
+		//contents for uninitialized state (0xFF patterns).
+		memset(_sram, 0xFF, _sramSize);
 	} else {
 		_sram = nullptr;
 		_sramSize = 0;

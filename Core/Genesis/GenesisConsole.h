@@ -41,7 +41,7 @@ private:
 	//chip is selected by /LDS, A0 is ignored, and the chip's byte index
 	//is (m68kAddress - _sramStart) >> 1. Matches ares's lram[address>>1]
 	//pattern (linear.cpp/standard.cpp). Derived from ROM header type
-	//byte (0x1BA) bit 0 = 1.
+	//byte 1 (0x1B2) yz bits (yz=11 = odd-only) OR odd start address.
 	bool _sramOddByte = false;
 	bool _banked = false; //true if cartridge uses banked mapping
 	uint8_t _romBank[8] = {}; //bank registers for banked cartridges
