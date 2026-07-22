@@ -359,6 +359,20 @@ void GenesisConsole::RunFrame()
 		uint32_t targetCycles = m68kCyclesPerScanline;
 		uint32_t cyclesRun = 0;
 		uint32_t m68kMaxInstr = targetCycles * 4; //safety limit
+
+		//When the M68K is in STOP state, the while loop below never enters
+		//(IsStopped() returns true), so CheckInterrupts — normally called
+		//inside ExecuteInstruction — is never invoked. This means the VDP
+		//interrupt that should wake the CPU from STOP is never delivered,
+		//and the M68K remains stuck forever (e.g. DisableRegTestROM's main
+		//loop uses STOP #$2000 / STOP #$2500 to wait for HBlank/VBlank).
+		//Fix: poll for interrupts directly when the CPU is stopped. If an
+		//interrupt is pending, CheckInterrupts calls Interrupt()->Exception()
+		//which clears _r.stop, allowing the while loop to run normally.
+		if(_m68k->IsStopped() && _m68k->CheckInterrupts) {
+			_m68k->CheckInterrupts();
+		}
+
 		while(cyclesRun < targetCycles && !_m68k->IsStopped() && m68kMaxInstr-- > 0) {
 			_vdp->SetM68kCyclePosition(cyclesRun, targetCycles);
 			cyclesRun += _m68k->ExecuteInstruction();
