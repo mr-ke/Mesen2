@@ -785,6 +785,19 @@ uint16_t GenesisVdp::ReadControlPort()
 	if(_m68k) result |= _m68k->GetIrc() & 0xFC00;
 	_sprite.collision = 0;
 	_sprite.overflow = 0;
+	//Only clear VBlank pending on status read when the M68K has interrupts
+	//masked (IPL >= 6). When IPL >= 6, the VBlank IRQ (level 6) cannot be
+	//delivered, so the M68K must use status polling to detect VBlank —
+	//clearing pending allows the polling loop to see bit 7 transition.
+	//When IPL < 6, the IRQ will be delivered via CheckInterrupts on the
+	//next instruction, so pending must be preserved. This prevents IRQ
+	//loss when the M68K reads VDP status inside an HBlank ISR (IPL=4)
+	//just before VBlank would preempt — the original unconditional clear
+	//lost the VBlank IRQ in that case, causing the TiTAN Overdrive
+	//screen-freeze regression.
+	if(_m68k && _m68k->GetInterruptMask() >= 6) {
+		_irq.vblank.pending = 0;
+	}
 	return result;
 }
 
