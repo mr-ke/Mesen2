@@ -437,6 +437,11 @@ private:
 		uint8_t  visibleCount = 0;
 		uint8_t  visibleStop = 0;
 
+		//Test register bits (test address 0, bits 12-14)
+		uint8_t  disablePhase1 = 0;  //disables sprite visible-scan phase
+		uint8_t  disablePhase2 = 0;  //disables sprite mapping-fetch phase
+		uint8_t  disablePhase3 = 0;  //disables sprite pattern-fetch phase
+
 		void VramWrite(class GenesisVdp& vdp, uint16_t address, uint16_t data);
 		void Begin();
 		void End();

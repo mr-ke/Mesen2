@@ -527,25 +527,36 @@ void GenesisVdp::Write(uint32_t address, uint16_t data)
 	_lastFifoDrainCycle = _m68kCycleInScanline;
 
 	switch(decode) {
-	case 0x00: case 0x02: WriteDataPort(data); break;       //0xC00000-0xC00003
-	case 0x04: case 0x06: WriteControlPort(data); break;    //0xC00004-0xC00007
-	//0x08-0x0E: HV counter (read-only, ignore writes)
-	case 0x10: case 0x12: case 0x14: case 0x16: {
-			//PSG: ares forwards to psg.write(data.byte(0)) for word writes.
-			//Only the low byte of the word is used.
-			_console->GetPsg()->Write(data & 0xFF);
+		case 0x00: case 0x02: WriteDataPort(data); break;       //0xC00000-0xC00003
+		case 0x04: case 0x06: WriteControlPort(data); break;    //0xC00004-0xC00007
+		//0x08-0x0E: HV counter (read-only, ignore writes)
+		case 0x10: case 0x12: case 0x14: case 0x16: {
+				//PSG: ares forwards to psg.write(data.byte(0)) for word writes.
+				//Only the low byte of the word is used.
+				_console->GetPsg()->Write(data & 0xFF);
+				break;
+			}
+		case 0x18: case 0x1A: _testAddress = data & 0xF; break;
+		case 0x1C: case 0x1E: {
+			switch(_testAddress) {
+			case 0x0:
+				//ares io.cpp:88-97 — test register 0 layout:
+				//  bit 6:      DAC disable layers
+				//  bit 7-8:    DAC force layer
+				//  bit 9:      PSG volume override
+				//  bit 10-11:  PSG volume channel
+				//  bit 12:     sprite disable phase 1 (visible scan)
+				//  bit 13:     sprite disable phase 2 (mapping fetch)
+				//  bit 14:     sprite disable phase 3 (pattern fetch)
+				_dac.disableLayers = (data >> 6) & 1;
+				_dac.forceLayer = (data >> 7) & 3;
+				_sprite.disablePhase1 = (data >> 12) & 1;
+				_sprite.disablePhase2 = (data >> 13) & 1;
+				_sprite.disablePhase3 = (data >> 14) & 1;
+				break;
+			}
 			break;
 		}
-	case 0x18: case 0x1A: _testAddress = data & 0xF; break;
-	case 0x1C: case 0x1E: {
-		switch(_testAddress) {
-		case 0x0:
-			_dac.disableLayers = (data >> 6) & 1;
-			_dac.forceLayer = (data >> 7) & 3;
-			break;
-		}
-		break;
-	}
 	}
 }
 
@@ -1621,6 +1632,9 @@ void GenesisVdp::Sprite::MappingFetch(GenesisVdp& vdp, uint32_t)
 {
 	if(!vdp.IsDisplayEnable()) { vdp.Slot(); return; }
 
+	//ares: if(test.disablePhase2) return;
+	if(disablePhase2) return;
+
 	if(visibleCount++ < LineObjectLimit(vdp.H40())) return;
 
 	bool interlace = vdp._io.interlaceMode == 3;
@@ -1664,6 +1678,9 @@ void GenesisVdp::Sprite::MappingFetch(GenesisVdp& vdp, uint32_t)
 void GenesisVdp::Sprite::PatternFetch(GenesisVdp& vdp, uint32_t)
 {
 	if(!vdp.IsDisplayEnable()) { vdp.Slot(); return; }
+
+	//ares: if(test.disablePhase3) mappings[patternIndex].valid = 0;
+	if(disablePhase3 && patternIndex < 21) mappings[patternIndex].valid = 0;
 
 	bool interlace = vdp._io.interlaceMode == 3;
 
@@ -1717,6 +1734,9 @@ void GenesisVdp::Sprite::Scan(GenesisVdp& vdp)
 {
 	if(!vdp.IsDisplayEnable()) return;
 
+	//ares: if(test.disablePhase1) visibleStop = 1;
+	if(disablePhase1) visibleStop = 1;
+
 	bool interlace = vdp._io.interlaceMode == 3;
 	//ares: y = 129 + (i9)vcounter()  — 9-bit signed (bit 8 is sign bit)
 	int32_t vc = vdp._state.vcounter;
@@ -1748,6 +1768,7 @@ void GenesisVdp::Sprite::Power()
 {
 	generatorAddress = 0; nametableAddress = 0;
 	collision = 0; overflow = 0;
+	disablePhase1 = 0; disablePhase2 = 0; disablePhase3 = 0;
 	for(auto& p : pixels) p = {};
 	for(auto& c : cache) c = {};
 	for(auto& m : mappings) m = {};
@@ -1794,6 +1815,30 @@ void GenesisVdp::DAC::Pixel(GenesisVdp& vdp, uint32_t x)
 			case 0x3F: mode = 0; pixel = bg; break;
 			default: mode |= s.priority; break;
 			}
+		}
+	}
+
+	//Debug register AND mask mode (ares dac.cpp:39-52):
+	//When disableLayers == 0 and forceLayer != 0, the forced layer acts as
+	//a bitwise AND mask on the composited pixel's 6-bit color. If the
+	//pixel is the backdrop (nothing was drawn), it is first replaced with
+	//the mask layer's pixel, then ANDed. This enables the layer-blending
+	//effects in Titan Overdrive 2 (logo screen, blue circles, etc.).
+	//Note: the sprite transparent-pixel quirk (PatternFetch writes palette
+	//bits into transparent sprite pixels) ensures the AND mask uses the
+	//last evaluated sprite's palette when all sprite pixels are transparent.
+	if(disableLayers == 0) {
+		if(forceLayer == 1) {
+			if(pixel.backdrop) pixel = s;
+			pixel.color &= s.color;
+		}
+		if(forceLayer == 2) {
+			if(pixel.backdrop) pixel = a;
+			pixel.color &= a.color;
+		}
+		if(forceLayer == 3) {
+			if(pixel.backdrop) pixel = b;
+			pixel.color &= b.color;
 		}
 	}
 
@@ -1964,6 +2009,7 @@ void GenesisVdp::Serialize(Serializer& s)
 
 	SV(_sprite.generatorAddress); SV(_sprite.nametableAddress);
 	SV(_sprite.collision); SV(_sprite.overflow);
+	SV(_sprite.disablePhase1); SV(_sprite.disablePhase2); SV(_sprite.disablePhase3);
 	SV(_sprite.mappingCount); SV(_sprite.maskCheck); SV(_sprite.maskActive);
 	SV(_sprite.patternIndex); SV(_sprite.patternSlice); SV(_sprite.patternCount);
 	SV(_sprite.visibleLink); SV(_sprite.visibleCount); SV(_sprite.visibleStop);
