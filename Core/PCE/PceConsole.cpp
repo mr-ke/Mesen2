@@ -57,8 +57,23 @@ LoadRomResult PceConsole::LoadRom(VirtualFile& romFile)
 			return LoadRomResult::Failure;
 		}
 
+		//The .cue extension is shared with Sega/Mega CD. A Mega-CD disc carries
+		//a SEGA disc identifier ("SEGADISCSYSTEM"/"SEGADATADISC") at the start
+		//of its first data sector; PC Engine discs do not. Bail out with
+		//UnknownType *before* prompting for any PCE BIOS so the Genesis core
+		//gets to load it. Without this, the ISO9660 PVD signature at sector
+		//0x10 (present on every Sega CD data disc) makes LoadFirmware() think
+		//it is a Games Express card and pop a spurious 32KB PCE BIOS prompt.
+		if(disc.IsSegaCdDisc()) {
+			return LoadRomResult::UnknownType;
+		}
+
 		if(!LoadFirmware(disc, romData)) {
-			return LoadRomResult::Failure;
+			//The .cue parsed fine but no PCE CD BIOS was found — this is
+			//likely a disc for a different system (e.g. Sega CD). Return
+			//UnknownType so other consoles (Genesis) get a chance to load
+			//it, rather than hard-failing and blocking them.
+			return LoadRomResult::UnknownType;
 		}
 
 		_cdrom.reset(new PceCdRom(_emu, this, disc));

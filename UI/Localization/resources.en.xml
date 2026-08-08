@@ -2778,6 +2778,7 @@ E
 			<Value ID="Ymf288AdpcmRom">YFM288 ADPCM ROM (EPSM)</Value>
 			<Value ID="SmsBootRom">Master System - Boot ROM</Value>
 			<Value ID="GgBootRom">Game Gear - Boot ROM</Value>
+			<Value ID="MegaCd">Mega CD / Sega CD</Value>
 		</Enum>
 
 		<Enum ID="CpuType">

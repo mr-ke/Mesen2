@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Mesen.Interop;
@@ -73,6 +73,16 @@ public static class FirmwareTypeExtensions
 			case FirmwareType.WonderSwanColor: return new("bootrom.wsc") { new(0x2000, "F5A5C044D84CE1681F94E9EF74287CB989784497BE5BD5108DF17908DFA55DB2") };
 			case FirmwareType.SwanCrystal: return new("bootrom_sc.wsc") { new(0x2000, "82E96ADDF5AB1CE09A84B6EEDAA904E4CA432756851F7E0CC0649006C183834D") };
 			case FirmwareType.Ymf288AdpcmRom: return new("ymf288_adpcm_rom.bin") { new(0x2000, "53AFD0FA9C62EDA3E2BE939E23F3ADF48A2AF8AD37BB1640261726C5D5ADEBA8") };
+
+			//Mega CD / Sega CD BIOS — always 128KB (0x20000). Region-appropriate
+			//filenames; the prompt copies the user-selected file to Names[0]
+			//(bios_CD_U.bin), which GenesisMcd::LoadBios then finds via its
+			//any-region fallback. Hash covers the US Sega CD Model 2 BIOS
+			//(e.g. SCD_m2_us_211x.bin); other revisions trigger a non-fatal
+			//mismatch warning the user can accept.
+			case FirmwareType.MegaCd: return new("bios_CD_U.bin", "bios_CD_J.bin", "bios_CD_E.bin") {
+				new(0x20000, "4ACDA6CED2951F4FC34B42CC08C7510B8EDC1F716B17CE4F84920751A98B9204")
+			};
 		}
 
 		throw new Exception("Unsupported firmware type");

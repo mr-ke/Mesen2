@@ -283,7 +283,8 @@ namespace Mesen.Interop
 		SwanCrystal,
 		Ymf288AdpcmRom,
 		SmsBootRom,
-		GgBootRom
+		GgBootRom,
+		MegaCd
 	}
 
 	public struct MissingFirmwareMessage

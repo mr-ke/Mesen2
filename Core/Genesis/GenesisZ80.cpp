@@ -17,11 +17,6 @@
 #define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", ##__VA_ARGS__)
 #endif
 
-//Z80 instruction trace — logs a limited number of instructions to diagnose stuck loops
-static uint32_t s_z80TraceCount = 0;
-#define Z80_TRACE_LIMIT 5000
-#define Z80_TRACE_ENABLE
-
 // Genesis Z80 (APU) — native Mesen2 port.
 // Algorithm ported from ares/component/processor/z80, Genesis bus mapping from
 // ares/md/apu. NMOS mode only. Uses bus callbacks for memory access.

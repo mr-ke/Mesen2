@@ -34,7 +34,8 @@ enum class FirmwareType
 	SwanCrystal,
 	Ymf288AdpcmRom,
 	SmsBootRom,
-	GgBootRom
+	GgBootRom,
+	MegaCd
 };
 
 struct MissingFirmwareMessage

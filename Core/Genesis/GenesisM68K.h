@@ -21,6 +21,14 @@ public:
 	uint32_t ExecuteInstruction();   //run one instruction; returns cycles consumed
 	void Interrupt(uint32_t vector, uint32_t priority = 0);
 
+	//Reload the reset vector (SSP from $0, PC from $4) and refill the
+	//prefetch pipeline, without re-initialising registers or rebuilding the
+	//instruction table. Used by the Mega CD sub-CPU to service its reset IRQ
+	//(ares MCD::main() reset handler) — the BIOS writes the sub-CPU boot
+	//vector into PRAM *after* power-on, so the vector must be re-read when
+	//the reset IRQ fires, not just during Power().
+	void ReloadResetVector();
+
 	//Cycle accounting — BusIdle/BusWait call this to accumulate cycles.
 	void AddCycles(uint32_t cycles) { _cycleAccum += cycles; }
 

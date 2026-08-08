@@ -15,6 +15,8 @@ class GenesisM68K;
 class GenesisZ80;
 class GenesisVdp;
 class GenesisMemoryManager;
+class GenesisMcd;
+struct DiscInfo;
 
 class GenesisConsole final : public IConsole
 {
@@ -29,6 +31,15 @@ private:
 	unique_ptr<GenesisZ80> _z80;
 	unique_ptr<GenesisVdp> _vdp;
 	unique_ptr<GenesisMemoryManager> _memoryManager;
+
+	//Mega CD / Sega CD subsystem (created in LoadRom when a .cue is loaded).
+	//Owns the sub-CPU (second GenesisM68K), BIOS/PRAM/WRAM/BRAM memories,
+	//and the gate-array IO. nullptr for cartridge-only games.
+	unique_ptr<GenesisMcd> _mcd;
+	//CD disc info (CUE/bin). Owned by the console; the MCD holds a raw
+	//pointer to it. unique_ptr + forward decl keeps CdReader.h out of the
+	//header (the complete type is needed only in the .cpp).
+	unique_ptr<DiscInfo> _disc;
 
 	//ROM data (owned by the console, passed to memory manager)
 	vector<uint8_t> _romData;
@@ -79,9 +90,10 @@ private:
 	void UpdateRegion();
 	void ParseRomHeader(vector<uint8_t>& romData);
 	void InitCart(vector<uint8_t>& romData);
+	LoadRomResult LoadSegaCd(VirtualFile& romFile);
 
 public:
-	static vector<string> GetSupportedExtensions() { return { ".md", ".gen", ".smd", ".bin" }; }
+	static vector<string> GetSupportedExtensions() { return { ".md", ".gen", ".smd", ".bin", ".cue" }; }
 	static vector<string> GetSupportedSignatures() { return { }; }
 
 	GenesisConsole(Emulator* emu);
@@ -121,6 +133,8 @@ public:
 	GenesisM68K* GetM68K() { return _m68k.get(); }
 	GenesisZ80* GetZ80() { return _z80.get(); }
 	GenesisMemoryManager* GetMemoryManager() { return _memoryManager.get(); }
+	GenesisMcd* GetMcd() { return _mcd.get(); }
+	bool IsMegaCd() const { return _mcd != nullptr; }
 
 	void InitializeRam(void* data, uint32_t length);
 

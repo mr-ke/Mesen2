@@ -28,6 +28,11 @@ public class GenesisConfig : BaseConfig<GenesisConfig>
 	[Reactive][MinMax(0, 100)] public UInt32 PsgVolume { get; set; } = 100;
 	[Reactive][MinMax(0, 100)] public UInt32 Ym2612Volume { get; set; } = 100;
 
+	//Mega CD / Sega CD options (Phase A placeholders; wired into audio in Phase D)
+	[Reactive] public string? MegaCdBiosPath { get; set; } = null;
+	[Reactive][MinMax(0, 100)] public UInt32 PcmVolume { get; set; } = 100;
+	[Reactive][MinMax(0, 100)] public UInt32 CddaVolume { get; set; } = 100;
+
 	[Reactive] public OverscanConfig NtscOverscan { get; set; } = new() { Top = 0, Bottom = 0 };
 	[Reactive] public OverscanConfig PalOverscan { get; set; } = new() { Top = 0, Bottom = 0 };
 
@@ -49,6 +54,10 @@ public class GenesisConfig : BaseConfig<GenesisConfig>
 
 			PsgVolume = PsgVolume,
 			Ym2612Volume = Ym2612Volume,
+
+			MegaCdBiosPath = MegaCdBiosPath ?? "",
+			PcmVolume = PcmVolume,
+			CddaVolume = CddaVolume,
 
 			NtscOverscan = NtscOverscan.ToInterop(),
 			PalOverscan = PalOverscan.ToInterop(),
@@ -91,6 +100,12 @@ public struct InteropGenesisConfig
 
 	public UInt32 PsgVolume;
 	public UInt32 Ym2612Volume;
+
+	//Mega CD / Sega CD options — must match C++ GenesisConfig field order
+	//(char[512] marshaled as ByValTStr, same pattern as VideoConfig.ShaderPreset)
+	[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 512)] public string MegaCdBiosPath;
+	public UInt32 PcmVolume;
+	public UInt32 CddaVolume;
 
 	public InteropOverscanDimensions NtscOverscan;
 	public InteropOverscanDimensions PalOverscan;

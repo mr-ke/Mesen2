@@ -184,6 +184,7 @@ PGOHelper/PGOMesenHome
 *.profraw
 *.profdata
 
+build-windows-x64/*
 packages/*
 skills/*
 

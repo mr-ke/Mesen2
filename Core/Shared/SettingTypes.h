@@ -752,6 +752,16 @@ struct GenesisConfig
 	uint32_t PsgVolume = 100;
 	uint32_t Ym2612Volume = 100;
 
+	//Mega CD / Sega CD options
+	//MegaCdBiosPath: optional explicit override for the 128KB MCD BIOS.
+	//When empty, the region-appropriate BIOS is looked up in the firmware
+	//folder (bios_CD_U.bin / bios_CD_J.bin / bios_CD_E.bin).
+	//Fixed-size char array (not std::string) so the struct can be passed
+	//by value across the DLL boundary — matches the ShaderPreset[512] pattern.
+	char MegaCdBiosPath[512] = {};
+	uint32_t PcmVolume = 100;
+	uint32_t CddaVolume = 100;
+
 	OverscanDimensions NtscOverscan = {};
 	OverscanDimensions PalOverscan = {};
 };

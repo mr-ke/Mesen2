@@ -90,6 +90,7 @@ void VideoDecoder::UpdateVideoFilter()
 
 void VideoDecoder::DecodeFrame(bool forRewind)
 {
+
 	UpdateVideoFilter();
 
 	bool isAudioPlayer = _emu->GetAudioPlayer() != nullptr;
@@ -106,7 +107,7 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 	FrameInfo frameSize = _videoFilter->SendFrame((uint16_t*)_frame.FrameBuffer, _frame.FrameNumber, _frame.VideoPhase, _frame.Data);
 
 	uint32_t* outputBuffer = _videoFilter->GetOutputBuffer();
-	
+
 	OverscanDimensions overscan = _videoFilter->GetOverscan();
 
 	if(_rotateFilter && !isAudioPlayer) {
@@ -130,7 +131,7 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 	}
 	_lastAspectRatio = aspectRatio;
 	_lastFrameSize = frameSize;
-	
+
 	//Rewind manager will take care of sending the correct frame to the video renderer
 	_emu->GetRewindManager()->SendFrame(convertedFrame, forRewind);
 
@@ -174,8 +175,12 @@ void VideoDecoder::UpdateFrame(RenderedFrame frame, bool sync, bool forRewind)
 
 	if(_frameChanged) {
 		//Last frame isn't done decoding yet - sometimes Signal() introduces a 25-30ms delay
+		uint32_t spin = 0;
 		while(_frameChanged) {
 			//Spin until decode is done
+			if(++spin > 100000000) {
+				break;
+			}
 		}
 		//At this point, we are sure that the decode thread is no longer busy
 	}
@@ -203,7 +208,7 @@ void VideoDecoder::StartThread()
 		_frameChanged = false;
 		_frameCount = 0;
 		_waitForFrame.Reset();
-		
+
 		_emu->GetVideoRenderer()->ClearFrame();
 
 		_decodeThread.reset(new thread(&VideoDecoder::DecodeThread, this));

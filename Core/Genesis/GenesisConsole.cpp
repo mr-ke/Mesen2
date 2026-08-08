@@ -8,8 +8,11 @@
 #include "Genesis/GenesisVdp.h"
 #include "Genesis/GenesisMemoryManager.h"
 #include "Genesis/GenesisDefaultVideoFilter.h"
+#include "Genesis/Mcd/GenesisMcd.h"
+#include "Shared/CdReader.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
+#include "Shared/MessageManager.h"
 #include "Shared/BatteryManager.h"
 #include "Shared/Video/VideoDecoder.h"
 #include "Shared/RewindManager.h"
@@ -36,6 +39,12 @@ GenesisConsole::~GenesisConsole()
 
 LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
 {
+	//--- Mega CD / Sega CD path (.cue disc) ---
+	if(romFile.GetFileExtension() == ".cue") {
+		return LoadSegaCd(romFile);
+	}
+
+
 	vector<uint8_t> romData;
 	romFile.ReadFile(romData);
 
@@ -101,6 +110,81 @@ LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
 	_z80->Power();
 
 	UpdateRegion();
+
+	return LoadRomResult::Success;
+}
+
+LoadRomResult GenesisConsole::LoadSegaCd(VirtualFile& romFile)
+{
+	_filename = romFile.GetFileName();
+	_romFormat = RomFormat::SegaCd;
+
+	//No cartridge ROM header to parse for region detection — use filename
+	//tags (e.g. "(USA)", "(Japan)", "(Europe)") like the cart fallback.
+	_romRegion = "";
+
+	//Determine region before BIOS selection (LoadBios picks the region-
+	//appropriate 128KB BIOS file).
+	UpdateRegion();
+
+	//Parse the CUE sheet. CdReader handles .cue/.bin disc images (no CHD).
+	_disc = unique_ptr<DiscInfo>(new DiscInfo());
+	if(!CdReader::LoadCue(romFile, *_disc)) {
+		MessageManager::DisplayMessage("Error", "Failed to load Sega CD disc image.");
+		return LoadRomResult::Failure;
+	}
+
+	//Create all subsystems (same components as cart mode; the MCD is an
+	//add-on that owns a second M68000 and hooks into the cartridge bus).
+	_vdp = unique_ptr<GenesisVdp>(new GenesisVdp(_emu, this));
+	_m68k = unique_ptr<GenesisM68K>(new GenesisM68K());
+	_z80 = unique_ptr<GenesisZ80>(new GenesisZ80());
+	_m68k->SetEmulator(_emu);
+	_z80->SetEmulator(_emu);
+
+	//Create the Mega CD subsystem and load the region-appropriate BIOS.
+	_mcd = unique_ptr<GenesisMcd>(new GenesisMcd());
+	_mcd->SetEmulator(_emu);
+	_mcd->SetVdp(_vdp.get());
+	_mcd->SetRegion(_region);
+	if(!_mcd->LoadBios()) {
+		return LoadRomResult::Failure;
+	}
+	_mcd->SetDisc(_disc.get());
+
+	//Initialize memory manager with MCD pointer (enables external bus/IO
+	//routing for the main M68K).
+	_memoryManager = unique_ptr<GenesisMemoryManager>(new GenesisMemoryManager());
+	_memoryManager->Init(
+		_emu, this,
+		_m68k.get(), _z80.get(), _vdp.get(),
+		_psg.get(), _ym2612.get(),
+		_controlManager.get(),
+		nullptr, 0,                         //no cartridge ROM
+		nullptr, 0, 0, true, false,         //no SRAM
+		false, nullptr,                     //no SSF banking
+		false, nullptr, 0, 0, 1,            //no EEPROM
+		_mcd.get()
+	);
+
+	//Register MCD memories for debugger/cheat support.
+	_emu->RegisterMemory(MemoryType::GenesisMcdBios, (uint8_t*)_mcd->GetBiosData(), GenesisMcd::BiosSize);
+	_emu->RegisterMemory(MemoryType::GenesisMcdPram, (uint8_t*)_mcd->GetPramData(), GenesisMcd::PramSize);
+	_emu->RegisterMemory(MemoryType::GenesisMcdWram, (uint8_t*)_mcd->GetWramData(), GenesisMcd::WramSize);
+	_emu->RegisterMemory(MemoryType::GenesisMcdBram, _mcd->GetBramData(), GenesisMcd::BramSize);
+	_emu->RegisterMemory(MemoryType::GenesisMcdCdcRam, (uint8_t*)_mcd->GetCdcRamData(), GenesisMcd::CdcRamSize);
+	_emu->RegisterMemory(MemoryType::GenesisMcdPcmRam, _mcd->GetPcmRamData(), GenesisMcd::PcmRamSize);
+
+	//Wire M68K pointer to VDP
+	_vdp->SetM68K(_m68k.get());
+
+	//Power on all subsystems. The main M68K boots from the MCD BIOS at
+	//0x000000 (external bus). The sub-CPU is held in halt until the BIOS
+	//releases it via 0xA12000 (run=1).
+	_vdp->Power();
+	_m68k->Power();
+	_z80->Power();
+	_mcd->Power(false);
 
 	return LoadRomResult::Success;
 }
@@ -275,6 +359,7 @@ void GenesisConsole::Reset()
 	//contents). Matches ares standard.cpp::power(reset) which calls
 	//m24c.power() on both power-on and reset.
 	if(_useEeprom) _eeprom.power();
+	if(_mcd) _mcd->Power(true);  //soft reset (reset=true preserves vectorLevel4)
 	_frameCount = 0;
 	_masterClock = 0;
 	UpdateRegion();
@@ -382,6 +467,31 @@ void GenesisConsole::RunFrame()
 			cyclesRun += _vdp->ConsumeBusPenalty();
 		}
 
+		//Run the Mega CD sub-CPU for one scanline's worth of sub-CPU cycles.
+		//The sub-CPU has an independent 12.5 MHz crystal; per scanline it runs
+		//for the same wall-clock time as the main M68K, so:
+		//   subCycles = m68kCycles * (12.5MHz / (masterClock / 7)) ≈ m68kCycles * 1.63
+		//The sub-CPU and CD peripherals are interleaved at scanline quantum
+		//(ares uses per-cycle cooperative threads; this matches the existing
+		//cart core's scanline granularity). When halted (io.halt), the sub-CPU
+		//doesn't execute but peripherals still tick (ares MCD::main: wait(16)).
+		if(_mcd) {
+			double subRatio = 12500000.0 * 7.0 / (double)GetMasterClockRate();
+			uint32_t subTarget = (uint32_t)(m68kCyclesPerScanline * subRatio);
+			if(_mcd->IsHalted()) {
+				_mcd->Step(subTarget);
+			} else {
+				GenesisM68K* sub = _mcd->GetSubCpu();
+				uint32_t subRun = 0;
+				uint32_t guard = subTarget * 8 + 100;
+				while(subRun < subTarget && guard-- > 0) {
+					uint32_t cyc = sub->ExecuteInstruction();
+					subRun += cyc;
+					_mcd->Step(cyc);
+				}
+			}
+		}
+
 		//Run audio chips per-scanline for accurate sample timing
 		_psg->Run();
 		_ym2612->Run();
@@ -435,7 +545,12 @@ BaseControlManager* GenesisConsole::GetControlManager()
 vector<CpuType> GenesisConsole::GetCpuTypes()
 {
 	if(_m68k) {
-		return { CpuType::GenesisM68K, CpuType::GenesisZ80 };
+		//The MCD sub-CPU runs without debugger attribution in Phase A (it
+		//executes with _emu == nullptr inside GenesisMcd). A dedicated sub-CPU
+		//CpuType plus its debugger hooks (separate memory window, register
+		//state) are added together in Phase F.
+		vector<CpuType> types = { CpuType::GenesisM68K, CpuType::GenesisZ80 };
+		return types;
 	}
 	return {};
 }
@@ -669,4 +784,9 @@ void GenesisConsole::Serialize(Serializer& s)
 		SV(_eepromWsda);
 		SV(_eepromWscl);
 	}
+
+	//Mega CD sub-CPU + MCD gate-array state (BIOS is not serialized; it is
+	//reloaded from disk). The sub-CPU's own registers are serialized inside
+	//GenesisMcd::Serialize via SV(*_subM68k).
+	if(_mcd) SV(_mcd);
 }

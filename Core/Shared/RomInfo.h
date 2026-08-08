@@ -37,6 +37,7 @@ enum class RomFormat
 	ThreeDs,
 
 	Genesis,
+	SegaCd,
 };
 
 struct DipSwitchInfo

@@ -170,6 +170,31 @@ struct DiscInfo
 			out.insert(out.end(), DecodedSubCode.begin() + startPos, DecodedSubCode.begin() + endPos);
 		}
 	}
+
+	//Mega-CD / Sega CD discs carry a SEGA disc identifier at the very start of
+	//their first data track (LBA 0): "SEGADISCSYSTEM" (system disc) or
+	//"SEGADATADISC" (data disc). See "MEGA-CD Disc Format Specifications"
+	//(SEGA, Ver 2.00), Appendix 3 "Disc ID". PC Engine CD-ROM discs share the
+	//.cue extension but do NOT carry this identifier, so this lets the ROM
+	//loader route a .cue to the correct core instead of prompting for the
+	//wrong BIOS (e.g. the 32KB PCE Games Express card for a Sega CD game).
+	bool IsSegaCdDisc()
+	{
+		for(const TrackInfo& trk : Tracks) {
+			if(trk.Format == TrackFormat::Audio) continue;
+			vector<uint8_t> data;
+			ReadDataSector(trk.FirstSector, data);
+			if(data.size() >= 14) {
+				static const char kSegaSystem[14] = { 'S','E','G','A','D','I','S','C','S','Y','S','T','E','M' };
+				static const char kSegaData[12]   = { 'S','E','G','A','D','A','T','A','D','I','S','C' };
+				if(memcmp(data.data(), kSegaSystem, 14) == 0) return true;
+				if(memcmp(data.data(), kSegaData, 12) == 0) return true;
+			}
+			//Only the first data track can hold the disc identifier.
+			return false;
+		}
+		return false;
+	}
 };
 
 class CdReader

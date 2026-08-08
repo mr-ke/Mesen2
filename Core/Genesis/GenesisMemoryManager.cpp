@@ -8,6 +8,7 @@
 #include "Genesis/GenesisYm2612.h"
 #include "Genesis/GenesisControlManager.h"
 #include "Genesis/GenesisEeprom.h"
+#include "Genesis/Mcd/GenesisMcd.h"
 #include "Shared/Emulator.h"
 #include "Shared/BatteryManager.h"
 #include "Shared/EmuSettings.h"
@@ -39,7 +40,8 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	uint32_t sramStart, bool sramWritable, bool sramOddByte,
 	bool useSsfMapper, uint8_t* romBank,
 	bool useEeprom, GenesisEeprom* eeprom,
-	uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl)
+	uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl,
+		GenesisMcd* mcd)
 {
 	_emu = emu;
 	_console = console;
@@ -49,6 +51,8 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	_psg = psg;
 	_ym2612 = ym2612;
 	_controlManager = controlManager;
+	_mcd = mcd;
+	_mcdEnabled = (mcd != nullptr);
 
 	_rom = rom;
 	_romSize = romSize;
@@ -163,6 +167,15 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 {
 	address &= 0x00FFFFFE; //word-align
 
+	//Mega CD mode: the cartridge region routes to the MCD external bus
+	//(BIOS at 0x000000, PRAM bank at 0x020000, WRAM at 0x200000+). The MCD
+	//handles internal sub-dispatch and mirrors; unhandled sub-ranges return
+	//open bus. Mirrors ares bus/inline.hpp: !cartridge.bootable() =>
+	//mcd.readExternal().
+	if(_mcdEnabled && address < 0x400000) {
+		return _mcd->ReadExternal(upper, lower, address);
+	}
+
 	//0x000000-0x3FFFFF: Cartridge ROM
 	if(address < 0x400000) {
 		if(!_romEnable && _tmssEnable) {
@@ -209,7 +222,7 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 
 	//0xA10000-0xA1FFFF: I/O region
 	if(address >= 0xA10000 && address <= 0xA1FFFF) {
-		uint16_t result = ReadM68KIO(address, 0xFFFF);
+		uint16_t result = ReadM68KIO(upper, lower, address, 0xFFFF);
 		return result;
 	}
 
@@ -249,6 +262,12 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data)
 {
 	address &= 0x00FFFFFE;
+
+	//Mega CD mode: cartridge region routes to MCD external bus.
+	if(_mcdEnabled && address < 0x400000) {
+		_mcd->WriteExternal(upper, lower, address, data);
+		return;
+	}
 
 	//0x000000-0x3FFFFF: Cartridge area (SRAM/EEPROM writes)
 	if(address < 0x400000) {
@@ -322,7 +341,7 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 // M68K I/O region read (0xA10000-0xA1FFFF)
 // ============================================================================
 
-uint16_t GenesisMemoryManager::ReadM68KIO(uint32_t address, uint16_t openBus)
+uint16_t GenesisMemoryManager::ReadM68KIO(uint8_t upper, uint8_t lower, uint32_t address, uint16_t openBus)
 {
 	//0xA10000-0xA100FF: I/O ports (mirrored every 0x20)
 	//Ares behavior: for word reads, lower byte is copied to upper byte
@@ -337,7 +356,7 @@ uint16_t GenesisMemoryManager::ReadM68KIO(uint32_t address, uint16_t openBus)
 		case 0xA10000: {
 			//Version register
 			lo |= _io.version;        //bit 0: 0=Model1, 1=Model2+
-			lo |= 0x20;               //bit 5: 1=no MegaCD
+			lo |= _mcdEnabled ? 0x00 : 0x20;  //bit 5: 0=MegaCD present, 1=no MegaCD
 			lo |= (_console->GetRegion() == ConsoleRegion::Pal) ? 0x40 : 0x00;  //bit 6: 1=PAL
 			lo |= (_console->GetRegion() != ConsoleRegion::NtscJapan) ? 0x80 : 0x00; //bit 7: 1=export
 			break;
@@ -359,6 +378,14 @@ uint16_t GenesisMemoryManager::ReadM68KIO(uint32_t address, uint16_t openBus)
 		uint16_t data = openBus;
 		data = (data & 0xFEFF) | (_busreqAck ? 0x0000 : 0x0100); //bit 8: 0=Z80 has bus, 1=Z80 granted
 		return data;
+	}
+
+	//0xA12000+: Mega CD gate-array IO (comms, run/halt, vector, WRAM mode).
+	//The MCD handles 0xA12000-0xA1203F (with mirrors at 0xA12040-0xA120FF);
+	//other addresses return open bus unchanged. Mirrors ares bus/inline.hpp
+	//which calls mcd.readExternalIO() for the entire 0xA10000-0xBFFFFF range.
+	if(_mcdEnabled && address >= 0xA12000) {
+		return _mcd->ReadExternalIO(upper, lower, address);
 	}
 
 	return openBus;
@@ -461,11 +488,15 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 		}
 		return;
 	}
-}
 
-// ============================================================================
-// ROM access helpers
-// ============================================================================
+	//0xA12000+: Mega CD gate-array IO (comms, run/halt, vector, WRAM mode).
+	//Mirrors ares bus/inline.hpp which calls mcd.writeExternalIO() for the
+	//entire 0xA10000-0xBFFFFF range.
+	if(_mcdEnabled && address >= 0xA12000) {
+		_mcd->WriteExternalIO(upper, lower, address, data);
+		return;
+	}
+}
 
 uint32_t GenesisMemoryManager::TranslateRomAddress(uint32_t address) const
 {
@@ -779,6 +810,12 @@ uint16_t GenesisMemoryManager::DmaRead(uint32_t address)
 	//side effects like register access — just ROM/RAM reads)
 	address &= 0x00FFFFFE;
 
+	//Mega CD mode: route to MCD external bus (BIOS/PRAM/WRAM). The MCD's
+	//ReadExternal handles WRAM ownership + the VDP-DMA wramLatch delay.
+	if(_mcdEnabled && address < 0x400000) {
+		return _mcd->ReadExternal(1, 1, address);
+	}
+
 	//0x000000-0x3FFFFF: Cartridge ROM (with SSF2 bank translation applied
 	//inside ReadRomWord when _useSsfMapper is set).
 	if(address < 0x400000) {
@@ -812,7 +849,7 @@ uint16_t GenesisMemoryManager::DmaRead(uint32_t address)
 
 	//I/O region — some games do DMA from version register
 	if(address >= 0xA10000 && address <= 0xA1FFFF) {
-		return ReadM68KIO(address, 0xFFFF);
+		return ReadM68KIO(1, 1, address, 0xFFFF);
 	}
 
 	return 0xFFFF;
@@ -1142,6 +1179,7 @@ void GenesisMemoryManager::Serialize(Serializer& s)
 	SV(_vdpEnable[0]);
 	SV(_vdpEnable[1]);
 	SV(_io.version);
+	SV(_mcdEnabled);
 
 	SVArray(_m68kRam, M68KRamSize);
 	SVArray(_z80Ram, Z80RamSize);

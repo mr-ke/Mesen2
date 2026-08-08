@@ -63,6 +63,24 @@ void GenesisM68K::Power() {
 	Prefetch();
 }
 
+void GenesisM68K::ReloadResetVector() {
+	//Re-read SSP ($000000) and PC ($000004) from the bus, then refill the
+	//prefetch pipeline. Mirrors ares MCD::main() reset-IRQ handler, which
+	//re-reads the sub-CPU vector from PRAM after the BIOS has placed it.
+	//Only called from the Mega CD sub-CPU reset IRQ.
+
+	uint16_t v0 = BusRead(1, 1, 0);
+	uint16_t v2 = BusRead(1, 1, 2);
+	uint16_t v4 = BusRead(1, 1, 4);
+	uint16_t v6 = BusRead(1, 1, 6);
+	_r.a[7] = (uint32_t)v0 << 16 | (uint32_t)v2;
+	_r.pc   = (uint32_t)v4 << 16 | (uint32_t)v6;
+	_r.sp   = _r.a[7];
+	_r.stop = false;
+	Prefetch();
+	Prefetch();
+}
+
 bool GenesisM68K::Supervisor() {
 	if(_r.s) return true;
 	Exception(ExUnprivileged, VUnprivileged);

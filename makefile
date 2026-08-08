@@ -110,7 +110,7 @@ ifeq ($(MESENOS),osx)
 	LINKOPTIONS += -framework Foundation -framework Cocoa -framework GameController -framework CoreHaptics -Wl,-rpath,/opt/local/lib
 endif
 
-CXXFLAGS = -fPIC -Wall --std=c++17 $(MESENFLAGS) $(SDL2INC) -I $(realpath ./) -I $(realpath ./Core) -I $(realpath ./Utilities) -I $(realpath ./Sdl) -I $(realpath ./Linux) -I $(realpath ./MacOS)
+CXXFLAGS = -fPIC -Wall --std=c++17 $(MESENFLAGS) $(SDL2INC) -I $(realpath ./) -I $(realpath ./Core) -I $(realpath ./Core/Shared/Osd) -I $(realpath ./Core/Shared/Osd/imgui) -I $(realpath ./Utilities) -I $(realpath ./Sdl) -I $(realpath ./Linux) -I $(realpath ./MacOS)
 OBJCXXFLAGS = $(CXXFLAGS)
 CFLAGS = -fPIC -Wall $(MESENFLAGS)
 
@@ -135,13 +135,17 @@ else
 endif
 
 
-CORESRC := $(shell find Core -name '*.cpp')
+#This makefile only targets native Linux/macOS. Exclude the Windows-only
+#sources that CMake gates behind WIN32 (ImGui Win32/D3D11 backends and the
+#MinGW SDL input managers) — they #include <windows.h>/<d3d11.h> and would
+#otherwise break the native build. Mirrors CMakeLists.txt line 42.
+CORESRC := $(filter-out %/imgui_impl_win32.cpp %/imgui_impl_dx11.cpp,$(shell find Core -name '*.cpp'))
 COREOBJ := $(CORESRC:.cpp=.o)
 
 UTILSRC := $(shell find Utilities -name '*.cpp' -o -name '*.c')
 UTILOBJ := $(addsuffix .o,$(basename $(UTILSRC)))
 
-SDLSRC := $(shell find Sdl -name '*.cpp')
+SDLSRC := $(filter-out %/MinGWMouseManager.cpp %/MinGWKeyManager.cpp,$(shell find Sdl -name '*.cpp'))
 SDLOBJ := $(SDLSRC:.cpp=.o)
 
 SEVENZIPSRC := $(shell find SevenZip -name '*.c')

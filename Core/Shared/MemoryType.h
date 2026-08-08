@@ -112,6 +112,12 @@ enum class MemoryType
 	GenesisCartridgeRom,
 	GenesisCartridgeRam,
 	GenesisPort,
+	GenesisMcdBios,
+	GenesisMcdPram,
+	GenesisMcdWram,
+	GenesisMcdBram,
+	GenesisMcdCdcRam,
+	GenesisMcdPcmRam,
 
 	None
 };

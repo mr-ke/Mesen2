@@ -15,6 +15,7 @@ class GenesisPsg;
 class GenesisYm2612;
 class GenesisControlManager;
 class GenesisEeprom;
+class GenesisMcd;
 
 // Genesis Memory Manager — M68K + Z80 bus arbiter.
 //
@@ -42,7 +43,8 @@ public:
 		uint32_t sramStart, bool sramWritable, bool sramOddByte,
 		bool useSsfMapper, uint8_t* romBank,
 		bool useEeprom, GenesisEeprom* eeprom,
-		uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl);
+		uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl,
+		GenesisMcd* mcd = nullptr);
 
 	void Reset();
 
@@ -167,6 +169,14 @@ private:
 	bool _vdpEnable[2] = {true, true};  //TMSS VDP enable latch
 	bool _romEnable = true;     //TMSS ROM enable
 
+	//Mega CD / Sega CD. When _mcdEnabled is true, the main M68K cartridge
+	//region (0x000000-0x3FFFFF) routes to the MCD external bus (BIOS/PRAM/
+	//WRAM) instead of cartridge ROM, and 0xA12000-0xA1203F routes to the
+	//MCD external gate-array IO. Mirrors ares bus/inline.hpp where
+	//!cartridge.bootable() => mcd.readExternal/writeExternal.
+	GenesisMcd* _mcd = nullptr;
+	bool _mcdEnabled = false;
+
 	//M68K I/O register state
 	struct IO {
 		uint8_t version = 0;     //0=Model 1, 1=Model 2+
@@ -178,7 +188,7 @@ private:
 	void WriteSramWord(uint32_t address, uint16_t data, uint8_t upper, uint8_t lower);
 	uint16_t ReadEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
 	void WriteEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
-	uint16_t ReadM68KIO(uint32_t address, uint16_t openBus);
+	uint16_t ReadM68KIO(uint8_t upper, uint8_t lower, uint32_t address, uint16_t openBus);
 	void WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data);
 	//Apply SSF2 bank translation to a byte M68K ROM address.
 	//Returns the corresponding byte offset into the _rom array.
